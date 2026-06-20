@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}{{ stock.ticker }} — Minervini Screener{% endblock %}
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}</h2>
+  <p style="color:#94a3b8;">{{ stock.name }} · {{ stock.sector or '' }}</p>
+</div>
+
+{% if result %}
+<!-- 매매 신호 배너 -->
+{% set sig = result.signal or 'WATCH' %}
+{% set sc = signal_colors.get(sig, '#94a3b8') %}
+<div style="background:{{ sc }}14; border:1px solid {{ sc }}55; border-radius:10px; padding:18px 20px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+    <span style="font-size:1.3rem; font-weight:800; color:{{ sc }};">{{ signal_labels.get(sig, sig) }}</span>
+    {% if result.pivot_price %}
+      <span style="color:#94a3b8; font-size:0.9rem;">매수가(피벗) <strong style="color:#38bdf8;">${{ "%.2f"|format(result.pivot_price) }}</strong></span>
+      <span style="color:#94a3b8; font-size:0.9rem;">손절가 <strong style="color:#f87171;">${{ "%.2f"|format(result.stop_loss) }}</strong></span>
+    {% endif %}
+  </div>
+  <p style="color:#cbd5e1; font-size:0.88rem; margin-top:8px;">{{ result.signal_reason }}</p>
+</div>
+{% endif %}
+
+{% if result %}
+<!-- 주요 지표 카드 -->
+<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:32px;">
+  {% set cards = [
+    ("현재가", "$" ~ ("%.2f"|format(result.close)) if result.close else '-'),
+    ("50일 MA", "$" ~ ("%.2f"|format(result.ma50)) if result.ma50 else '-'),
+    ("150일 MA", "$" ~ ("%.2f"|format(result.ma150)) if result.ma150 else '-'),
+    ("200일 MA", "$" ~ ("%.2f"|format(result.ma200)) if result.ma200 else '-'),
+    ("52주 고가", "$" ~ ("%.2f"|format(result.week52_high)) if result.week52_high else '-'),
+    ("52주 저가", "$" ~ ("%.2f"|format(result.week52_low)) if result.week52_low else '-'),
+    ("RS 순위", ("%.0f"|format(result.rs_rank)) if result.rs_rank else '-'),
+  ] %}
+  {% for label, val in cards %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">{{ label }}</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ val }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 기술적 조건 체크리스트 -->
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">기술적 조건 (Stage 2)</h3>
+<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+  {% set conditions = [
+    ("현재가 > 150일 MA", result.cond_price_above_ma150),
+    ("현재가 > 200일 MA", result.cond_price_above_ma200),
+    ("150일 MA > 200일 MA", result.cond_ma150_above_ma200),
+    ("200일 MA 1개월 이상 상승 중", result.cond_ma200_uptrend),
+    ("현재가 > 50일 MA", result.cond_price_above_ma50),
+    ("현재가 ≥ 52주 저가 × 1.30", result.cond_above_52w_low_30pct),
+    ("현재가 ≥ 52주 고가 × 0.75", result.cond_within_52w_high_25pct),
+    ("RS 순위 상위 30% 이내", result.cond_rs_rank),
+  ] %}
+  {% for label, ok in conditions %}
+  <div style="display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid #0f172a;">
+    <span style="color:{% if ok %}#4ade80{% else %}#f87171{% endif %}; font-size:1rem;">
+      {% if ok %}✓{% else %}✗{% endif %}
+    </span>
+    <span style="font-size:0.9rem;">{{ label }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- 펀더멘털 -->
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">펀더멘털 조건</h3>
+<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+    <div>
+      <div style="color:#94a3b8; font-size:0.75rem;">분기 EPS 성장률</div>
+      <div style="font-size:1rem; font-weight:600; color:{% if result.latest_q_eps_growth and result.latest_q_eps_growth >= 25 %}#4ade80{% else %}#f87171{% endif %};">
+        {% if result.latest_q_eps_growth %}{{ "%.1f"|format(result.latest_q_eps_growth) }}%{% else %}데이터 없음{% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="color:#94a3b8; font-size:0.75rem;">분기 매출 성장률</div>
+      <div style="font-size:1rem; font-weight:600; color:{% if result.latest_q_rev_growth and result.latest_q_rev_growth >= 20 %}#4ade80{% else %}#f87171{% endif %};">
+        {% if result.latest_q_rev_growth %}{{ "%.1f"|format(result.latest_q_rev_growth) }}%{% else %}데이터 없음{% endif %}
+      </div>
+    </div>
+    <div>
+      <div style="color:#94a3b8; font-size:0.75rem;">연간 EPS 우상향</div>
+      <div style="font-size:1rem; font-weight:600; color:{% if result.annual_eps_uptrend %}#4ade80{% else %}#f87171{% endif %};">
+        {% if result.annual_eps_uptrend %}✓ 확인{% else %}✗ 미확인{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VCP -->
+{% if result.vcp_detected %}
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">VCP 패턴</h3>
+<div style="background:#14532d; border-radius:8px; padding:14px; margin-bottom:24px;">
+  <span style="color:#4ade80; font-weight:600;">✓ VCP 탐지됨</span>
+  <span style="color:#86efac; font-size:0.85rem; margin-left:8px;">조정 {{ result.vcp_contractions }}회 — 변동성 축소 확인</span>
+</div>
+{% endif %}
+
+{% else %}
+<p style="color:#475569;">스크리닝 데이터가 없습니다.</p>
+{% endif %}
+{% endblock %}

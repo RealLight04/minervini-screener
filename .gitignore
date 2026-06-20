@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# 환경변수 (비밀값)
+.env
+
+# 주의: screener.db 는 배포용 스냅샷이라 .gitignore 하지 않고 커밋에 포함함

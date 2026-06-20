@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}매매 신호 — Minervini Screener{% endblock %}
+
+{% macro signal_badge(sig) %}
+  <span class="badge" style="background:{{ signal_colors.get(sig, '#334155') }}22; color:{{ signal_colors.get(sig, '#94a3b8') }}; border:1px solid {{ signal_colors.get(sig, '#334155') }}55;">
+    {{ signal_labels.get(sig, sig) }}
+  </span>
+{% endmacro %}
+
+{% block content %}
+<div style="margin-bottom: 20px;">
+  <div style="display:flex; align-items:baseline; gap:12px;">
+    <h2 style="font-size:1.5rem; font-weight:700;">매매 신호</h2>
+    <span style="color:#94a3b8; font-size:0.9rem;">{{ screen_date }} 기준</span>
+  </div>
+  <p style="color:#94a3b8; font-size:0.9rem; margin-top:6px;">
+    Minervini Trend Template + 실적 모멘텀 + VCP 돌파 규칙 기반 ·
+    <span style="color:#4ade80;">매수 후보 {{ buy_count }}</span> /
+    <span style="color:#f97316;">매도 경고 {{ sell_count }}</span>
+  </p>
+</div>
+
+<!-- ───── 매수 후보 ───── -->
+<h3 style="font-size:1.05rem; font-weight:700; margin:24px 0 12px; color:#4ade80;">📈 매수 후보</h3>
+{% if buy_list %}
+<table>
+  <thead>
+    <tr>
+      <th>신호</th><th>티커</th><th>회사명</th><th>현재가</th>
+      <th>피벗(매수가)</th><th>손절가</th><th>RS</th><th>VCP</th><th>근거</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r, s in buy_list %}
+    <tr>
+      <td>{{ signal_badge(r.signal) }}</td>
+      <td><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
+      <td>{{ s.name or '-' }}</td>
+      <td>${{ "%.2f"|format(r.close) if r.close else '-' }}</td>
+      <td>{% if r.pivot_price %}<span style="color:#38bdf8;">${{ "%.2f"|format(r.pivot_price) }}</span>{% else %}-{% endif %}</td>
+      <td>{% if r.stop_loss %}<span style="color:#f87171;">${{ "%.2f"|format(r.stop_loss) }}</span>{% else %}-{% endif %}</td>
+      <td>{% if r.rs_rank %}<span class="badge {% if r.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}-{% endif %}</td>
+      <td>{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span style="color:#475569;">-</span>{% endif %}</td>
+      <td style="color:#94a3b8; font-size:0.8rem; max-width:280px;">{{ r.signal_reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#475569; padding:16px 0;">현재 매수 후보가 없습니다.</p>
+{% endif %}
+
+<!-- ───── 매도 경고 ───── -->
+<h3 style="font-size:1.05rem; font-weight:700; margin:32px 0 12px; color:#f97316;">📉 매도 경고 <span style="font-weight:400; font-size:0.8rem; color:#64748b;">(상승추세였으나 50일선 이탈)</span></h3>
+{% if sell_list %}
+<table>
+  <thead>
+    <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>50일 MA</th><th>RS</th><th>근거</th></tr>
+  </thead>
+  <tbody>
+    {% for r, s in sell_list %}
+    <tr>
+      <td>{{ signal_badge(r.signal) }}</td>
+      <td><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
+      <td>{{ s.name or '-' }}</td>
+      <td>${{ "%.2f"|format(r.close) if r.close else '-' }}</td>
+      <td>${{ "%.2f"|format(r.ma50) if r.ma50 else '-' }}</td>
+      <td>{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
+      <td style="color:#94a3b8; font-size:0.8rem; max-width:320px;">{{ r.signal_reason }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#475569; padding:16px 0;">현재 매도 경고 종목이 없습니다.</p>
+{% endif %}
+
+<p style="margin-top:32px; padding:12px 16px; background:#1e293b; border-radius:8px; color:#64748b; font-size:0.78rem; line-height:1.5;">
+  ⚠️ 본 서비스는 Mark Minervini의 공개된 추세/실적/VCP 규칙을 코드로 구현한 <strong>교육·참고용</strong> 도구입니다.
+  매수가·손절가는 규칙에 따른 기계적 계산값이며 투자 권유가 아닙니다. 모든 투자 판단과 책임은 본인에게 있습니다.
+</p>
+{% endblock %}

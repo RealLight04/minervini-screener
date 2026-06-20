@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: minervini-screener
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      # 무료 플랜은 디스크가 임시(재배포 시 초기화)라 스케줄러는 꺼둠.
+      # 데이터는 깃에 동봉한 screener.db 스냅샷을 사용. 갱신은 로컬/Cron에서 수행.
+      - key: ENABLE_SCHEDULER
+        value: "false"
+      # 동봉한 SQLite 스냅샷 사용. PostgreSQL 쓰려면 대시보드에서 DATABASE_URL 지정.
+      - key: DATABASE_URL
+        value: "sqlite:///./screener.db"
+      # 로컬 3.14 이슈 회피용으로 배포는 안정적인 3.12 고정 (기존 프로젝트와 동일)
+      - key: PYTHON_VERSION
+        value: "3.12.7"

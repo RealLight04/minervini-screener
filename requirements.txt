@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+jinja2
+sqlalchemy
+apscheduler
+python-dotenv
+pydantic-settings
+yfinance
+pandas
+numpy
+requests
+lxml
