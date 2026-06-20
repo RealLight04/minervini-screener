@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -56,5 +57,7 @@ async def _scheduled_screen():
 
 
 app = FastAPI(title="Minervini Stock Screener", lifespan=lifespan)
+# static 디렉토리가 비어 git에 안 올라가므로(배포 환경엔 없음) 마운트 전 보장
+os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(router)
