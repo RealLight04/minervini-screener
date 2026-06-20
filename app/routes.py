@@ -116,7 +116,8 @@ def trigger_screen(db: Session = Depends(get_db)):
 
 @router.get("/api/stats")
 def stats(db: Session = Depends(get_db)):
-    screen_date = date.today()
+    # 인덱스와 동일하게 '데이터가 있는 최신 스크리닝일' 기준 (배포 스냅샷이 과거일 수 있음)
+    screen_date = _latest_screen_date(db) or date.today()
     total = db.query(ScreeningResult).filter(ScreeningResult.screen_date == screen_date).count()
     tech_pass = db.query(ScreeningResult).filter(
         ScreeningResult.screen_date == screen_date, ScreeningResult.technical_pass == True
