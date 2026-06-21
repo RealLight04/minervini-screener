@@ -8,7 +8,11 @@
 ## 0. 한 줄 요약
 
 마크 미너비니 SEPA(Trend Template + 실적 + VCP) 방법론으로 S&P 500을 스크리닝하는
-FastAPI 웹앱. **코드·DB·로컬검증 완료**. 남은 일은 **GitHub 푸시 → Render 배포**.
+FastAPI 웹앱. **✅ 배포 완료 (2026-06-21).**
+
+- **라이브: https://minervini-screener-1gvr.onrender.com** (Render Free, 동작 검증 완료)
+- GitHub: https://github.com/RealLight04/minervini-screener (public)
+- ⚠️ `minervini-screener.onrender.com`(접미사 없는 주소)는 **타인의 인도 NSE 앱**이 선점 → 우리 건 `-1gvr` 접미사.
 
 ---
 
