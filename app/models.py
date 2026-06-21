@@ -93,6 +93,12 @@ class ScreeningResult(Base):
     # VCP 탐지
     vcp_detected = Column(Boolean, default=False)
     vcp_contractions = Column(Integer)  # 조정 횟수
+    vcp_volume_dryup = Column(Boolean, default=False)  # 베이스 우측 거래량 축소(dry-up)
+
+    # 거래량 / 유동성
+    avg_volume = Column(Float)        # 50일 평균 거래량
+    vol_vs_avg = Column(Float)        # 최근 거래량 / 50일 평균 (1.0 = 평균)
+    liquidity_pass = Column(Boolean, default=True)  # 최소 주가·거래량 충족
 
     # 최종 결과
     final_pass = Column(Boolean, default=False)

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Fundamental, ScreeningResult, Stock
-from app.screener import SIGNAL_LABELS, build_trade_plan
+from app.screener import SIGNAL_LABELS, build_trade_plan, compute_market_breadth
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -57,6 +57,9 @@ def index(request: Request, db: Session = Depends(get_db)):
     sell_all = _by_signals(["SELL"])
     sell_list = sell_all[:30]
 
+    # 시장 국면(breadth) — 개별 종목보다 먼저 봐야 할 신호등
+    market = compute_market_breadth(db, screen_date)
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -66,6 +69,7 @@ def index(request: Request, db: Session = Depends(get_db)):
             "screen_date": screen_date,
             "buy_count": len(buy_list),
             "sell_count": len(sell_all),
+            "market": market,
         },
     )
 

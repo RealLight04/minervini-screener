@@ -20,6 +20,23 @@
   </p>
 </div>
 
+<!-- ───── 시장 국면 신호등 ───── -->
+{% if market and market.available %}
+<div style="background:{{ market.color }}14; border:1px solid {{ market.color }}55; border-radius:12px; padding:16px 20px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <span style="width:12px; height:12px; border-radius:50%; background:{{ market.color }}; box-shadow:0 0 8px {{ market.color }};"></span>
+    <span style="font-size:1.05rem; font-weight:800; color:{{ market.color }};">시장 국면 · {{ market.label }}</span>
+  </div>
+  <p style="color:#cbd5e1; font-size:0.86rem; margin-top:8px;">{{ market.advice }}</p>
+  <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:12px; font-size:0.82rem;">
+    <span style="color:#94a3b8;">200일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_200 }}%</strong></span>
+    <span style="color:#94a3b8;">50일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_50 }}%</strong></span>
+    <span style="color:#94a3b8;">Stage 2(추세통과) <strong style="color:#e2e8f0;">{{ market.pct_stage2 }}%</strong></span>
+    <span style="color:#64748b;">· S&P 500 {{ market.total }}종목 기준</span>
+  </div>
+</div>
+{% endif %}
+
 <!-- ───── 매수 후보 ───── -->
 <h3 style="font-size:1.05rem; font-weight:700; margin:24px 0 12px; color:#4ade80;">📈 매수 후보</h3>
 {% if buy_list %}

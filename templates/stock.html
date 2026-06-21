@@ -99,6 +99,7 @@
     ("52주 고가", "$" ~ ("%.2f"|format(result.week52_high)) if result.week52_high else '-'),
     ("52주 저가", "$" ~ ("%.2f"|format(result.week52_low)) if result.week52_low else '-'),
     ("RS 순위", ("%.0f"|format(result.rs_rank)) if result.rs_rank else '-'),
+    ("거래량(50일평균比)", (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-'),
   ] %}
   {% for label, val in cards %}
   <div style="background:#1e293b; border-radius:8px; padding:14px;">
@@ -190,13 +191,36 @@
 </div>
 {% endif %}
 
-<!-- VCP -->
-{% if result.vcp_detected %}
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">VCP 패턴</h3>
-<div style="background:#14532d; border-radius:8px; padding:14px; margin-bottom:24px;">
-  <span style="color:#4ade80; font-weight:600;">✓ VCP 탐지됨</span>
-  <span style="color:#86efac; font-size:0.85rem; margin-left:8px;">조정 {{ result.vcp_contractions }}회 — 변동성 축소 확인</span>
+<!-- VCP + 거래량 분석 -->
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">VCP · 거래량 분석</h3>
+<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+  <!-- VCP -->
+  <div style="display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid #0f172a;">
+    <span style="color:{% if result.vcp_detected %}#4ade80{% else %}#64748b{% endif %}; font-weight:600;">
+      {% if result.vcp_detected %}✓ VCP 탐지됨{% else %}— VCP 미형성{% endif %}
+    </span>
+    {% if result.vcp_contractions %}<span style="color:#94a3b8; font-size:0.85rem;">조정 {{ result.vcp_contractions }}회 (변동성 축소)</span>{% endif %}
+  </div>
+  <!-- 거래량 마름(dry-up) -->
+  <div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #0f172a;">
+    <span style="color:{% if result.vcp_volume_dryup %}#4ade80{% else %}#94a3b8{% endif %};">
+      {% if result.vcp_volume_dryup %}✓{% else %}○{% endif %}
+    </span>
+    <span style="font-size:0.9rem;">베이스 거래량 마름(dry-up)</span>
+    <span style="color:#64748b; font-size:0.8rem;">{% if result.vcp_volume_dryup %}매도세 고갈 — 건강한 수축{% else %}뚜렷한 축소 없음{% endif %}</span>
+  </div>
+  <!-- 현재 거래량 -->
+  <div style="display:flex; align-items:center; gap:10px; padding-top:10px;">
+    <span style="font-size:0.9rem; color:#94a3b8;">최근 거래량(50일 평균 대비)</span>
+    {% if result.vol_vs_avg %}
+    <span style="font-weight:600; color:{% if result.vol_vs_avg >= 1.4 %}#4ade80{% elif result.vol_vs_avg >= 1.0 %}#fbbf24{% else %}#94a3b8{% endif %};">{{ "%.1f"|format(result.vol_vs_avg) }}x</span>
+    <span style="color:#64748b; font-size:0.8rem;">{% if result.vol_vs_avg >= 1.4 %}돌파 거래량(40%+↑) — 신뢰도 높음{% elif result.vol_vs_avg < 0.85 %}조용한 거래 — 눌림/관망{% else %}보통{% endif %}</span>
+    {% else %}<span style="color:#64748b;">-</span>{% endif %}
+  </div>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:12px;">미너비니: 돌파는 <strong>거래량 급증(평균 +40% 이상)</strong>을 동반해야 신뢰도가 높고, 베이스(수축 구간)에선 <strong>거래량이 말라야</strong> 합니다.</p>
 </div>
+{% if result.avg_volume %}
+<div style="color:#475569; font-size:0.78rem; margin-bottom:24px;">유동성: 50일 평균 거래량 {{ "{:,}".format(result.avg_volume|int) }}주 · {% if result.liquidity_pass %}<span style="color:#4ade80;">최소 유동성 충족</span>{% else %}<span style="color:#f87171;">유동성 미달(매수 제외)</span>{% endif %}</div>
 {% endif %}
 
 {% else %}

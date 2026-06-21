@@ -39,6 +39,21 @@ def _get_price_series(db: Session, stock_id: int, days: int = 260) -> pd.Series:
     return pd.Series(list(vals), index=list(idx))
 
 
+def _get_volume_series(db: Session, stock_id: int, days: int = 120) -> pd.Series:
+    """DB에서 거래량 시계열 가져오기 (날짜 오름차순)"""
+    cutoff = date.today() - timedelta(days=days)
+    rows = (
+        db.query(DailyPrice.date, DailyPrice.volume)
+        .filter(DailyPrice.stock_id == stock_id, DailyPrice.date >= cutoff)
+        .order_by(DailyPrice.date)
+        .all()
+    )
+    if not rows:
+        return pd.Series(dtype=float)
+    idx, vals = zip(*rows)
+    return pd.Series([float(v) if v is not None else 0.0 for v in vals], index=list(idx))
+
+
 def _calc_rs_scores(db: Session, screen_date: date) -> dict[int, float]:
     """
     RS(상대강도) 계산: 52주 수익률 기준 전 종목 대비 백분위 (0~100, 높을수록 강함)
@@ -153,7 +168,22 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     result.vcp_contractions = vcp_result["contractions"]
     pivot = vcp_result.get("pivot")
 
-    result.final_pass = result.technical_pass and result.fundamental_pass
+    # ─── 거래량 / 유동성 분석 ───
+    vol_series = _get_volume_series(db, stock.id, days=120)
+    if len(vol_series) >= 50:
+        avg_vol_50 = float(vol_series.tail(50).mean())
+        recent_vol = float(vol_series.iloc[-1])
+        recent_10_avg = float(vol_series.tail(10).mean())
+        result.avg_volume = round(avg_vol_50, 0)
+        result.vol_vs_avg = round(recent_vol / avg_vol_50, 2) if avg_vol_50 else None
+        # VCP 거래량 마름: 최근 10일 평균이 50일 평균의 85% 미만 = 매도세 고갈
+        result.vcp_volume_dryup = bool(avg_vol_50 and recent_10_avg < avg_vol_50 * 0.85)
+        # 유동성: 최소 주가 & 최소 평균 거래량 충족 (페니/저유동 제외)
+        result.liquidity_pass = bool(close >= settings.MIN_PRICE and avg_vol_50 >= settings.MIN_VOLUME)
+    else:
+        result.liquidity_pass = True  # 거래량 데이터 부족 시 배제하지 않음
+
+    result.final_pass = result.technical_pass and result.fundamental_pass and result.liquidity_pass
 
     # ─── 매수/매도 의견 산출 ───
     signal, reason = compute_signal(result, pivot)
@@ -419,6 +449,51 @@ def build_trade_plan(result: ScreeningResult) -> dict | None:
         "sizing": sizing,
         "steps": steps,
         "sell_rules": sell_rules,
+    }
+
+
+def compute_market_breadth(db: Session, screen_date: date) -> dict:
+    """
+    전체 종목 스크리닝 결과로 시장 국면(breadth) 판정.
+    Minervini: 개별 종목의 약 3/4는 시장 전체를 따라간다 → 시장이 건강할 때만 적극 매수.
+    """
+    rows = (
+        db.query(
+            ScreeningResult.cond_price_above_ma200,
+            ScreeningResult.cond_price_above_ma50,
+            ScreeningResult.technical_pass,
+        )
+        .filter(ScreeningResult.screen_date == screen_date)
+        .all()
+    )
+    total = len(rows)
+    if total == 0:
+        return {"available": False}
+
+    pct_200 = sum(1 for r in rows if r[0]) / total * 100
+    pct_50 = sum(1 for r in rows if r[1]) / total * 100
+    pct_stage2 = sum(1 for r in rows if r[2]) / total * 100
+
+    if pct_200 >= 60 and pct_50 >= 50:
+        regime, label, color = "BULL", "강세장 — 적극 매수 가능", "#22c55e"
+        advice = "시장 추세가 건강합니다. 매수 신호를 활용하되 손절·사이징 규칙은 지키세요."
+    elif pct_200 < 40:
+        regime, label, color = "BEAR", "약세장 — 신규 매수 자제", "#ef4444"
+        advice = "약세장에선 대부분 종목이 하락합니다(Minervini). 현금 비중을 높이고 신규 진입을 줄이세요."
+    else:
+        regime, label, color = "NEUTRAL", "중립 — 선별적 접근", "#f59e0b"
+        advice = "혼조 구간입니다. 가장 강한 소수 종목만 작은 비중으로 시험 매수하세요."
+
+    return {
+        "available": True,
+        "regime": regime,
+        "label": label,
+        "color": color,
+        "advice": advice,
+        "pct_above_200": round(pct_200),
+        "pct_above_50": round(pct_50),
+        "pct_stage2": round(pct_stage2),
+        "total": total,
     }
 
 
