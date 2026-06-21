@@ -10,4 +10,6 @@ pandas
 numpy
 requests
 lxml
-finance-datareader
+# finance-datareader 는 한국 종목 수집(scripts/collect_kr.py)에만 필요.
+# 서버 구동엔 불필요(data_fetcher에서 lazy import)하므로 Render 빌드 경량화 위해 제외.
+# 로컬 수집 시: pip install finance-datareader
