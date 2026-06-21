@@ -22,6 +22,72 @@
 </div>
 {% endif %}
 
+{% if trade_plan %}
+{% set tp = trade_plan %}
+<!-- 매수 접근법 (Minervini 플레이북) -->
+<div style="background:#0b2942; border:1px solid #1d4ed855; border-radius:12px; padding:20px; margin-bottom:24px;">
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+    <span style="font-size:1.05rem;">🎯</span>
+    <h3 style="font-size:1.05rem; font-weight:700; color:#38bdf8;">매수 접근법</h3>
+  </div>
+  <p style="color:#e2e8f0; font-weight:600; margin-bottom:16px;">{{ tp.headline }}</p>
+
+  <!-- 핵심 숫자 -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:18px;">
+    <div style="background:#0f172a; border-radius:8px; padding:12px;">
+      <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">{% if tp.mode == 'wait_pivot' %}돌파 매수가{% elif tp.mode == 'pullback' %}목표 진입(눌림){% else %}진입가{% endif %}</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#38bdf8;">${{ "%.2f"|format(tp.entry) }}</div>
+    </div>
+    <div style="background:#0f172a; border-radius:8px; padding:12px;">
+      <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">손절가</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#f87171;">${{ "%.2f"|format(tp.stop) }}{% if tp.risk_pct %} <span style="font-size:0.75rem;">(-{{ tp.risk_pct }}%)</span>{% endif %}</div>
+    </div>
+    {% if tp.target %}
+    <div style="background:#0f172a; border-radius:8px; padding:12px;">
+      <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">1차 익절 목표</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#4ade80;">${{ "%.2f"|format(tp.target) }} <span style="font-size:0.75rem;">(+{{ tp.reward_pct }}%)</span></div>
+    </div>
+    {% endif %}
+    <div style="background:#0f172a; border-radius:8px; padding:12px;">
+      <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">손익비</div>
+      <div style="font-size:1.05rem; font-weight:700;">≈ 1 : {{ "%.1f"|format(2.5) }}</div>
+    </div>
+  </div>
+
+  <!-- 진입 절차 -->
+  <div style="margin-bottom:16px;">
+    <div style="color:#94a3b8; font-size:0.8rem; font-weight:600; margin-bottom:8px;">진입 절차</div>
+    <ol style="margin:0; padding-left:20px; color:#cbd5e1; font-size:0.88rem; line-height:1.75;">
+      {% for s in tp.steps %}<li>{{ s }}</li>{% endfor %}
+    </ol>
+  </div>
+
+  <!-- 포지션 사이징 -->
+  {% if tp.sizing %}
+  {% set sz = tp.sizing %}
+  <div style="background:#0f172a; border-radius:8px; padding:14px; margin-bottom:16px;">
+    <div style="color:#94a3b8; font-size:0.8rem; font-weight:600; margin-bottom:6px;">포지션 크기 (예시: ${{ "{:,}".format(sz.account) }} 계좌)</div>
+    <p style="color:#cbd5e1; font-size:0.86rem; line-height:1.75; margin:0;">
+      한 종목에 잃을 돈을 계좌의 <strong>{{ sz.account_risk_pct }}% (${{ sz.max_loss_dollar }})</strong>로 제한하면,
+      손절폭이 {{ tp.risk_pct }}%이므로 매수 비중은 약 <strong style="color:#38bdf8;">{{ sz.weight_pct }}%</strong>
+      (≈ ${{ "{:,}".format(sz.position_dollar) }}, 약 {{ sz.shares }}주).
+      {% if sz.capped %}<br><span style="color:#fbbf24;">※ 손절폭이 작아 비중이 단일 종목 상한({{ sz.weight_pct }}%)으로 제한됨.</span>{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+  <!-- 매도/관리 규칙 -->
+  <div>
+    <div style="color:#94a3b8; font-size:0.8rem; font-weight:600; margin-bottom:8px;">익절 · 매도 규칙</div>
+    <ul style="margin:0; padding-left:20px; color:#cbd5e1; font-size:0.88rem; line-height:1.75;">
+      {% for r in tp.sell_rules %}<li>{{ r }}</li>{% endfor %}
+    </ul>
+  </div>
+
+  <p style="color:#64748b; font-size:0.74rem; margin-top:14px;">※ 교육용 예시. 계좌·리스크 비율은 본인 상황에 맞게 조정하세요. 투자 권유가 아닙니다.</p>
+</div>
+{% endif %}
+
 {% if result %}
 <!-- 주요 지표 카드 -->
 <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:32px;">
@@ -65,30 +131,64 @@
   {% endfor %}
 </div>
 
-<!-- 펀더멘털 -->
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">펀더멘털 조건</h3>
+<!-- 펀더멘털: 분기 실적 추이 -->
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">
+  실적 추이 (분기 · 전년 동기 대비)
+  {% if eps_accelerating %}<span style="background:#14532d; color:#4ade80; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:8px;">⚡ EPS 성장 가속</span>{% endif %}
+</h3>
+<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px; overflow-x:auto;">
+  {% if q_funds %}
+  <table style="width:100%; border-collapse:collapse; font-size:0.86rem;">
+    <thead>
+      <tr style="color:#94a3b8; text-align:right;">
+        <th style="text-align:left; padding:6px 8px; font-weight:500;">분기(기준월)</th>
+        <th style="padding:6px 8px; font-weight:500;">EPS</th>
+        <th style="padding:6px 8px; font-weight:500;">EPS 성장(YoY)</th>
+        <th style="padding:6px 8px; font-weight:500;">매출 성장(YoY)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for f in q_funds %}
+      <tr style="border-top:1px solid #0f172a; text-align:right;">
+        <td style="text-align:left; padding:8px;">{{ f.period_date.strftime('%Y-%m') if f.period_date else '-' }}</td>
+        <td style="padding:8px;">{% if f.eps is not none %}{{ "%.2f"|format(f.eps) }}{% else %}-{% endif %}</td>
+        <td style="padding:8px; font-weight:600; color:{% if f.eps_growth_yoy is not none and f.eps_growth_yoy >= 25 %}#4ade80{% elif f.eps_growth_yoy is not none and f.eps_growth_yoy >= 0 %}#fbbf24{% else %}#f87171{% endif %};">
+          {% if f.eps_growth_yoy is not none %}{{ "%+.1f"|format(f.eps_growth_yoy) }}%{% else %}-{% endif %}
+        </td>
+        <td style="padding:8px; color:{% if f.revenue_growth_yoy is not none and f.revenue_growth_yoy >= 20 %}#4ade80{% elif f.revenue_growth_yoy is not none and f.revenue_growth_yoy >= 0 %}#fbbf24{% else %}#f87171{% endif %};">
+          {% if f.revenue_growth_yoy is not none %}{{ "%+.1f"|format(f.revenue_growth_yoy) }}%{% else %}-{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">통과 기준: 분기 EPS 성장 ≥ 25%, 매출 성장 ≥ 20% (초록). 미너비니는 <strong>분기마다 성장률이 커지는 '가속'</strong>을 특히 선호합니다.</p>
+  {% else %}
+  <p style="color:#64748b; font-size:0.86rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털 필터는 기술적 조건만으로 통과 처리됩니다(참고용).</p>
+  {% endif %}
+</div>
+
+<!-- 연간 EPS 추이 -->
+{% if y_funds %}
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">연간 EPS 추이</h3>
 <div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
-  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
-    <div>
-      <div style="color:#94a3b8; font-size:0.75rem;">분기 EPS 성장률</div>
-      <div style="font-size:1rem; font-weight:600; color:{% if result.latest_q_eps_growth and result.latest_q_eps_growth >= 25 %}#4ade80{% else %}#f87171{% endif %};">
-        {% if result.latest_q_eps_growth %}{{ "%.1f"|format(result.latest_q_eps_growth) }}%{% else %}데이터 없음{% endif %}
-      </div>
+  <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+    {% for f in y_funds %}
+    <div style="text-align:center;">
+      <div style="color:#94a3b8; font-size:0.74rem; margin-bottom:4px;">{{ f.period_date.year if f.period_date else '-' }}</div>
+      <div style="font-size:1.05rem; font-weight:700;">{% if f.eps is not none %}{{ "%.2f"|format(f.eps) }}{% else %}-{% endif %}</div>
+      {% if f.eps_growth_yoy is not none %}<div style="font-size:0.72rem; color:{% if f.eps_growth_yoy >= 0 %}#4ade80{% else %}#f87171{% endif %};">{{ "%+.1f"|format(f.eps_growth_yoy) }}%</div>{% endif %}
     </div>
-    <div>
-      <div style="color:#94a3b8; font-size:0.75rem;">분기 매출 성장률</div>
-      <div style="font-size:1rem; font-weight:600; color:{% if result.latest_q_rev_growth and result.latest_q_rev_growth >= 20 %}#4ade80{% else %}#f87171{% endif %};">
-        {% if result.latest_q_rev_growth %}{{ "%.1f"|format(result.latest_q_rev_growth) }}%{% else %}데이터 없음{% endif %}
-      </div>
-    </div>
-    <div>
-      <div style="color:#94a3b8; font-size:0.75rem;">연간 EPS 우상향</div>
-      <div style="font-size:1rem; font-weight:600; color:{% if result.annual_eps_uptrend %}#4ade80{% else %}#f87171{% endif %};">
-        {% if result.annual_eps_uptrend %}✓ 확인{% else %}✗ 미확인{% endif %}
-      </div>
+    {% if not loop.last %}<div style="color:#475569; font-size:1.2rem;">→</div>{% endif %}
+    {% endfor %}
+    <div style="margin-left:auto;">
+      <span style="font-size:0.82rem; color:{% if result.annual_eps_uptrend %}#4ade80{% else %}#f87171{% endif %};">
+        {% if result.annual_eps_uptrend %}✓ 연간 EPS 우상향{% else %}✗ 연간 EPS 우상향 아님{% endif %}
+      </span>
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- VCP -->
 {% if result.vcp_detected %}

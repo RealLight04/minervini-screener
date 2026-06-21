@@ -5,8 +5,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import ScreeningResult, Stock
-from app.screener import SIGNAL_LABELS
+from app.models import Fundamental, ScreeningResult, Stock
+from app.screener import SIGNAL_LABELS, build_trade_plan
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -99,10 +99,42 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
+    # 최근 분기/연간 실적 (오래된→최신 순으로 정렬해 추이 표시)
+    q_funds = (
+        db.query(Fundamental)
+        .filter(Fundamental.stock_id == stock.id, Fundamental.period_type == "Q")
+        .order_by(Fundamental.period_date.desc())
+        .limit(4)
+        .all()
+    )[::-1]
+    y_funds = (
+        db.query(Fundamental)
+        .filter(Fundamental.stock_id == stock.id, Fundamental.period_type == "Y")
+        .order_by(Fundamental.period_date.desc())
+        .limit(3)
+        .all()
+    )[::-1]
+
+    # 분기 EPS 성장률 가속 여부 (최근 분기로 갈수록 YoY 성장률이 커지는가)
+    q_growths = [f.eps_growth_yoy for f in q_funds[-3:] if f.eps_growth_yoy is not None]
+    eps_accelerating = len(q_growths) >= 2 and all(
+        q_growths[i] < q_growths[i + 1] for i in range(len(q_growths) - 1)
+    )
+
+    trade_plan = build_trade_plan(latest_result) if latest_result else None
+
     return templates.TemplateResponse(
         request,
         "stock.html",
-        context={"stock": stock, "result": latest_result, "history": history},
+        context={
+            "stock": stock,
+            "result": latest_result,
+            "history": history,
+            "q_funds": q_funds,
+            "y_funds": y_funds,
+            "eps_accelerating": eps_accelerating,
+            "trade_plan": trade_plan,
+        },
     )
 
 

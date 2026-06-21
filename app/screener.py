@@ -316,6 +316,112 @@ def compute_signal(result: ScreeningResult, pivot: float | None) -> tuple[str, s
     return "WATCH", "Stage 2 일부 조건 미충족 — 추세 형성 대기"
 
 
+# 포지션 사이징 가정값 (예시용)
+_EXAMPLE_ACCOUNT = 10_000      # 예시 계좌 규모 ($)
+_ACCOUNT_RISK_PCT = 1.25       # 한 종목에 거는 계좌 리스크 (Minervini는 보통 1.25~2.5%)
+_MAX_WEIGHT_PCT = 25.0         # 단일 종목 최대 비중 상한
+_PROFIT_R_MULTIPLE = 2.5       # 1차 익절 목표 = 리스크의 2.5배 (손익비)
+
+
+def build_trade_plan(result: ScreeningResult) -> dict | None:
+    """
+    매수 의견(STRONG_BUY/BUY)일 때 Minervini식 진입·손절·분할·매도 플레이북 생성.
+    매수 신호가 아니면 None.
+    """
+    if result.signal not in ("STRONG_BUY", "BUY"):
+        return None
+
+    close = result.close or 0.0
+    pivot = result.pivot_price
+    ma50 = result.ma50
+    stop = result.stop_loss
+
+    # ─── 상황(모드) 판별 ───
+    if result.signal == "STRONG_BUY" and pivot:
+        mode = "breakout_now"
+        headline = "지금이 매수 구간 — 피벗을 갓 돌파했습니다"
+        entry = close                       # 피벗 막 돌파 → 현재가 부근 진입
+    elif pivot and close < pivot:
+        mode = "wait_pivot"
+        headline = f"매수 대기 — 피벗 ${pivot:.2f} 돌파를 확인하고 진입"
+        entry = pivot                       # 아직 피벗 아래 → 돌파 시 진입
+    else:
+        mode = "pullback"
+        headline = "추격 금지 — 50일선 눌림목을 기다려 진입"
+        entry = ma50                        # 연장 구간 → 눌림목(50일선) 대기
+        if ma50:
+            stop = round(ma50 * 0.92, 2)    # 50일선 -8%
+
+    risk_pct = None
+    if entry and stop and entry > stop:
+        risk_pct = round((entry - stop) / entry * 100, 1)
+
+    target = round(entry * (1 + (risk_pct / 100) * _PROFIT_R_MULTIPLE), 2) if (entry and risk_pct) else None
+    gap_to_pivot = round((pivot / close - 1) * 100, 1) if (mode == "wait_pivot" and pivot and close) else None
+
+    # ─── 포지션 사이징 예시 ($10,000 계좌, 계좌 리스크 1.25%) ───
+    sizing = None
+    if risk_pct and risk_pct > 0 and entry:
+        weight_pct = min(_ACCOUNT_RISK_PCT / risk_pct * 100, _MAX_WEIGHT_PCT)
+        position_dollar = _EXAMPLE_ACCOUNT * weight_pct / 100
+        sizing = {
+            "account": _EXAMPLE_ACCOUNT,
+            "account_risk_pct": _ACCOUNT_RISK_PCT,
+            "max_loss_dollar": round(_EXAMPLE_ACCOUNT * _ACCOUNT_RISK_PCT / 100),
+            "weight_pct": round(weight_pct, 1),
+            "position_dollar": round(position_dollar),
+            "shares": int(position_dollar // entry),
+            "capped": weight_pct >= _MAX_WEIGHT_PCT,
+        }
+
+    # ─── 단계별 진입 절차 ───
+    if mode == "breakout_now":
+        steps = [
+            "돌파 당일 거래량이 평균 대비 크게(40% 이상) 늘었는지 확인 — 거래량 없는 돌파는 신뢰도가 낮습니다.",
+            f"현재가 ${entry:.2f} 부근에서 진입. 피벗에서 5% 넘게 연장됐다면 추격하지 말고 다음 기회를 기다리세요.",
+            f"진입 즉시 손절 주문 ${stop:.2f} (-{risk_pct}%)를 걸어둡니다 — 예외 없이.",
+        ]
+    elif mode == "wait_pivot":
+        steps = [
+            f"아직 피벗 아래입니다(돌파까지 +{gap_to_pivot}%). 매수를 보류하고 관심목록에 둡니다.",
+            f"피벗 ${pivot:.2f} 위로 거래량 동반 돌파가 확인되면 그때 ${entry:.2f} 부근에서 진입.",
+            f"진입과 동시에 손절 ${stop:.2f} (-{risk_pct}%) 설정.",
+        ]
+    else:  # pullback
+        steps = [
+            "추세·실적은 통과했지만 직전 고점 위로 연장된 상태 — 지금 추격하면 손절폭이 너무 커집니다.",
+            f"50일선(${ma50:.2f}) 부근까지 눌릴 때 거래량이 줄며 지지받는지 확인 후 진입.",
+            f"진입 시 손절은 50일선 아래 ${stop:.2f} 부근(-{risk_pct}%)에 설정." if risk_pct else "진입 시 손절은 50일선 살짝 아래에 설정.",
+        ]
+
+    # ─── 공통 매도/관리 규칙 ───
+    sell_rules = [
+        f"손절가 ${stop:.2f} 이탈 시 즉시 전량 매도 — '조금만 더'는 금물(Minervini의 첫 번째 규칙).",
+    ]
+    if target:
+        sell_rules.append(
+            f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 ${target:.2f}) 도달 시 일부 익절 → 남은 물량은 본전 손절로 옮겨 '공짜 포지션' 확보."
+        )
+    sell_rules += [
+        "큰 추세는 50일선을 추적 손절선으로 사용 — 50일선을 거래량 동반해 종가로 깨면 정리.",
+        "수익을 손실로 바꾸지 않는다 — 이익이 본전까지 줄면 청산.",
+    ]
+
+    return {
+        "mode": mode,
+        "headline": headline,
+        "entry": round(entry, 2) if entry else None,
+        "stop": round(stop, 2) if stop else None,
+        "risk_pct": risk_pct,
+        "target": target,
+        "reward_pct": round(risk_pct * _PROFIT_R_MULTIPLE, 1) if risk_pct else None,
+        "gap_to_pivot": gap_to_pivot,
+        "sizing": sizing,
+        "steps": steps,
+        "sell_rules": sell_rules,
+    }
+
+
 def run_daily_screen(db: Session) -> int:
     """전체 종목 스크리닝 실행 (일일 배치)"""
     screen_date = date.today()
