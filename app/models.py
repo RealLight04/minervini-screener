@@ -11,6 +11,7 @@ class Stock(Base):
     ticker = Column(String, unique=True, nullable=False, index=True)
     name = Column(String)
     sector = Column(String)
+    market = Column(String, default="US", index=True)  # US / KOSPI / KOSDAQ
     is_active = Column(Boolean, default=True)
 
     prices = relationship("DailyPrice", back_populates="stock", cascade="all, delete-orphan")

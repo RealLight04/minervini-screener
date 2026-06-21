@@ -20,6 +20,18 @@
   </p>
 </div>
 
+<!-- ───── 시장 전환 탭 ───── -->
+{% if avail_markets and avail_markets|length > 1 %}
+<div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
+  {% for m in avail_markets %}
+  <a href="/?market={{ m }}" style="text-decoration:none; padding:7px 16px; border-radius:8px; font-size:0.88rem; font-weight:600;
+     {% if m == cur_market %}background:#38bdf8; color:#0f172a;{% else %}background:#1e293b; color:#94a3b8; border:1px solid #334155;{% endif %}">
+    {{ market_labels.get(m, m) }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- ───── 시장 국면 신호등 ───── -->
 {% if market and market.available %}
 <div style="background:{{ market.color }}14; border:1px solid {{ market.color }}55; border-radius:12px; padding:16px 20px; margin-bottom:24px;">
@@ -32,7 +44,7 @@
     <span style="color:#94a3b8;">200일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_200 }}%</strong></span>
     <span style="color:#94a3b8;">50일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_50 }}%</strong></span>
     <span style="color:#94a3b8;">Stage 2(추세통과) <strong style="color:#e2e8f0;">{{ market.pct_stage2 }}%</strong></span>
-    <span style="color:#64748b;">· S&P 500 {{ market.total }}종목 기준</span>
+    <span style="color:#64748b;">· {{ market_labels.get(cur_market, cur_market) }} {{ market.total }}종목 기준</span>
   </div>
 </div>
 {% endif %}
@@ -53,9 +65,9 @@
       <td>{{ signal_badge(r.signal) }}</td>
       <td><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
       <td>{{ s.name or '-' }}</td>
-      <td>${{ "%.2f"|format(r.close) if r.close else '-' }}</td>
-      <td>{% if r.pivot_price %}<span style="color:#38bdf8;">${{ "%.2f"|format(r.pivot_price) }}</span>{% else %}-{% endif %}</td>
-      <td>{% if r.stop_loss %}<span style="color:#f87171;">${{ "%.2f"|format(r.stop_loss) }}</span>{% else %}-{% endif %}</td>
+      <td>{{ fmt_price(r.close, cur_market) }}</td>
+      <td>{% if r.pivot_price %}<span style="color:#38bdf8;">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
+      <td>{% if r.stop_loss %}<span style="color:#f87171;">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
       <td>{% if r.rs_rank %}<span class="badge {% if r.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}-{% endif %}</td>
       <td>{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span style="color:#475569;">-</span>{% endif %}</td>
       <td style="color:#94a3b8; font-size:0.8rem; max-width:280px;">{{ r.signal_reason }}</td>
@@ -80,8 +92,8 @@
       <td>{{ signal_badge(r.signal) }}</td>
       <td><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
       <td>{{ s.name or '-' }}</td>
-      <td>${{ "%.2f"|format(r.close) if r.close else '-' }}</td>
-      <td>${{ "%.2f"|format(r.ma50) if r.ma50 else '-' }}</td>
+      <td>{{ fmt_price(r.close, cur_market) }}</td>
+      <td>{{ fmt_price(r.ma50, cur_market) }}</td>
       <td>{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
       <td style="color:#94a3b8; font-size:0.8rem; max-width:320px;">{{ r.signal_reason }}</td>
     </tr>

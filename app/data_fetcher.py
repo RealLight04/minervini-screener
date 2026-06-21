@@ -25,7 +25,8 @@ def fetch_sp500_tickers() -> list[dict]:
         tables = pd.read_html(io.StringIO(resp.text))
         df = tables[0]
         return [
-            {"ticker": row["Symbol"].replace(".", "-"), "name": row["Security"], "sector": row["GICS Sector"]}
+            {"ticker": row["Symbol"].replace(".", "-"), "name": row["Security"],
+             "sector": row["GICS Sector"], "market": "US"}
             for _, row in df.iterrows()
         ]
     except Exception as e:
@@ -33,16 +34,57 @@ def fetch_sp500_tickers() -> list[dict]:
         return []
 
 
+def fetch_kr_tickers(kospi_n: int = 200, kosdaq_n: int = 100) -> list[dict]:
+    """
+    한국(코스피/코스닥) 종목 목록 — FinanceDataReader로 받아 시가총액 상위 N개 선별.
+    yfinance 형식 티커(.KS=코스피, .KQ=코스닥)로 변환해 반환.
+    """
+    try:
+        import FinanceDataReader as fdr
+    except ImportError:
+        logger.error("FinanceDataReader 미설치 — 한국 종목 수집 불가")
+        return []
+
+    result = []
+    for market, suffix, top_n in [("KOSPI", "KS", kospi_n), ("KOSDAQ", "KQ", kosdaq_n)]:
+        try:
+            df = fdr.StockListing(market)
+            if "Marcap" in df.columns:
+                df = df.sort_values("Marcap", ascending=False)
+            # 우선주(코드 끝자리 0 아님)·SPAC 등 제외: 보통주 위주(코드가 ...0 으로 끝)
+            df = df[df["Code"].astype(str).str.match(r"^\d{6}$")]
+            df = df[df["Code"].astype(str).str.endswith("0")]
+            for _, row in df.head(top_n).iterrows():
+                code = str(row["Code"])
+                result.append({
+                    "ticker": f"{code}.{suffix}",
+                    "name": row.get("Name"),
+                    "sector": row.get("Dept") if pd.notna(row.get("Dept")) else None,
+                    "market": market,
+                })
+        except Exception as e:
+            logger.error(f"{market} 목록 수집 실패: {e}")
+    return result
+
+
 def ensure_stocks_in_db(db: Session, stock_list: list[dict]) -> None:
-    """종목이 DB에 없으면 추가 (배치 내 중복 티커도 안전하게 처리)"""
-    existing_tickers = {t for (t,) in db.query(Stock.ticker).all()}
+    """종목이 DB에 없으면 추가 (배치 내 중복 티커도 안전하게 처리). market도 갱신."""
+    existing = {t: m for (t, m) in db.query(Stock.ticker, Stock.market).all()}
     seen = set()
     for item in stock_list:
         ticker = item["ticker"]
-        if ticker in existing_tickers or ticker in seen:
+        market = item.get("market", "US")
+        if ticker in seen:
             continue
         seen.add(ticker)
-        db.add(Stock(ticker=ticker, name=item["name"], sector=item.get("sector")))
+        if ticker in existing:
+            # 기존 종목의 market이 비어있으면 보정
+            if not existing[ticker]:
+                st = db.query(Stock).filter(Stock.ticker == ticker).first()
+                if st:
+                    st.market = market
+            continue
+        db.add(Stock(ticker=ticker, name=item["name"], sector=item.get("sector"), market=market))
     db.commit()
 
 

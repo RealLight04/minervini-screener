@@ -10,3 +10,4 @@ pandas
 numpy
 requests
 lxml
+finance-datareader

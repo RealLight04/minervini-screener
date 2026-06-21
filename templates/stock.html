@@ -1,8 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ stock.ticker }} — Minervini Screener{% endblock %}
 {% block content %}
+{% set mk = stock.market or 'US' %}
 <div style="margin-bottom: 20px;">
-  <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}</h2>
+  <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}
+    <span style="font-size:0.8rem; font-weight:500; color:#64748b;">· {{ market_labels.get(mk, mk) }}</span>
+  </h2>
   <p style="color:#94a3b8;">{{ stock.name }} · {{ stock.sector or '' }}</p>
 </div>
 
@@ -14,8 +17,8 @@
   <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
     <span style="font-size:1.3rem; font-weight:800; color:{{ sc }};">{{ signal_labels.get(sig, sig) }}</span>
     {% if result.pivot_price %}
-      <span style="color:#94a3b8; font-size:0.9rem;">매수가(피벗) <strong style="color:#38bdf8;">${{ "%.2f"|format(result.pivot_price) }}</strong></span>
-      <span style="color:#94a3b8; font-size:0.9rem;">손절가 <strong style="color:#f87171;">${{ "%.2f"|format(result.stop_loss) }}</strong></span>
+      <span style="color:#94a3b8; font-size:0.9rem;">매수가(피벗) <strong style="color:#38bdf8;">{{ fmt_price(result.pivot_price, mk) }}</strong></span>
+      <span style="color:#94a3b8; font-size:0.9rem;">손절가 <strong style="color:#f87171;">{{ fmt_price(result.stop_loss, mk) }}</strong></span>
     {% endif %}
   </div>
   <p style="color:#cbd5e1; font-size:0.88rem; margin-top:8px;">{{ result.signal_reason }}</p>
@@ -36,16 +39,16 @@
   <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:18px;">
     <div style="background:#0f172a; border-radius:8px; padding:12px;">
       <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">{% if tp.mode == 'wait_pivot' %}돌파 매수가{% elif tp.mode == 'pullback' %}목표 진입(눌림){% else %}진입가{% endif %}</div>
-      <div style="font-size:1.05rem; font-weight:700; color:#38bdf8;">${{ "%.2f"|format(tp.entry) }}</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#38bdf8;">{{ fmt_price(tp.entry, mk) }}</div>
     </div>
     <div style="background:#0f172a; border-radius:8px; padding:12px;">
       <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">손절가</div>
-      <div style="font-size:1.05rem; font-weight:700; color:#f87171;">${{ "%.2f"|format(tp.stop) }}{% if tp.risk_pct %} <span style="font-size:0.75rem;">(-{{ tp.risk_pct }}%)</span>{% endif %}</div>
+      <div style="font-size:1.05rem; font-weight:700; color:#f87171;">{{ fmt_price(tp.stop, mk) }}{% if tp.risk_pct %} <span style="font-size:0.75rem;">(-{{ tp.risk_pct }}%)</span>{% endif %}</div>
     </div>
     {% if tp.target %}
     <div style="background:#0f172a; border-radius:8px; padding:12px;">
       <div style="color:#94a3b8; font-size:0.72rem; margin-bottom:4px;">1차 익절 목표</div>
-      <div style="font-size:1.05rem; font-weight:700; color:#4ade80;">${{ "%.2f"|format(tp.target) }} <span style="font-size:0.75rem;">(+{{ tp.reward_pct }}%)</span></div>
+      <div style="font-size:1.05rem; font-weight:700; color:#4ade80;">{{ fmt_price(tp.target, mk) }} <span style="font-size:0.75rem;">(+{{ tp.reward_pct }}%)</span></div>
     </div>
     {% endif %}
     <div style="background:#0f172a; border-radius:8px; padding:12px;">
@@ -66,11 +69,11 @@
   {% if tp.sizing %}
   {% set sz = tp.sizing %}
   <div style="background:#0f172a; border-radius:8px; padding:14px; margin-bottom:16px;">
-    <div style="color:#94a3b8; font-size:0.8rem; font-weight:600; margin-bottom:6px;">포지션 크기 (예시: ${{ "{:,}".format(sz.account) }} 계좌)</div>
+    <div style="color:#94a3b8; font-size:0.8rem; font-weight:600; margin-bottom:6px;">포지션 크기 (예시: {{ fmt_amount(sz.account, mk) }} 계좌)</div>
     <p style="color:#cbd5e1; font-size:0.86rem; line-height:1.75; margin:0;">
-      한 종목에 잃을 돈을 계좌의 <strong>{{ sz.account_risk_pct }}% (${{ sz.max_loss_dollar }})</strong>로 제한하면,
+      한 종목에 잃을 돈을 계좌의 <strong>{{ sz.account_risk_pct }}% ({{ fmt_amount(sz.max_loss, mk) }})</strong>로 제한하면,
       손절폭이 {{ tp.risk_pct }}%이므로 매수 비중은 약 <strong style="color:#38bdf8;">{{ sz.weight_pct }}%</strong>
-      (≈ ${{ "{:,}".format(sz.position_dollar) }}, 약 {{ sz.shares }}주).
+      (≈ {{ fmt_amount(sz.position, mk) }}, 약 {{ sz.shares }}주).
       {% if sz.capped %}<br><span style="color:#fbbf24;">※ 손절폭이 작아 비중이 단일 종목 상한({{ sz.weight_pct }}%)으로 제한됨.</span>{% endif %}
     </p>
   </div>
@@ -92,12 +95,12 @@
 <!-- 주요 지표 카드 -->
 <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:32px;">
   {% set cards = [
-    ("현재가", "$" ~ ("%.2f"|format(result.close)) if result.close else '-'),
-    ("50일 MA", "$" ~ ("%.2f"|format(result.ma50)) if result.ma50 else '-'),
-    ("150일 MA", "$" ~ ("%.2f"|format(result.ma150)) if result.ma150 else '-'),
-    ("200일 MA", "$" ~ ("%.2f"|format(result.ma200)) if result.ma200 else '-'),
-    ("52주 고가", "$" ~ ("%.2f"|format(result.week52_high)) if result.week52_high else '-'),
-    ("52주 저가", "$" ~ ("%.2f"|format(result.week52_low)) if result.week52_low else '-'),
+    ("현재가", fmt_price(result.close, mk)),
+    ("50일 MA", fmt_price(result.ma50, mk)),
+    ("150일 MA", fmt_price(result.ma150, mk)),
+    ("200일 MA", fmt_price(result.ma200, mk)),
+    ("52주 고가", fmt_price(result.week52_high, mk)),
+    ("52주 저가", fmt_price(result.week52_low, mk)),
     ("RS 순위", ("%.0f"|format(result.rs_rank)) if result.rs_rank else '-'),
     ("거래량(50일평균比)", (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-'),
   ] %}

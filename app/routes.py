@@ -22,6 +22,34 @@ SIGNAL_COLORS = {
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
 templates.env.globals["signal_colors"] = SIGNAL_COLORS
 
+MARKETS = ["US", "KOSPI", "KOSDAQ"]
+MARKET_LABELS = {"US": "미국 (S&P 500)", "KOSPI": "코스피", "KOSDAQ": "코스닥"}
+
+
+def fmt_price(value, market: str = "US") -> str:
+    """시장별 주가 포맷: 미국=$x.xx, 한국=₩x (원화는 소수점 없음)"""
+    if value is None:
+        return "-"
+    return f"${value:,.2f}" if market == "US" else f"₩{value:,.0f}"
+
+
+def fmt_amount(value, market: str = "US") -> str:
+    """시장별 금액(계좌/포지션) 포맷 — 소수점 없음"""
+    if value is None:
+        return "-"
+    return f"${value:,.0f}" if market == "US" else f"₩{value:,.0f}"
+
+
+templates.env.globals["fmt_price"] = fmt_price
+templates.env.globals["fmt_amount"] = fmt_amount
+templates.env.globals["market_labels"] = MARKET_LABELS
+
+
+def _available_markets(db: Session) -> list[str]:
+    """스크리닝 결과가 있는 시장 목록 (탭 렌더용)"""
+    rows = {m for (m,) in db.query(Stock.market).filter(Stock.is_active == True).distinct().all()}
+    return [m for m in MARKETS if m in rows]
+
 
 def _latest_screen_date(db: Session) -> date | None:
     row = (
@@ -33,9 +61,13 @@ def _latest_screen_date(db: Session) -> date | None:
 
 
 @router.get("/", response_class=HTMLResponse)
-def index(request: Request, db: Session = Depends(get_db)):
+def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     # 데이터가 있는 가장 최근 스크리닝 날짜 사용
     screen_date = _latest_screen_date(db) or date.today()
+
+    avail = _available_markets(db) or ["US"]
+    if market not in avail:
+        market = avail[0]
 
     def _by_signals(signals):
         return (
@@ -44,6 +76,7 @@ def index(request: Request, db: Session = Depends(get_db)):
             .filter(
                 ScreeningResult.screen_date == screen_date,
                 ScreeningResult.signal.in_(signals),
+                Stock.market == market,
             )
             .order_by(ScreeningResult.rs_rank.desc())
             .all()
@@ -57,8 +90,8 @@ def index(request: Request, db: Session = Depends(get_db)):
     sell_all = _by_signals(["SELL"])
     sell_list = sell_all[:30]
 
-    # 시장 국면(breadth) — 개별 종목보다 먼저 봐야 할 신호등
-    market = compute_market_breadth(db, screen_date)
+    # 시장 국면(breadth) — 선택한 시장 기준
+    breadth = compute_market_breadth(db, screen_date, market=market)
 
     return templates.TemplateResponse(
         request,
@@ -69,7 +102,9 @@ def index(request: Request, db: Session = Depends(get_db)):
             "screen_date": screen_date,
             "buy_count": len(buy_list),
             "sell_count": len(sell_all),
-            "market": market,
+            "market": breadth,
+            "cur_market": market,
+            "avail_markets": avail,
         },
     )
 
@@ -125,7 +160,7 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         q_growths[i] < q_growths[i + 1] for i in range(len(q_growths) - 1)
     )
 
-    trade_plan = build_trade_plan(latest_result) if latest_result else None
+    trade_plan = build_trade_plan(latest_result, stock.market or "US") if latest_result else None
 
     return templates.TemplateResponse(
         request,

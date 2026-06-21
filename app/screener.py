@@ -54,10 +54,11 @@ def _get_volume_series(db: Session, stock_id: int, days: int = 120) -> pd.Series
     return pd.Series([float(v) if v is not None else 0.0 for v in vals], index=list(idx))
 
 
-def _calc_rs_scores(db: Session, screen_date: date) -> dict[int, float]:
+def _calc_rs_scores(db: Session, screen_date: date, stock_ids: set | None = None) -> dict[int, float]:
     """
-    RS(상대강도) 계산: 52주 수익률 기준 전 종목 대비 백분위 (0~100, 높을수록 강함)
-    Minervini는 IBD RS Line과 유사하게 52주 퍼포먼스를 사용
+    RS(상대강도) 계산: 52주 수익률 기준 백분위 (0~100, 높을수록 강함).
+    stock_ids가 주어지면 그 집합(=같은 시장) 안에서만 상대 랭킹 → 시장 간 혼합 방지.
+    Minervini는 IBD RS Line과 유사하게 52주 퍼포먼스를 사용.
     """
     cutoff_52w = screen_date - timedelta(weeks=52)
     cutoff_1w = screen_date - timedelta(days=7)
@@ -92,6 +93,8 @@ def _calc_rs_scores(db: Session, screen_date: date) -> dict[int, float]:
     year_ago_close = {sid: v[0] for sid, v in year_ago_close.items()}
 
     common = set(today_close.keys()) & set(year_ago_close.keys())
+    if stock_ids is not None:
+        common &= stock_ids  # 같은 시장 안에서만 상대 랭킹
     if not common:
         return {}
 
@@ -178,8 +181,9 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
         result.vol_vs_avg = round(recent_vol / avg_vol_50, 2) if avg_vol_50 else None
         # VCP 거래량 마름: 최근 10일 평균이 50일 평균의 85% 미만 = 매도세 고갈
         result.vcp_volume_dryup = bool(avg_vol_50 and recent_10_avg < avg_vol_50 * 0.85)
-        # 유동성: 최소 주가 & 최소 평균 거래량 충족 (페니/저유동 제외)
-        result.liquidity_pass = bool(close >= settings.MIN_PRICE and avg_vol_50 >= settings.MIN_VOLUME)
+        # 유동성: 최소 주가 & 최소 평균 거래량 충족 (페니/저유동 제외). 최소주가는 시장별.
+        min_price = settings.MIN_PRICE if stock.market == "US" else settings.MIN_PRICE_KR
+        result.liquidity_pass = bool(close >= min_price and avg_vol_50 >= settings.MIN_VOLUME)
     else:
         result.liquidity_pass = True  # 거래량 데이터 부족 시 배제하지 않음
 
@@ -347,19 +351,27 @@ def compute_signal(result: ScreeningResult, pivot: float | None) -> tuple[str, s
 
 
 # 포지션 사이징 가정값 (예시용)
-_EXAMPLE_ACCOUNT = 10_000      # 예시 계좌 규모 ($)
+_EXAMPLE_ACCOUNT = 10_000          # 예시 계좌 규모 (미국, $)
+_EXAMPLE_ACCOUNT_KR = 10_000_000   # 예시 계좌 규모 (한국, ₩ 1천만원)
 _ACCOUNT_RISK_PCT = 1.25       # 한 종목에 거는 계좌 리스크 (Minervini는 보통 1.25~2.5%)
 _MAX_WEIGHT_PCT = 25.0         # 단일 종목 최대 비중 상한
 _PROFIT_R_MULTIPLE = 2.5       # 1차 익절 목표 = 리스크의 2.5배 (손익비)
 
 
-def build_trade_plan(result: ScreeningResult) -> dict | None:
+def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None:
     """
     매수 의견(STRONG_BUY/BUY)일 때 Minervini식 진입·손절·분할·매도 플레이북 생성.
-    매수 신호가 아니면 None.
+    매수 신호가 아니면 None. market에 따라 통화($/₩)와 예시 계좌 규모를 분기.
     """
     if result.signal not in ("STRONG_BUY", "BUY"):
         return None
+
+    is_us = market == "US"
+
+    def c(v) -> str:  # 통화 포맷
+        if v is None:
+            return "-"
+        return f"${v:,.2f}" if is_us else f"₩{v:,.0f}"
 
     close = result.close or 0.0
     pivot = result.pivot_price
@@ -373,7 +385,7 @@ def build_trade_plan(result: ScreeningResult) -> dict | None:
         entry = close                       # 피벗 막 돌파 → 현재가 부근 진입
     elif pivot and close < pivot:
         mode = "wait_pivot"
-        headline = f"매수 대기 — 피벗 ${pivot:.2f} 돌파를 확인하고 진입"
+        headline = f"매수 대기 — 피벗 {c(pivot)} 돌파를 확인하고 진입"
         entry = pivot                       # 아직 피벗 아래 → 돌파 시 진입
     else:
         mode = "pullback"
@@ -389,48 +401,50 @@ def build_trade_plan(result: ScreeningResult) -> dict | None:
     target = round(entry * (1 + (risk_pct / 100) * _PROFIT_R_MULTIPLE), 2) if (entry and risk_pct) else None
     gap_to_pivot = round((pivot / close - 1) * 100, 1) if (mode == "wait_pivot" and pivot and close) else None
 
-    # ─── 포지션 사이징 예시 ($10,000 계좌, 계좌 리스크 1.25%) ───
+    # ─── 포지션 사이징 예시 (계좌 리스크 1.25%) ───
     sizing = None
     if risk_pct and risk_pct > 0 and entry:
+        account = _EXAMPLE_ACCOUNT if is_us else _EXAMPLE_ACCOUNT_KR
         weight_pct = min(_ACCOUNT_RISK_PCT / risk_pct * 100, _MAX_WEIGHT_PCT)
-        position_dollar = _EXAMPLE_ACCOUNT * weight_pct / 100
+        position = account * weight_pct / 100
         sizing = {
-            "account": _EXAMPLE_ACCOUNT,
+            "account": account,
             "account_risk_pct": _ACCOUNT_RISK_PCT,
-            "max_loss_dollar": round(_EXAMPLE_ACCOUNT * _ACCOUNT_RISK_PCT / 100),
+            "max_loss": round(account * _ACCOUNT_RISK_PCT / 100),
             "weight_pct": round(weight_pct, 1),
-            "position_dollar": round(position_dollar),
-            "shares": int(position_dollar // entry),
+            "position": round(position),
+            "shares": int(position // entry),
             "capped": weight_pct >= _MAX_WEIGHT_PCT,
+            "market": market,
         }
 
     # ─── 단계별 진입 절차 ───
     if mode == "breakout_now":
         steps = [
             "돌파 당일 거래량이 평균 대비 크게(40% 이상) 늘었는지 확인 — 거래량 없는 돌파는 신뢰도가 낮습니다.",
-            f"현재가 ${entry:.2f} 부근에서 진입. 피벗에서 5% 넘게 연장됐다면 추격하지 말고 다음 기회를 기다리세요.",
-            f"진입 즉시 손절 주문 ${stop:.2f} (-{risk_pct}%)를 걸어둡니다 — 예외 없이.",
+            f"현재가 {c(entry)} 부근에서 진입. 피벗에서 5% 넘게 연장됐다면 추격하지 말고 다음 기회를 기다리세요.",
+            f"진입 즉시 손절 주문 {c(stop)} (-{risk_pct}%)를 걸어둡니다 — 예외 없이.",
         ]
     elif mode == "wait_pivot":
         steps = [
             f"아직 피벗 아래입니다(돌파까지 +{gap_to_pivot}%). 매수를 보류하고 관심목록에 둡니다.",
-            f"피벗 ${pivot:.2f} 위로 거래량 동반 돌파가 확인되면 그때 ${entry:.2f} 부근에서 진입.",
-            f"진입과 동시에 손절 ${stop:.2f} (-{risk_pct}%) 설정.",
+            f"피벗 {c(pivot)} 위로 거래량 동반 돌파가 확인되면 그때 {c(entry)} 부근에서 진입.",
+            f"진입과 동시에 손절 {c(stop)} (-{risk_pct}%) 설정.",
         ]
     else:  # pullback
         steps = [
             "추세·실적은 통과했지만 직전 고점 위로 연장된 상태 — 지금 추격하면 손절폭이 너무 커집니다.",
-            f"50일선(${ma50:.2f}) 부근까지 눌릴 때 거래량이 줄며 지지받는지 확인 후 진입.",
-            f"진입 시 손절은 50일선 아래 ${stop:.2f} 부근(-{risk_pct}%)에 설정." if risk_pct else "진입 시 손절은 50일선 살짝 아래에 설정.",
+            f"50일선({c(ma50)}) 부근까지 눌릴 때 거래량이 줄며 지지받는지 확인 후 진입.",
+            f"진입 시 손절은 50일선 아래 {c(stop)} 부근(-{risk_pct}%)에 설정." if risk_pct else "진입 시 손절은 50일선 살짝 아래에 설정.",
         ]
 
     # ─── 공통 매도/관리 규칙 ───
     sell_rules = [
-        f"손절가 ${stop:.2f} 이탈 시 즉시 전량 매도 — '조금만 더'는 금물(Minervini의 첫 번째 규칙).",
+        f"손절가 {c(stop)} 이탈 시 즉시 전량 매도 — '조금만 더'는 금물(Minervini의 첫 번째 규칙).",
     ]
     if target:
         sell_rules.append(
-            f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 ${target:.2f}) 도달 시 일부 익절 → 남은 물량은 본전 손절로 옮겨 '공짜 포지션' 확보."
+            f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 {c(target)}) 도달 시 일부 익절 → 남은 물량은 본전 손절로 옮겨 '공짜 포지션' 확보."
         )
     sell_rules += [
         "큰 추세는 50일선을 추적 손절선으로 사용 — 50일선을 거래량 동반해 종가로 깨면 정리.",
@@ -452,20 +466,22 @@ def build_trade_plan(result: ScreeningResult) -> dict | None:
     }
 
 
-def compute_market_breadth(db: Session, screen_date: date) -> dict:
+def compute_market_breadth(db: Session, screen_date: date, market: str | None = None) -> dict:
     """
-    전체 종목 스크리닝 결과로 시장 국면(breadth) 판정.
+    스크리닝 결과로 시장 국면(breadth) 판정. market 지정 시 해당 시장만 집계.
     Minervini: 개별 종목의 약 3/4는 시장 전체를 따라간다 → 시장이 건강할 때만 적극 매수.
     """
-    rows = (
+    q = (
         db.query(
             ScreeningResult.cond_price_above_ma200,
             ScreeningResult.cond_price_above_ma50,
             ScreeningResult.technical_pass,
         )
         .filter(ScreeningResult.screen_date == screen_date)
-        .all()
     )
+    if market:
+        q = q.join(Stock, ScreeningResult.stock_id == Stock.id).filter(Stock.market == market)
+    rows = q.all()
     total = len(rows)
     if total == 0:
         return {"available": False}
@@ -508,8 +524,12 @@ def run_daily_screen(db: Session) -> int:
 
     logger.info(f"스크리닝 시작: {len(stocks)}개 종목, 기준일 {screen_date}")
 
-    # RS 점수 일괄 계산
-    rs_scores = _calc_rs_scores(db, screen_date)
+    # RS 점수는 시장별로 따로 계산 (미국 vs 한국 혼합 방지)
+    rs_scores: dict[int, float] = {}
+    markets = {s.market or "US" for s in stocks}
+    for mk in markets:
+        ids = {s.id for s in stocks if (s.market or "US") == mk}
+        rs_scores.update(_calc_rs_scores(db, screen_date, stock_ids=ids))
 
     passed = 0
     for stock in stocks:
