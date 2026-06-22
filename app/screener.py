@@ -169,7 +169,10 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     vcp_result = detect_vcp(series)
     result.vcp_detected = vcp_result["detected"]
     result.vcp_contractions = vcp_result["contractions"]
-    pivot = vcp_result.get("pivot")
+    # 피벗: VCP가 있으면 그 피벗, 없으면 베이스 피벗으로 폴백 (돌파대기/적극매수 표면화)
+    pivot = vcp_result.get("pivot") if result.vcp_detected else None
+    if pivot is None:
+        pivot = detect_pivot(series)
 
     # ─── 거래량 / 유동성 분석 ───
     vol_series = _get_volume_series(db, stock.id, days=120)
@@ -190,16 +193,16 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     result.final_pass = result.technical_pass and result.fundamental_pass and result.liquidity_pass
 
     # ─── 매수/매도 의견 산출 ───
-    signal, reason = compute_signal(result, pivot)
+    signal, reason = compute_signal(result, pivot, stock.market or "US")
     result.signal = signal
     result.signal_reason = reason
     if signal in ("STRONG_BUY", "BUY"):
-        if result.vcp_detected and pivot and close <= pivot * 1.05:
+        if pivot and close <= pivot * 1.05:
             # 유효한 돌파 매수가: 피벗 + 손절 -8% (Minervini 7~8%)
             result.pivot_price = round(pivot, 2)
             result.stop_loss = round(pivot * 0.92, 2)
         else:
-            # 연장 or VCP 미형성 → 매수가 없음, 50일선을 추적 손절선으로
+            # 연장(피벗서 5%+ 위) → 매수가 없음, 50일선을 추적 손절선으로
             result.pivot_price = None
             result.stop_loss = round(ma50, 2) if ma50 else None
 
@@ -304,6 +307,35 @@ def detect_vcp(series: pd.Series, min_contractions: int = 3) -> dict:
     }
 
 
+def detect_pivot(series: pd.Series, lookback: int = 60, exclude: int = 5) -> float | None:
+    """
+    베이스(횡보 구간) 상단 = 돌파선(pivot)을 VCP보다 너그럽게 탐지.
+    VCP가 아니어도 '고점 근처에서 타이트하게 횡보 중인 베이스'면 피벗을 잡아
+    돌파 임박 주도주가 '돌파 대기 / 적극 매수'로 표면화되게 한다.
+    """
+    if len(series) < lookback + exclude:
+        return None
+    base = series.iloc[-(lookback + exclude):-exclude]  # 최근 exclude일 제외한 베이스 구간
+    if len(base) < 20:
+        return None
+    base_high = float(base.max())
+    base_low = float(base.min())
+    if base_high <= 0:
+        return None
+    depth = (base_high - base_low) / base_high          # 베이스 깊이
+    close = float(series.iloc[-1])
+
+    # 베이스 우측(돌파 직전) 타이트함 = 매도세 소진. ★돌파 당일은 base에서 이미 제외됨
+    base_right = base.tail(15)
+    rng = (float(base_right.max()) - float(base_right.min())) / float(base_right.max()) if len(base_right) and base_right.max() else 1.0
+
+    # 베이스가 과도하게 깊지 않고(≤35%), 돌파 직전이 타이트(≤15%)하며,
+    # 현재가가 돌파선 근처~약간 위(0.85×~1.10×)면 유효한 피벗
+    if depth <= 0.35 and rng <= 0.15 and base_high * 0.85 <= close <= base_high * 1.10:
+        return round(base_high, 2)
+    return None
+
+
 # ─── 매수/매도 신호 (Minervini 매매 규칙) ───
 SIGNAL_LABELS = {
     "STRONG_BUY": "적극 매수",
@@ -314,13 +346,16 @@ SIGNAL_LABELS = {
 }
 
 
-def compute_signal(result: ScreeningResult, pivot: float | None) -> tuple[str, str]:
+def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "US") -> tuple[str, str]:
     """
     스크리닝 결과로부터 매수/매도 의견 산출.
     Minervini 규칙: 추세가 살아있을 때만 매수, 추세 이탈 시 매도.
     """
     close = result.close
     ma50, ma150, ma200 = result.ma50, result.ma150, result.ma200
+
+    def c(v):  # 시장별 통화 표기
+        return f"${v:,.2f}" if market == "US" else f"₩{v:,.0f}"
 
     # 1) 추세 자체가 약세 → 회피 (매수 대상 아님, 노이즈라 별도 강조 안 함)
     if ma200 and close < ma200:
@@ -335,12 +370,14 @@ def compute_signal(result: ScreeningResult, pivot: float | None) -> tuple[str, s
 
     # 3) 추세 정상 → 매수 후보 판별
     if result.final_pass:
-        # 피벗은 '아직 안 깬 돌파선' 또는 '갓 돌파(5% 이내)'일 때만 매수가로 의미 있음
-        if result.vcp_detected and pivot and close < pivot:
+        base = "VCP 형성" if result.vcp_detected else "베이스 형성"
+        # 아직 피벗 아래 = 돌파 대기
+        if pivot and close < pivot:
             gap = (pivot / close - 1) * 100
-            return "BUY", f"VCP 형성 + 펀더멘털 통과 — 피벗 ${pivot:.2f} 돌파 대기 (+{gap:.1f}%)"
-        if result.vcp_detected and pivot and close <= pivot * 1.05:
-            return "STRONG_BUY", f"VCP 피벗(${pivot:.2f}) 갓 돌파 — 미너비니 매수 시점"
+            return "BUY", f"{base} + 펀더멘털 통과 — 피벗 {c(pivot)} 돌파 대기 (+{gap:.1f}%)"
+        # 피벗 갓 돌파(5% 이내) = 적극 매수
+        if pivot and close <= pivot * 1.05:
+            return "STRONG_BUY", f"피벗({c(pivot)}) 갓 돌파 — 미너비니 매수 시점"
         # 추세·실적은 통과했으나 직전 고점 위로 연장(extended) → 추격 매수 부적절
         return "BUY", "추세+실적 통과했으나 직전 고점 위로 연장 — 눌림목(50일선) 대기 권고"
 
