@@ -49,8 +49,34 @@
 </div>
 {% endif %}
 
+<!-- ───── 돌파 대기 (피벗 돌파 임박) ───── -->
+<h3 style="font-size:1.05rem; font-weight:700; margin:24px 0 12px; color:#fbbf24;">🔥 돌파 대기 <span style="font-weight:400; font-size:0.8rem; color:#64748b;">베이스 완성 · 피벗 돌파 시 매수 (돌파까지 가까운 순)</span></h3>
+{% if breakout_watch %}
+<table>
+  <thead>
+    <tr><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>돌파까지</th><th>손절가</th><th>RS</th></tr>
+  </thead>
+  <tbody>
+    {% for r, s, gap in breakout_watch %}
+    <tr>
+      <td><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
+      <td>{{ s.name or '-' }}</td>
+      <td>{{ fmt_price(r.close, cur_market) }}</td>
+      <td><span style="color:#38bdf8;">{{ fmt_price(r.pivot_price, cur_market) }}</span></td>
+      <td><span class="badge {% if gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ gap }}%</span></td>
+      <td><span style="color:#f87171;">{{ fmt_price(r.stop_loss, cur_market) }}</span></td>
+      <td>{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p style="color:#64748b; font-size:0.78rem; margin-top:8px;">💡 피벗을 거래량 동반해 돌파하면 <strong style="color:#4ade80;">적극 매수</strong> 시점. 돌파까지 ≤3%면 관심종목에 담아 추적하세요.</p>
+{% else %}
+<p style="color:#475569; padding:12px 0;">현재 돌파 대기 종목이 없습니다. (강세 종목이 이미 연장됐거나 베이스 형성 중)</p>
+{% endif %}
+
 <!-- ───── 매수 후보 ───── -->
-<h3 style="font-size:1.05rem; font-weight:700; margin:24px 0 12px; color:#4ade80;">📈 매수 후보</h3>
+<h3 style="font-size:1.05rem; font-weight:700; margin:32px 0 12px; color:#4ade80;">📈 매수 후보 <span style="font-weight:400; font-size:0.8rem; color:#64748b;">(돌파 대기 + 눌림목 전체)</span></h3>
 {% if buy_list %}
 <table>
   <thead>

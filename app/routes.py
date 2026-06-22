@@ -92,6 +92,14 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     buy_list = _by_signals(["STRONG_BUY", "BUY"])
     buy_list.sort(key=lambda rs: (rs[0].signal != "STRONG_BUY", -(rs[0].rs_rank or 0)))
 
+    # 돌파 대기: 피벗 아래에서 코일링 중(매수가 확정) → 돌파 임박 순(피벗까지 가까운 순) 정렬
+    breakout_watch = []
+    for r, s in buy_list:
+        if r.pivot_price and r.close and r.close < r.pivot_price:
+            gap = round((r.pivot_price / r.close - 1) * 100, 1)
+            breakout_watch.append((r, s, gap))
+    breakout_watch.sort(key=lambda x: x[2])
+
     # 매도 경고: Stage 2 유지 중 50일선 이탈 종목 (RS 강한 순 상위 30개만 표시)
     sell_all = _by_signals(["SELL"])
     sell_list = sell_all[:30]
@@ -104,6 +112,7 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
         "index.html",
         context={
             "buy_list": buy_list,
+            "breakout_watch": breakout_watch,
             "sell_list": sell_list,
             "screen_date": screen_date,
             "buy_count": len(buy_list),
