@@ -25,6 +25,21 @@
 </div>
 {% endif %}
 
+<!-- 가격 차트 -->
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">가격 차트 <span style="font-weight:400; font-size:0.78rem; color:#64748b;">최근 1년 · 50/150/200일 이동평균선</span></h3>
+<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+  <div style="height:340px; position:relative;"><canvas id="priceChart"></canvas></div>
+  <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:0.76rem; color:#94a3b8;">
+    <span><span style="color:#e2e8f0; font-weight:700;">━</span> 종가</span>
+    <span><span style="color:#4ade80; font-weight:700;">━</span> 50일</span>
+    <span><span style="color:#f59e0b; font-weight:700;">━</span> 150일</span>
+    <span><span style="color:#ef4444; font-weight:700;">━</span> 200일</span>
+    <span><span style="color:#38bdf8; font-weight:700;">┈</span> 피벗</span>
+    <span><span style="color:#f87171; font-weight:700;">┈</span> 손절</span>
+    <span style="color:#64748b;">▮ 거래량</span>
+  </div>
+</div>
+
 {% if trade_plan %}
 {% set tp = trade_plan %}
 <!-- 매수 접근법 (Minervini 플레이북) -->
@@ -229,4 +244,48 @@
 {% else %}
 <p style="color:#475569;">스크리닝 데이터가 없습니다.</p>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+fetch('/api/chart/{{ stock.ticker }}')
+  .then(function (r) { return r.json(); })
+  .then(function (d) {
+    if (!d || d.error || !d.dates) return;
+    var cur = d.currency || '$';
+    var flat = function (v) { return d.dates.map(function () { return v; }); };
+    var maxVol = Math.max.apply(null, d.volume.length ? d.volume : [1]);
+    var money = function (v) {
+      if (v == null) return '-';
+      return cur + Number(v).toLocaleString(undefined, { maximumFractionDigits: cur === '₩' ? 0 : 2 });
+    };
+    var datasets = [
+      { label: '종가', data: d.close, borderColor: '#e2e8f0', borderWidth: 1.6, pointRadius: 0, tension: 0, yAxisID: 'y' },
+      { label: '50일', data: d.ma50, borderColor: '#4ade80', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
+      { label: '150일', data: d.ma150, borderColor: '#f59e0b', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
+      { label: '200일', data: d.ma200, borderColor: '#ef4444', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
+      { type: 'bar', label: '거래량', data: d.volume, backgroundColor: 'rgba(100,116,139,0.35)', yAxisID: 'yVol', order: 20 }
+    ];
+    if (d.pivot) datasets.push({ label: '피벗', data: flat(d.pivot), borderColor: '#38bdf8', borderWidth: 1, borderDash: [5, 4], pointRadius: 0, yAxisID: 'y' });
+    if (d.stop) datasets.push({ label: '손절', data: flat(d.stop), borderColor: '#f87171', borderWidth: 1, borderDash: [3, 4], pointRadius: 0, yAxisID: 'y' });
+    new Chart(document.getElementById('priceChart'), {
+      type: 'line',
+      data: { labels: d.dates, datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { intersect: false, mode: 'index' },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + (c.parsed.y == null ? '-' : money(c.parsed.y)); } } }
+        },
+        scales: {
+          x: { ticks: { color: '#64748b', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#1e293b' } },
+          y: { position: 'right', ticks: { color: '#94a3b8', callback: function (v) { return money(v); } }, grid: { color: '#1e293b' } },
+          yVol: { position: 'left', display: false, max: maxVol * 4, grid: { display: false } }
+        }
+      }
+    });
+  });
+</script>
 {% endblock %}

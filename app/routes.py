@@ -185,6 +185,64 @@ def trigger_screen(db: Session = Depends(get_db)):
     return {"status": "ok", "passed": passed, "date": str(date.today())}
 
 
+@router.get("/api/chart/{ticker}")
+def chart_data(ticker: str, db: Session = Depends(get_db)):
+    """차트용 시계열: 최근 1년 종가 + 이동평균선(50/150/200) + 거래량 + 피벗/손절."""
+    import pandas as pd
+    from app.models import DailyPrice
+
+    stock = db.query(Stock).filter(Stock.ticker == ticker.upper()).first()
+    if not stock:
+        return {"error": "not found"}
+
+    # 200일선 계산 위해 충분히(약 480거래일) 받아 마지막 250개만 표시
+    rows = (
+        db.query(DailyPrice.date, DailyPrice.close, DailyPrice.volume)
+        .filter(DailyPrice.stock_id == stock.id)
+        .order_by(DailyPrice.date)
+        .all()
+    )
+    if not rows:
+        return {"error": "no data"}
+
+    dates = [r[0].isoformat() for r in rows]
+    close = pd.Series([r[1] for r in rows], dtype=float)
+    volume = [int(r[2]) if r[2] is not None else 0 for r in rows]
+    ma50 = close.rolling(50).mean()
+    ma150 = close.rolling(150).mean()
+    ma200 = close.rolling(200).mean()
+
+    def tail(seq, n=250):
+        return list(seq)[-n:]
+
+    def tail_round(series, n=250):
+        return [None if pd.isna(v) else round(float(v), 2) for v in list(series)[-n:]]
+
+    latest = (
+        db.query(ScreeningResult)
+        .filter(ScreeningResult.stock_id == stock.id)
+        .order_by(ScreeningResult.screen_date.desc())
+        .first()
+    )
+
+    return {
+        "ticker": stock.ticker,
+        "name": stock.name,
+        "market": stock.market or "US",
+        "currency": "$" if (stock.market or "US") == "US" else "₩",
+        "dates": tail(dates),
+        "close": tail_round(close),
+        "ma50": tail_round(ma50),
+        "ma150": tail_round(ma150),
+        "ma200": tail_round(ma200),
+        "volume": tail(volume),
+        "pivot": latest.pivot_price if latest else None,
+        "stop": latest.stop_loss if latest else None,
+        "week52_high": latest.week52_high if latest else None,
+        "week52_low": latest.week52_low if latest else None,
+    }
+
+
 @router.get("/api/stats")
 def stats(db: Session = Depends(get_db)):
     # 인덱스와 동일하게 '데이터가 있는 최신 스크리닝일' 기준 (배포 스냅샷이 과거일 수 있음)
