@@ -14,6 +14,16 @@ class Stock(Base):
     market = Column(String, default="US", index=True)  # US / KOSPI / KOSDAQ
     is_active = Column(Boolean, default=True)
 
+    # 기업 기본정보(밸류에이션·수익성) — yfinance .info 스냅샷
+    roe = Column(Float)               # 자기자본이익률 (소수, 0.17 = 17%)
+    profit_margin = Column(Float)     # 순이익률 (소수)
+    operating_margin = Column(Float)  # 영업이익률 (소수)
+    forward_eps = Column(Float)       # 선행 EPS
+    trailing_eps = Column(Float)      # 후행 EPS
+    target_price = Column(Float)      # 증권사 평균 목표주가
+    recommendation = Column(String)   # 투자의견 (buy/hold/sell 등)
+    next_earnings = Column(String)    # 예상 실적 발표일 (ISO date)
+
     prices = relationship("DailyPrice", back_populates="stock", cascade="all, delete-orphan")
     fundamentals = relationship("Fundamental", back_populates="stock", cascade="all, delete-orphan")
     results = relationship("ScreeningResult", back_populates="stock", cascade="all, delete-orphan")

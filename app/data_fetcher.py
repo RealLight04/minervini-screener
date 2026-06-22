@@ -216,6 +216,36 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
         return False
 
 
+def fetch_company_info(db: Session, ticker: str) -> bool:
+    """yfinance .info에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일) 수집."""
+    from datetime import datetime, timezone
+
+    stock = db.query(Stock).filter(Stock.ticker == ticker).first()
+    if not stock:
+        return False
+    try:
+        info = yf.Ticker(ticker).info or {}
+        stock.roe = info.get("returnOnEquity")
+        stock.profit_margin = info.get("profitMargins")
+        stock.operating_margin = info.get("operatingMargins")
+        stock.forward_eps = info.get("forwardEps")
+        stock.trailing_eps = info.get("trailingEps")
+        stock.target_price = info.get("targetMeanPrice")
+        stock.recommendation = info.get("recommendationKey")
+        ts = info.get("earningsTimestamp") or info.get("earningsTimestampStart")
+        if ts:
+            try:
+                stock.next_earnings = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+            except Exception:
+                pass
+        db.commit()
+        return True
+    except Exception as e:
+        logger.warning(f"{ticker} 기업정보 수집 실패: {e}")
+        db.rollback()
+        return False
+
+
 def _pick_row(stmt, candidates: list[str]):
     """income statement에서 후보 행 이름 중 존재하는 첫 번째 행 반환"""
     for name in candidates:

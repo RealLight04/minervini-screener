@@ -40,9 +40,15 @@ def fmt_amount(value, market: str = "US") -> str:
     return f"${value:,.0f}" if market == "US" else f"₩{value:,.0f}"
 
 
+REC_LABELS = {
+    "strong_buy": "적극매수", "buy": "매수", "hold": "중립",
+    "underperform": "비중축소", "sell": "매도",
+}
+
 templates.env.globals["fmt_price"] = fmt_price
 templates.env.globals["fmt_amount"] = fmt_amount
 templates.env.globals["market_labels"] = MARKET_LABELS
+templates.env.globals["rec_labels"] = REC_LABELS
 
 
 def _available_markets(db: Session) -> list[str]:
@@ -185,6 +191,49 @@ def trigger_screen(db: Session = Depends(get_db)):
     return {"status": "ok", "passed": passed, "date": str(date.today())}
 
 
+@router.get("/watchlist", response_class=HTMLResponse)
+def watchlist(request: Request):
+    """관심종목 페이지 (목록은 브라우저 localStorage에 저장 → JS가 채움)"""
+    return templates.TemplateResponse(request, "watchlist.html", context={})
+
+
+@router.get("/api/quote")
+def quote(tickers: str = "", db: Session = Depends(get_db)):
+    """관심종목용 요약: 콤마구분 티커들의 신호/현재가/RS/피벗."""
+    tks = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not tks:
+        return []
+    stocks = db.query(Stock).filter(Stock.ticker.in_(tks)).all()
+    out = []
+    for s in stocks:
+        r = (
+            db.query(ScreeningResult)
+            .filter(ScreeningResult.stock_id == s.id)
+            .order_by(ScreeningResult.screen_date.desc())
+            .first()
+        )
+        mkt = s.market or "US"
+        gap = None
+        if r and r.pivot_price and r.close and r.close < r.pivot_price:
+            gap = round((r.pivot_price / r.close - 1) * 100, 1)
+        out.append({
+            "ticker": s.ticker,
+            "name": s.name,
+            "market": mkt,
+            "currency": "$" if mkt == "US" else "₩",
+            "signal": r.signal if r else None,
+            "signal_label": SIGNAL_LABELS.get(r.signal, r.signal) if (r and r.signal) else "-",
+            "signal_color": SIGNAL_COLORS.get(r.signal, "#94a3b8") if (r and r.signal) else "#94a3b8",
+            "close": r.close if r else None,
+            "rs_rank": round(r.rs_rank) if (r and r.rs_rank is not None) else None,
+            "pivot": r.pivot_price if r else None,
+            "gap_to_pivot": gap,
+        })
+    order = {t: i for i, t in enumerate(tks)}
+    out.sort(key=lambda x: order.get(x["ticker"], 999))
+    return out
+
+
 @router.get("/api/chart/{ticker}")
 def chart_data(ticker: str, db: Session = Depends(get_db)):
     """차트용 시계열: 최근 1년 종가 + 이동평균선(50/150/200) + 거래량 + 피벗/손절."""
@@ -195,9 +244,10 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
     if not stock:
         return {"error": "not found"}
 
-    # 200일선 계산 위해 충분히(약 480거래일) 받아 마지막 250개만 표시
+    # 200일선 계산 위해 전체를 받아 이동평균 계산 후 마지막 250개만 표시
     rows = (
-        db.query(DailyPrice.date, DailyPrice.close, DailyPrice.volume)
+        db.query(DailyPrice.date, DailyPrice.open, DailyPrice.high,
+                 DailyPrice.low, DailyPrice.close, DailyPrice.volume)
         .filter(DailyPrice.stock_id == stock.id)
         .order_by(DailyPrice.date)
         .all()
@@ -205,9 +255,7 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
     if not rows:
         return {"error": "no data"}
 
-    dates = [r[0].isoformat() for r in rows]
-    close = pd.Series([r[1] for r in rows], dtype=float)
-    volume = [int(r[2]) if r[2] is not None else 0 for r in rows]
+    close = pd.Series([r[4] for r in rows], dtype=float)
     ma50 = close.rolling(50).mean()
     ma150 = close.rolling(150).mean()
     ma200 = close.rolling(200).mean()
@@ -215,8 +263,8 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
     def tail(seq, n=250):
         return list(seq)[-n:]
 
-    def tail_round(series, n=250):
-        return [None if pd.isna(v) else round(float(v), 2) for v in list(series)[-n:]]
+    def r2(v):
+        return None if (v is None or pd.isna(v)) else round(float(v), 2)
 
     latest = (
         db.query(ScreeningResult)
@@ -225,21 +273,35 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         .first()
     )
 
+    # lightweight-charts용 캔들/거래량/이동평균 (time = YYYY-MM-DD)
+    candles, vols, ma50_s, ma150_s, ma200_s = [], [], [], [], []
+    n = len(rows)
+    for i in range(max(0, n - 250), n):
+        d = rows[i][0].isoformat()
+        candles.append({"time": d, "open": r2(rows[i][1]), "high": r2(rows[i][2]),
+                        "low": r2(rows[i][3]), "close": r2(rows[i][4])})
+        up = (rows[i][4] or 0) >= (rows[i][1] or 0)
+        vols.append({"time": d, "value": int(rows[i][5] or 0),
+                     "color": "rgba(74,222,128,0.35)" if up else "rgba(248,113,113,0.35)"})
+        if not pd.isna(ma50.iloc[i]):
+            ma50_s.append({"time": d, "value": round(float(ma50.iloc[i]), 2)})
+        if not pd.isna(ma150.iloc[i]):
+            ma150_s.append({"time": d, "value": round(float(ma150.iloc[i]), 2)})
+        if not pd.isna(ma200.iloc[i]):
+            ma200_s.append({"time": d, "value": round(float(ma200.iloc[i]), 2)})
+
     return {
         "ticker": stock.ticker,
         "name": stock.name,
         "market": stock.market or "US",
         "currency": "$" if (stock.market or "US") == "US" else "₩",
-        "dates": tail(dates),
-        "close": tail_round(close),
-        "ma50": tail_round(ma50),
-        "ma150": tail_round(ma150),
-        "ma200": tail_round(ma200),
-        "volume": tail(volume),
+        "candles": candles,
+        "volume": vols,
+        "ma50": ma50_s,
+        "ma150": ma150_s,
+        "ma200": ma200_s,
         "pivot": latest.pivot_price if latest else None,
         "stop": latest.stop_loss if latest else None,
-        "week52_high": latest.week52_high if latest else None,
-        "week52_low": latest.week52_low if latest else None,
     }
 
 

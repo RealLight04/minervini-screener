@@ -3,10 +3,15 @@
 {% block content %}
 {% set mk = stock.market or 'US' %}
 <div style="margin-bottom: 20px;">
-  <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}
-    <span style="font-size:0.8rem; font-weight:500; color:#64748b;">· {{ market_labels.get(mk, mk) }}</span>
-  </h2>
-  <p style="color:#94a3b8;">{{ stock.name }} · {{ stock.sector or '' }}</p>
+  <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+    <div>
+      <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}
+        <span style="font-size:0.8rem; font-weight:500; color:#64748b;">· {{ market_labels.get(mk, mk) }}</span>
+      </h2>
+      <p style="color:#94a3b8;">{{ stock.name }} · {{ stock.sector or '' }}</p>
+    </div>
+    <button id="wlBtn" onclick="toggleWatch()" style="margin-left:auto; background:none; border:1px solid #334155; color:#94a3b8; border-radius:8px; padding:7px 14px; cursor:pointer; font-size:0.85rem; white-space:nowrap;">☆ 관심종목</button>
+  </div>
 </div>
 
 {% if result %}
@@ -28,15 +33,14 @@
 <!-- 가격 차트 -->
 <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">가격 차트 <span style="font-weight:400; font-size:0.78rem; color:#64748b;">최근 1년 · 50/150/200일 이동평균선</span></h3>
 <div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
-  <div style="height:340px; position:relative;"><canvas id="priceChart"></canvas></div>
+  <div id="priceChart" style="height:380px; width:100%;"></div>
   <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:0.76rem; color:#94a3b8;">
-    <span><span style="color:#e2e8f0; font-weight:700;">━</span> 종가</span>
-    <span><span style="color:#4ade80; font-weight:700;">━</span> 50일</span>
+    <span><span style="color:#4ade80; font-weight:700;">▮</span> 양봉 / <span style="color:#f87171; font-weight:700;">▮</span> 음봉</span>
+    <span><span style="color:#22d3ee; font-weight:700;">━</span> 50일</span>
     <span><span style="color:#f59e0b; font-weight:700;">━</span> 150일</span>
-    <span><span style="color:#ef4444; font-weight:700;">━</span> 200일</span>
+    <span><span style="color:#a78bfa; font-weight:700;">━</span> 200일</span>
     <span><span style="color:#38bdf8; font-weight:700;">┈</span> 피벗</span>
     <span><span style="color:#f87171; font-weight:700;">┈</span> 손절</span>
-    <span style="color:#64748b;">▮ 거래량</span>
   </div>
 </div>
 
@@ -126,6 +130,57 @@
   </div>
   {% endfor %}
 </div>
+
+<!-- 밸류에이션 · 수익성 (기업 기본정보) -->
+{% if stock.roe is not none or stock.target_price or stock.recommendation or stock.next_earnings %}
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">밸류에이션 · 수익성 <span style="font-weight:400; font-size:0.78rem; color:#64748b;">증권사 컨센서스 · 수익성 지표</span></h3>
+<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:32px;">
+  {% if stock.roe is not none %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">ROE (자기자본이익률)</div>
+    <div style="font-size:1.1rem; font-weight:600; color:{% if stock.roe >= 0.17 %}#4ade80{% elif stock.roe >= 0 %}#fbbf24{% else %}#f87171{% endif %};">{{ "%.1f"|format(stock.roe * 100) }}%</div>
+  </div>
+  {% endif %}
+  {% if stock.operating_margin is not none %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">영업이익률</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ "%.1f"|format(stock.operating_margin * 100) }}%</div>
+  </div>
+  {% endif %}
+  {% if stock.profit_margin is not none %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">순이익률</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ "%.1f"|format(stock.profit_margin * 100) }}%</div>
+  </div>
+  {% endif %}
+  {% if stock.target_price %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">목표주가 (평균)</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ fmt_price(stock.target_price, mk) }}
+      {% if result and result.close %}<span style="font-size:0.78rem; color:{% if stock.target_price > result.close %}#4ade80{% else %}#f87171{% endif %};">({{ "%+.0f"|format((stock.target_price / result.close - 1) * 100) }}%)</span>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if stock.forward_eps is not none %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">선행/후행 EPS</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ fmt_price(stock.forward_eps, mk) }} <span style="font-size:0.78rem; color:#64748b;">/ {{ fmt_price(stock.trailing_eps, mk) if stock.trailing_eps is not none else '-' }}</span></div>
+  </div>
+  {% endif %}
+  {% if stock.recommendation %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">투자의견 (컨센서스)</div>
+    <div style="font-size:1.1rem; font-weight:600;">{{ rec_labels.get(stock.recommendation, stock.recommendation) }}</div>
+  </div>
+  {% endif %}
+  {% if stock.next_earnings %}
+  <div style="background:#1e293b; border-radius:8px; padding:14px;">
+    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">최근 실적 발표일</div>
+    <div style="font-size:1.1rem; font-weight:600; color:#38bdf8;">{{ stock.next_earnings }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 
 <!-- 기술적 조건 체크리스트 -->
 <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">기술적 조건 (Stage 2)</h3>
@@ -247,45 +302,71 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-fetch('/api/chart/{{ stock.ticker }}')
-  .then(function (r) { return r.json(); })
-  .then(function (d) {
-    if (!d || d.error || !d.dates) return;
-    var cur = d.currency || '$';
-    var flat = function (v) { return d.dates.map(function () { return v; }); };
-    var maxVol = Math.max.apply(null, d.volume.length ? d.volume : [1]);
-    var money = function (v) {
-      if (v == null) return '-';
-      return cur + Number(v).toLocaleString(undefined, { maximumFractionDigits: cur === '₩' ? 0 : 2 });
-    };
-    var datasets = [
-      { label: '종가', data: d.close, borderColor: '#e2e8f0', borderWidth: 1.6, pointRadius: 0, tension: 0, yAxisID: 'y' },
-      { label: '50일', data: d.ma50, borderColor: '#4ade80', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
-      { label: '150일', data: d.ma150, borderColor: '#f59e0b', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
-      { label: '200일', data: d.ma200, borderColor: '#ef4444', borderWidth: 1, pointRadius: 0, yAxisID: 'y' },
-      { type: 'bar', label: '거래량', data: d.volume, backgroundColor: 'rgba(100,116,139,0.35)', yAxisID: 'yVol', order: 20 }
-    ];
-    if (d.pivot) datasets.push({ label: '피벗', data: flat(d.pivot), borderColor: '#38bdf8', borderWidth: 1, borderDash: [5, 4], pointRadius: 0, yAxisID: 'y' });
-    if (d.stop) datasets.push({ label: '손절', data: flat(d.stop), borderColor: '#f87171', borderWidth: 1, borderDash: [3, 4], pointRadius: 0, yAxisID: 'y' });
-    new Chart(document.getElementById('priceChart'), {
-      type: 'line',
-      data: { labels: d.dates, datasets: datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        interaction: { intersect: false, mode: 'index' },
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: function (c) { return c.dataset.label + ': ' + (c.parsed.y == null ? '-' : money(c.parsed.y)); } } }
-        },
-        scales: {
-          x: { ticks: { color: '#64748b', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#1e293b' } },
-          y: { position: 'right', ticks: { color: '#94a3b8', callback: function (v) { return money(v); } }, grid: { color: '#1e293b' } },
-          yVol: { position: 'left', display: false, max: maxVol * 4, grid: { display: false } }
+(function () {
+  var el = document.getElementById('priceChart');
+  if (!el || !window.LightweightCharts) return;
+  fetch('/api/chart/{{ stock.ticker }}')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || d.error || !d.candles) return;
+      var cur = d.currency || '$';
+      var precision = cur === '₩' ? 0 : 2;
+      var chart = LightweightCharts.createChart(el, {
+        layout: { background: { color: '#1e293b' }, textColor: '#94a3b8' },
+        grid: { vertLines: { color: '#0f172a' }, horzLines: { color: '#0f172a' } },
+        rightPriceScale: { borderColor: '#334155' },
+        timeScale: { borderColor: '#334155', timeVisible: false },
+        crosshair: { mode: 0 },
+        localization: {
+          priceFormatter: function (p) { return cur + p.toLocaleString(undefined, { maximumFractionDigits: precision }); }
         }
+      });
+      var candle = chart.addCandlestickSeries({
+        upColor: '#4ade80', downColor: '#f87171', borderUpColor: '#4ade80',
+        borderDownColor: '#f87171', wickUpColor: '#4ade80', wickDownColor: '#f87171',
+        priceFormat: { type: 'price', precision: precision, minMove: cur === '₩' ? 1 : 0.01 }
+      });
+      candle.setData(d.candles);
+
+      function addMA(data, color) {
+        if (!data || !data.length) return;
+        var s = chart.addLineSeries({ color: color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
+        s.setData(data);
       }
+      addMA(d.ma50, '#22d3ee');
+      addMA(d.ma150, '#f59e0b');
+      addMA(d.ma200, '#a78bfa');
+
+      var vol = chart.addHistogramSeries({ priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false });
+      vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      vol.setData(d.volume);
+
+      if (d.pivot) candle.createPriceLine({ price: d.pivot, color: '#38bdf8', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '피벗' });
+      if (d.stop) candle.createPriceLine({ price: d.stop, color: '#f87171', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '손절' });
+
+      chart.timeScale().fitContent();
+      new ResizeObserver(function () { chart.applyOptions({ width: el.clientWidth }); }).observe(el);
     });
-  });
+})();
+
+// ── 관심종목 토글 (localStorage) ──
+var WL_KEY = 'minervini_watchlist';
+var WL_TICK = '{{ stock.ticker }}';
+function wlGet() { try { return JSON.parse(localStorage.getItem(WL_KEY)) || []; } catch (e) { return []; } }
+function wlSync() {
+  var b = document.getElementById('wlBtn'); if (!b) return;
+  var on = wlGet().indexOf(WL_TICK) >= 0;
+  b.innerHTML = on ? '★ 관심종목 해제' : '☆ 관심종목 추가';
+  b.style.color = on ? '#fbbf24' : '#94a3b8';
+  b.style.borderColor = on ? '#fbbf24' : '#334155';
+}
+function toggleWatch() {
+  var a = wlGet(); var i = a.indexOf(WL_TICK);
+  if (i >= 0) a.splice(i, 1); else a.push(WL_TICK);
+  localStorage.setItem(WL_KEY, JSON.stringify(a)); wlSync();
+}
+wlSync();
 </script>
 {% endblock %}
