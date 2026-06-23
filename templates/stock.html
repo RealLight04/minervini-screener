@@ -233,15 +233,15 @@
       {% for r in q_rows %}
       <tr style="border-top:1px solid #0f172a; text-align:right;">
         <td style="text-align:left; padding:8px;">{{ r.date.strftime('%Y-%m') if r.date else '-' }}</td>
-        {{ qoq_cell(r.rev, 5) }}
-        {{ qoq_cell(r.opi, 10) }}
+        {{ qoq_cell(r.rev, 20 if growth_basis == 'YoY' else 5) }}
+        {{ qoq_cell(r.opi, 25 if growth_basis == 'YoY' else 10) }}
         <td style="padding:8px; color:#cbd5e1;">{% if r.margin is not none %}{{ "%.1f"|format(r.margin) }}%{% else %}-{% endif %}</td>
-        {{ qoq_cell(r.eps, 10) }}
+        {{ qoq_cell(r.eps, 25 if growth_basis == 'YoY' else 10) }}
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률은 <strong>전분기 대비(QoQ)</strong>입니다. 미너비니는 매출·영업이익 <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>를 선호합니다. <span style="color:#475569;">(무료 데이터 한계로 분기 YoY 3개치는 불가 → QoQ로 추세 표시)</span></p>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률은 <strong>{% if growth_basis == 'YoY' %}전년 동기 대비(YoY){% else %}전분기 대비(QoQ){% endif %}</strong>입니다. 미너비니는 매출·영업이익 <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>를 선호합니다. <span style="color:#475569;">{% if growth_basis == 'YoY' %}(한국 종목: OpenDART 실적 기반 YoY){% else %}(미국: 무료 데이터 한계로 YoY 3개치 불가 → QoQ 표시){% endif %}</span></p>
   {% else %}
   <p style="color:#64748b; font-size:0.86rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털 필터는 기술적 조건만으로 통과 처리됩니다(참고용).</p>
   {% endif %}

@@ -239,6 +239,88 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
         return False
 
 
+_DART_REV = ["매출액", "수익(매출액)", "영업수익", "매출"]
+_DART_OPI = ["영업이익", "영업이익(손실)"]
+# 분기 → (보고서코드, 월, 일). 11011(사업보고서)=연간 → Q4는 연간-(Q1+Q2+Q3)
+_DART_QMAP = {1: ("11013", 3, 31), 2: ("11012", 6, 30), 3: ("11014", 9, 30), 4: ("11011", 12, 31)}
+
+
+def _dart_val(fs, candidates: list[str]):
+    """DART finstate DataFrame에서 연결>별도 우선으로 계정 금액 추출"""
+    if not isinstance(fs, pd.DataFrame) or "fs_nm" not in fs.columns:
+        return None
+    for fsname in ["연결재무제표", "재무제표"]:
+        for c in candidates:
+            row = fs[(fs["fs_nm"] == fsname) & (fs["account_nm"] == c)]
+            if len(row):
+                try:
+                    return int(str(row.iloc[0]["thstrm_amount"]).replace(",", ""))
+                except Exception:
+                    pass
+    return None
+
+
+def fetch_dart_quarterly(db: Session, dart, ticker: str, years: list[int]) -> bool:
+    """
+    OpenDART에서 한국 종목의 단일분기 매출·영업이익 수집 → Fundamental(Q) 저장.
+    분기보고서(11013/11012/11014)는 단일분기, 사업보고서(11011)는 연간 → Q4 = 연간-(Q1~Q3).
+    """
+    from datetime import date
+
+    code = ticker.split(".")[0]
+    stock = db.query(Stock).filter(Stock.ticker == ticker).first()
+    if not stock:
+        return False
+
+    got = 0
+    for year in years:
+        vals: dict = {}
+        for q, (rc, _, _) in _DART_QMAP.items():
+            try:
+                fs = dart.finstate(code, year, reprt_code=rc)
+            except Exception:
+                fs = None
+            rev = _dart_val(fs, _DART_REV)
+            if rev is not None:
+                vals[q] = {"rev": rev, "opi": _dart_val(fs, _DART_OPI)}
+
+        # Q4(단일) = 연간 - (Q1+Q2+Q3)
+        if 4 in vals and all(q in vals for q in (1, 2, 3)):
+            for k in ("rev", "opi"):
+                if all(vals[q].get(k) is not None for q in (1, 2, 3, 4)):
+                    vals[4][k] = vals[4][k] - sum(vals[q][k] for q in (1, 2, 3))
+
+        for q, v in vals.items():
+            if v["rev"] is None:
+                continue
+            _, mm, dd = _DART_QMAP[q]
+            pdate = date(year, mm, dd)
+            rev = float(v["rev"])
+            opi = float(v["opi"]) if v["opi"] is not None else None
+            margin = round(opi / rev * 100, 2) if (opi is not None and rev) else None
+            existing = (
+                db.query(Fundamental)
+                .filter(
+                    Fundamental.stock_id == stock.id,
+                    Fundamental.period_type == "Q",
+                    Fundamental.period_date == pdate,
+                )
+                .first()
+            )
+            if existing:
+                existing.revenue = rev
+                existing.operating_income = opi
+                existing.operating_margin = margin
+            else:
+                db.add(Fundamental(
+                    stock_id=stock.id, period_type="Q", period_date=pdate,
+                    revenue=rev, operating_income=opi, operating_margin=margin,
+                ))
+            got += 1
+    db.commit()
+    return got > 0
+
+
 def fetch_company_info(db: Session, ticker: str) -> bool:
     """yfinance .info에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일) 수집."""
     from datetime import datetime, timezone

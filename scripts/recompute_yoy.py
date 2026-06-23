@@ -36,11 +36,11 @@ def main():
                 .all()
             )
             for r in rows:
-                # 약 1년 전(±45일) 분기 찾기
+                # 약 1년 전(±45일) 분기 찾기 (r보다 과거인 분기가 파트너)
                 partner = None
                 bestdiff = 46
                 for q in rows:
-                    diff = abs((q.period_date - r.period_date).days - 365)
+                    diff = abs((r.period_date - q.period_date).days - 365)
                     if diff <= 45 and diff < bestdiff:
                         partner, bestdiff = q, diff
                 if partner is None:

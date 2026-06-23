@@ -181,26 +181,36 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
                 prev = cur
         return out
 
-    rev_qoq, opi_qoq, eps_qoq = _qoq("revenue"), _qoq("operating_income"), _qoq("eps")
+    # YoY가 3분기 이상 있으면 YoY(정석, 한국=DART), 부족하면 QoQ 폴백(미국=yfinance)
+    yoy_rev = [f.revenue_growth_yoy for f in q_funds]
+    use_yoy = len([x for x in yoy_rev if x is not None]) >= 3
+    if use_yoy:
+        growth_basis = "YoY"
+        rev_g = yoy_rev
+        opi_g = [f.operating_income_growth_yoy for f in q_funds]
+        eps_g = [f.eps_growth_yoy for f in q_funds]
+    else:
+        growth_basis = "QoQ"
+        rev_g, opi_g, eps_g = _qoq("revenue"), _qoq("operating_income"), _qoq("eps")
 
     def _accel3(values):  # 최근 3개 값이 연속 증가(가속/확대)
         v = [x for x in values if x is not None][-3:]
         return len(v) == 3 and v[0] < v[1] < v[2]
 
     accel = {
-        "revenue": _accel3(rev_qoq),
-        "operating": _accel3(opi_qoq),
+        "revenue": _accel3(rev_g),
+        "operating": _accel3(opi_g),
         "margin": _accel3([f.operating_margin for f in q_funds]),
-        "eps": _accel3(eps_qoq),
+        "eps": _accel3(eps_g),
     }
     eps_accelerating = accel["eps"]  # 기존 호환
 
     q_rows = [{
         "date": f.period_date,
-        "rev": rev_qoq[i],
-        "opi": opi_qoq[i],
+        "rev": rev_g[i],
+        "opi": opi_g[i],
         "margin": f.operating_margin,
-        "eps": eps_qoq[i],
+        "eps": eps_g[i],
     } for i, f in enumerate(q_funds)]
 
     trade_plan = build_trade_plan(latest_result, stock.market or "US") if latest_result else None
@@ -214,6 +224,7 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "history": history,
             "q_funds": q_funds,
             "q_rows": q_rows,
+            "growth_basis": growth_basis,
             "y_funds": y_funds,
             "eps_accelerating": eps_accelerating,
             "accel": accel,

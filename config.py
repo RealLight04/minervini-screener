@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # 한국 종목 유니버스 크기 (시가총액 상위 N)
     KOSPI_TOP_N: int = 200
     KOSDAQ_TOP_N: int = 100
+    DART_API_KEY: str = ""   # OpenDART 인증키 (한국 종목 재무 수집용, .env에 보관)
 
     class Config:
         env_file = ".env"
