@@ -149,6 +149,7 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
 
             eps_row = _pick_row(stmt, ["Diluted EPS", "Basic EPS"])
             rev_row = _pick_row(stmt, ["Total Revenue", "Operating Revenue"])
+            opi_row = _pick_row(stmt, ["Operating Income", "Total Operating Income As Reported"])
             if eps_row is None and rev_row is None:
                 continue
 
@@ -156,30 +157,47 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
             periods = sorted(stmt.columns)
             eps_by_period: dict = {}
             rev_by_period: dict = {}
+            opi_by_period: dict = {}
             for p in periods:
                 eps_by_period[p] = _safe_val(eps_row, p)
                 rev_by_period[p] = _safe_val(rev_row, p)
+                opi_by_period[p] = _safe_val(opi_row, p)
 
-            yoy_offset = 4 if period_type == "Q" else 1
-            for i, p in enumerate(periods):
+            # YoY 비교 기준 기간을 '날짜로' 매칭 (분기 누락이 있어도 정확). 약 1년 전 ±45일
+            tol = 45 if period_type == "Q" else 120
+            target_days = 365
+
+            def _yoy_partner(p):
+                want = p - pd.Timedelta(days=target_days)
+                best, bestdiff = None, tol + 1
+                for q in periods:
+                    diff = abs((q - want).days)
+                    if diff <= tol and diff < bestdiff:
+                        best, bestdiff = q, diff
+                return best
+
+            for p in periods:
                 period_date = p.date() if hasattr(p, "date") else None
                 if period_date is None:
                     continue
 
                 eps = eps_by_period[p]
                 revenue = rev_by_period[p]
+                opi = opi_by_period[p]
+                op_margin = (opi / revenue * 100) if (opi is not None and revenue not in (None, 0)) else None
 
-                # YoY 성장률 (4분기 전 / 1년 전과 비교)
-                eps_growth = None
-                rev_growth = None
-                if i >= yoy_offset:
-                    prev_p = periods[i - yoy_offset]
+                eps_growth = rev_growth = opi_growth = None
+                prev_p = _yoy_partner(p)
+                if prev_p is not None:
                     prev_eps = eps_by_period.get(prev_p)
                     prev_rev = rev_by_period.get(prev_p)
+                    prev_opi = opi_by_period.get(prev_p)
                     if eps is not None and prev_eps not in (None, 0):
                         eps_growth = (eps - prev_eps) / abs(prev_eps) * 100
                     if revenue is not None and prev_rev not in (None, 0):
                         rev_growth = (revenue - prev_rev) / abs(prev_rev) * 100
+                    if opi is not None and prev_opi not in (None, 0):
+                        opi_growth = (opi - prev_opi) / abs(prev_opi) * 100
 
                 existing = (
                     db.query(Fundamental)
@@ -191,11 +209,13 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
                     .first()
                 )
                 if existing:
-                    # 최신 계산값으로 갱신
                     existing.eps = eps
                     existing.revenue = revenue
+                    existing.operating_income = opi
+                    existing.operating_margin = round(op_margin, 2) if op_margin is not None else None
                     existing.eps_growth_yoy = eps_growth
                     existing.revenue_growth_yoy = rev_growth
+                    existing.operating_income_growth_yoy = opi_growth
                 else:
                     db.add(
                         Fundamental(
@@ -204,8 +224,11 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
                             period_date=period_date,
                             eps=eps,
                             revenue=revenue,
+                            operating_income=opi,
+                            operating_margin=round(op_margin, 2) if op_margin is not None else None,
                             eps_growth_yoy=eps_growth,
                             revenue_growth_yoy=rev_growth,
+                            operating_income_growth_yoy=opi_growth,
                         )
                     )
         db.commit()

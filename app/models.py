@@ -56,8 +56,11 @@ class Fundamental(Base):
     period_date = Column(Date, nullable=False)
     eps = Column(Float)
     revenue = Column(Float)
-    eps_growth_yoy = Column(Float)      # 전년 동기 대비 EPS 증가율 (%)
-    revenue_growth_yoy = Column(Float)  # 전년 동기 대비 매출 증가율 (%)
+    operating_income = Column(Float)          # 영업이익
+    operating_margin = Column(Float)          # 영업이익률 (영업이익/매출, %)
+    eps_growth_yoy = Column(Float)            # 전년 동기 대비 EPS 증가율 (%)
+    revenue_growth_yoy = Column(Float)        # 전년 동기 대비 매출 증가율 (%)
+    operating_income_growth_yoy = Column(Float)  # 전년 동기 대비 영업이익 증가율 (%)
 
     stock = relationship("Stock", back_populates="fundamentals")
 

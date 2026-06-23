@@ -206,37 +206,42 @@
 </div>
 
 <!-- 펀더멘털: 분기 실적 추이 -->
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">
+{% macro accel_badge(on, label) %}{% if on %}<span style="background:#14532d; color:#4ade80; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">⚡ {{ label }}</span>{% endif %}{% endmacro %}
+<h3 style="font-size:1rem; font-weight:600; margin-bottom:6px; color:#94a3b8;">
   실적 추이 (분기 · 전년 동기 대비)
-  {% if eps_accelerating %}<span style="background:#14532d; color:#4ade80; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:8px;">⚡ EPS 성장 가속</span>{% endif %}
 </h3>
+{% macro qoq_cell(v, good) %}<td style="padding:8px; font-weight:600; color:{% if v is not none and v >= good %}#4ade80{% elif v is not none and v >= 0 %}#fbbf24{% elif v is not none %}#f87171{% else %}#475569{% endif %};">{% if v is not none %}{{ "%+.1f"|format(v) }}%{% else %}-{% endif %}</td>{% endmacro %}
+{% if accel %}
+<div style="margin-bottom:12px;">
+  {{ accel_badge(accel.revenue, "매출 3분기 가속") }}{{ accel_badge(accel.operating, "영업이익 3분기 가속") }}{{ accel_badge(accel.margin, "마진 3분기 확대") }}{{ accel_badge(accel.eps, "EPS 3분기 가속") }}
+  {% if not (accel.revenue or accel.operating or accel.eps or accel.margin) %}<span style="color:#64748b; font-size:0.74rem;">최근 3분기 연속 가속/확대 항목 없음</span>{% endif %}
+</div>
+{% endif %}
 <div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px; overflow-x:auto;">
-  {% if q_funds %}
-  <table style="width:100%; border-collapse:collapse; font-size:0.86rem;">
+  {% if q_rows %}
+  <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
     <thead>
       <tr style="color:#94a3b8; text-align:right;">
-        <th style="text-align:left; padding:6px 8px; font-weight:500;">분기(기준월)</th>
-        <th style="padding:6px 8px; font-weight:500;">EPS</th>
-        <th style="padding:6px 8px; font-weight:500;">EPS 성장(YoY)</th>
-        <th style="padding:6px 8px; font-weight:500;">매출 성장(YoY)</th>
+        <th style="text-align:left; padding:6px 8px; font-weight:500;">분기</th>
+        <th style="padding:6px 8px; font-weight:500;">매출 성장</th>
+        <th style="padding:6px 8px; font-weight:500;">영업이익 성장</th>
+        <th style="padding:6px 8px; font-weight:500;">영업이익률</th>
+        <th style="padding:6px 8px; font-weight:500;">EPS 성장</th>
       </tr>
     </thead>
     <tbody>
-      {% for f in q_funds %}
+      {% for r in q_rows %}
       <tr style="border-top:1px solid #0f172a; text-align:right;">
-        <td style="text-align:left; padding:8px;">{{ f.period_date.strftime('%Y-%m') if f.period_date else '-' }}</td>
-        <td style="padding:8px;">{% if f.eps is not none %}{{ "%.2f"|format(f.eps) }}{% else %}-{% endif %}</td>
-        <td style="padding:8px; font-weight:600; color:{% if f.eps_growth_yoy is not none and f.eps_growth_yoy >= 25 %}#4ade80{% elif f.eps_growth_yoy is not none and f.eps_growth_yoy >= 0 %}#fbbf24{% else %}#f87171{% endif %};">
-          {% if f.eps_growth_yoy is not none %}{{ "%+.1f"|format(f.eps_growth_yoy) }}%{% else %}-{% endif %}
-        </td>
-        <td style="padding:8px; color:{% if f.revenue_growth_yoy is not none and f.revenue_growth_yoy >= 20 %}#4ade80{% elif f.revenue_growth_yoy is not none and f.revenue_growth_yoy >= 0 %}#fbbf24{% else %}#f87171{% endif %};">
-          {% if f.revenue_growth_yoy is not none %}{{ "%+.1f"|format(f.revenue_growth_yoy) }}%{% else %}-{% endif %}
-        </td>
+        <td style="text-align:left; padding:8px;">{{ r.date.strftime('%Y-%m') if r.date else '-' }}</td>
+        {{ qoq_cell(r.rev, 5) }}
+        {{ qoq_cell(r.opi, 10) }}
+        <td style="padding:8px; color:#cbd5e1;">{% if r.margin is not none %}{{ "%.1f"|format(r.margin) }}%{% else %}-{% endif %}</td>
+        {{ qoq_cell(r.eps, 10) }}
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">통과 기준: 분기 EPS 성장 ≥ 25%, 매출 성장 ≥ 20% (초록). 미너비니는 <strong>분기마다 성장률이 커지는 '가속'</strong>을 특히 선호합니다.</p>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률은 <strong>전분기 대비(QoQ)</strong>입니다. 미너비니는 매출·영업이익 <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>를 선호합니다. <span style="color:#475569;">(무료 데이터 한계로 분기 YoY 3개치는 불가 → QoQ로 추세 표시)</span></p>
   {% else %}
   <p style="color:#64748b; font-size:0.86rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털 필터는 기술적 조건만으로 통과 처리됩니다(참고용).</p>
   {% endif %}

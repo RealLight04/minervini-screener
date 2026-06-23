@@ -158,7 +158,7 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         db.query(Fundamental)
         .filter(Fundamental.stock_id == stock.id, Fundamental.period_type == "Q")
         .order_by(Fundamental.period_date.desc())
-        .limit(4)
+        .limit(5)
         .all()
     )[::-1]
     y_funds = (
@@ -169,11 +169,39 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         .all()
     )[::-1]
 
-    # 분기 EPS 성장률 가속 여부 (최근 분기로 갈수록 YoY 성장률이 커지는가)
-    q_growths = [f.eps_growth_yoy for f in q_funds[-3:] if f.eps_growth_yoy is not None]
-    eps_accelerating = len(q_growths) >= 2 and all(
-        q_growths[i] < q_growths[i + 1] for i in range(len(q_growths) - 1)
-    )
+    # 분기 성장률은 '전분기 대비(QoQ)'로 계산.
+    # (yfinance 무료는 분기 매출·영업이익을 ~5분기만 줘서 YoY 3개치 산출이 불가 → QoQ로 3분기 가속 판정)
+    def _qoq(attr):
+        out, prev = [], None
+        for f in q_funds:
+            cur = getattr(f, attr)
+            g = round((cur - prev) / abs(prev) * 100, 1) if (cur is not None and prev not in (None, 0)) else None
+            out.append(g)
+            if cur is not None:
+                prev = cur
+        return out
+
+    rev_qoq, opi_qoq, eps_qoq = _qoq("revenue"), _qoq("operating_income"), _qoq("eps")
+
+    def _accel3(values):  # 최근 3개 값이 연속 증가(가속/확대)
+        v = [x for x in values if x is not None][-3:]
+        return len(v) == 3 and v[0] < v[1] < v[2]
+
+    accel = {
+        "revenue": _accel3(rev_qoq),
+        "operating": _accel3(opi_qoq),
+        "margin": _accel3([f.operating_margin for f in q_funds]),
+        "eps": _accel3(eps_qoq),
+    }
+    eps_accelerating = accel["eps"]  # 기존 호환
+
+    q_rows = [{
+        "date": f.period_date,
+        "rev": rev_qoq[i],
+        "opi": opi_qoq[i],
+        "margin": f.operating_margin,
+        "eps": eps_qoq[i],
+    } for i, f in enumerate(q_funds)]
 
     trade_plan = build_trade_plan(latest_result, stock.market or "US") if latest_result else None
 
@@ -185,8 +213,10 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "result": latest_result,
             "history": history,
             "q_funds": q_funds,
+            "q_rows": q_rows,
             "y_funds": y_funds,
             "eps_accelerating": eps_accelerating,
+            "accel": accel,
             "trade_plan": trade_plan,
         },
     )
