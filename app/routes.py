@@ -107,12 +107,48 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     # 시장 국면(breadth) — 선택한 시장 기준
     breadth = compute_market_breadth(db, screen_date, market=market)
 
+    # 주도 섹터/테마: 섹터별 매수후보 수·Stage2 비율·평균 RS 집계
+    srows = (
+        db.query(Stock.sector, ScreeningResult.signal,
+                 ScreeningResult.technical_pass, ScreeningResult.rs_rank)
+        .join(ScreeningResult, ScreeningResult.stock_id == Stock.id)
+        .filter(ScreeningResult.screen_date == screen_date, Stock.market == market)
+        .all()
+    )
+    sec_agg: dict = {}
+    for sec, sig, tech, rs in srows:
+        if not sec:
+            continue
+        a = sec_agg.setdefault(sec, {"total": 0, "buy": 0, "stage2": 0, "rs_sum": 0.0, "rs_n": 0})
+        a["total"] += 1
+        if sig in ("BUY", "STRONG_BUY"):
+            a["buy"] += 1
+        if tech:
+            a["stage2"] += 1
+        if rs is not None:
+            a["rs_sum"] += rs
+            a["rs_n"] += 1
+    themes = []
+    for sec, a in sec_agg.items():
+        if a["total"] < 3:
+            continue
+        themes.append({
+            "sector": sec,
+            "total": a["total"],
+            "buy": a["buy"],
+            "stage2_pct": round(a["stage2"] / a["total"] * 100),
+            "avg_rs": round(a["rs_sum"] / a["rs_n"]) if a["rs_n"] else 0,
+        })
+    themes.sort(key=lambda x: (-x["buy"], -x["stage2_pct"], -x["avg_rs"]))
+    themes = themes[:6]
+
     return templates.TemplateResponse(
         request,
         "index.html",
         context={
             "buy_list": buy_list,
             "breakout_watch": breakout_watch,
+            "themes": themes,
             "sell_list": sell_list,
             "screen_date": screen_date,
             "buy_count": len(buy_list),
@@ -204,6 +240,8 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         "eps": _accel3(eps_g),
     }
     eps_accelerating = accel["eps"]  # 기존 호환
+    # Code 33: 매출·영업이익이 동시에 3분기 연속 가속 = 전방위 실적 모멘텀 (미너비니 최상급)
+    code33 = accel["revenue"] and accel["operating"]
 
     q_rows = [{
         "date": f.period_date,
@@ -228,6 +266,7 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "y_funds": y_funds,
             "eps_accelerating": eps_accelerating,
             "accel": accel,
+            "code33": code33,
             "trade_plan": trade_plan,
         },
     )
@@ -340,6 +379,17 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         if not pd.isna(ma200.iloc[i]):
             ma200_s.append({"time": d, "value": round(float(ma200.iloc[i]), 2)})
 
+    # 매수 지점: 돌파형=피벗, 눌림형=50일선 (매수 신호일 때만). 손절은 매수가 -8%
+    buy, buy_label = None, None
+    chart_stop = latest.stop_loss if latest else None
+    if latest and latest.signal in ("BUY", "STRONG_BUY"):
+        if latest.pivot_price:
+            buy, buy_label = latest.pivot_price, "🎯 매수(피벗 돌파)"
+            chart_stop = round(latest.pivot_price * 0.92, 2)
+        elif latest.ma50:
+            buy, buy_label = round(latest.ma50, 2), "🎯 매수(50일선 눌림)"
+            chart_stop = round(latest.ma50 * 0.92, 2)
+
     return {
         "ticker": stock.ticker,
         "name": stock.name,
@@ -351,7 +401,9 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         "ma150": ma150_s,
         "ma200": ma200_s,
         "pivot": latest.pivot_price if latest else None,
-        "stop": latest.stop_loss if latest else None,
+        "stop": chart_stop,
+        "buy": buy,
+        "buy_label": buy_label,
     }
 
 
