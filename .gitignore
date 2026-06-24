@@ -7,4 +7,7 @@ venv/
 # 환경변수 (비밀값)
 .env
 
+# OpenDartReader가 만드는 corp_codes 캐시 (재생성 가능)
+docs_cache/
+
 # 주의: screener.db 는 배포용 스냅샷이라 .gitignore 하지 않고 커밋에 포함함
