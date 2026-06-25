@@ -550,6 +550,36 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
     }
 
 
+def prune_old_history(db: Session, keep_price_days: int = 450, keep_screen_days: int = 90) -> None:
+    """배포 스냅샷(screener.db)의 무한 증가를 막기 위해 오래된 행을 정리한다.
+
+    매일 일봉 ~800행이 영구 누적되면 커밋 blob이 계속 커진다. 스크리너의 최대
+    lookback(RS 52주 + 10일 ≈ 374일)보다 넉넉히 보존(기본 450일)하면 신호에 영향이
+    없다. DELETE만 하고 VACUUM은 하지 않는다 — 비워진 페이지는 다음 일봉 insert가
+    재사용하므로 파일 크기가 자연히 안정화된다(일회성 축소는 VACUUM으로 별도 수행).
+    """
+    latest = db.query(DailyPrice.date).order_by(DailyPrice.date.desc()).first()
+    if not latest:
+        return
+    latest = latest[0]
+    n_price = (
+        db.query(DailyPrice)
+        .filter(DailyPrice.date < latest - timedelta(days=keep_price_days))
+        .delete(synchronize_session=False)
+    )
+    n_screen = (
+        db.query(ScreeningResult)
+        .filter(ScreeningResult.screen_date < latest - timedelta(days=keep_screen_days))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    if n_price or n_screen:
+        logger.info(
+            f"오래된 데이터 정리: 일봉 {n_price}행, 스크리닝 {n_screen}행 "
+            f"(보존 {keep_price_days}/{keep_screen_days}일)"
+        )
+
+
 def run_daily_screen(db: Session) -> int:
     """전체 종목 스크리닝 실행 (일일 배치)"""
     screen_date = date.today()
@@ -585,4 +615,7 @@ def run_daily_screen(db: Session) -> int:
 
     db.commit()
     logger.info(f"스크리닝 완료: {passed}/{len(stocks)} 종목 통과")
+
+    # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
+    prune_old_history(db)
     return passed

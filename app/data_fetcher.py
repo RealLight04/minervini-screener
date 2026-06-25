@@ -90,8 +90,13 @@ def ensure_stocks_in_db(db: Session, stock_list: list[dict]) -> None:
     db.commit()
 
 
-def fetch_and_save_prices(db: Session, ticker: str, period_days: int = 500) -> bool:
-    """주가 데이터 수집 및 저장 (최근 N일)"""
+def fetch_and_save_prices(db: Session, ticker: str, period_days: int = 450) -> bool:
+    """주가 데이터 수집 및 저장 (최근 N일)
+
+    수집 창(450일)을 screener.prune_old_history의 보존 창(450일)과 맞춰
+    매일 같은 구간이 추가·삭제되는 churn을 없앤다. 스크리너 최대 lookback(RS 52주
+    ≈ 374일)보다 넉넉하므로 신호에 영향 없음.
+    """
     stock = db.query(Stock).filter(Stock.ticker == ticker).first()
     if not stock:
         return False
