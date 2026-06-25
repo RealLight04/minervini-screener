@@ -59,7 +59,9 @@ def fetch_kr_tickers(kospi_n: int = 200, kosdaq_n: int = 100) -> list[dict]:
                 result.append({
                     "ticker": f"{code}.{suffix}",
                     "name": row.get("Name"),
-                    "sector": row.get("Dept") if pd.notna(row.get("Dept")) else None,
+                    # FDR 'Dept'는 거래소 소속부(상장 등급)일 뿐 업종이 아니므로 sector로 쓰지 않는다.
+                    # 실섹터는 scripts/collect_kr_sectors.py(yfinance)로 백필. (테마 오염 방지)
+                    "sector": None,
                     "market": market,
                 })
         except Exception as e:
