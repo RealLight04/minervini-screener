@@ -85,10 +85,30 @@ def _signal_bucket(c, ma50, ma150, ma200, ma200_prev, hi52, lo52, rs):
     return "TREND" if all(cond) else "NEUTRAL"
 
 
+def _market_regime(years):
+    """S&P500 지수 국면: 지수 종가 > 200일 MA 이면 위험-on(상승추세).
+    미너비니의 '시장이 우상향일 때만 매수' 규칙을 백테스트에 게이트로 적용."""
+    end = pd.Timestamp.today().normalize()
+    start = end - pd.DateOffset(years=years + 1)
+    sp = yf.download("^GSPC", start=start.date().isoformat(), end=end.date().isoformat(),
+                     auto_adjust=True, progress=False)["Close"].squeeze()
+    ma200 = sp.rolling(200).mean()
+    on = (sp > ma200)
+
+    def regime_on(d):
+        prior = on.index[on.index <= d]
+        if len(prior) == 0:
+            return None
+        v = on[prior[-1]]
+        return None if pd.isna(v) else bool(v)
+    return regime_on
+
+
 def run(years=6, sample=None):
     tickers = _universe(sample)
     close = _download(tickers, years)
     cols = list(close.columns)
+    regime_on = _market_regime(years)
 
     # 사전계산: 이동평균
     ma50 = close.rolling(50).mean()
@@ -116,6 +136,7 @@ def run(years=6, sample=None):
     for d in usable:
         pos = idx.get_loc(d)
         prev_pos = pos - 21
+        reg = regime_on(d)   # 이 시점 시장 국면(지수>200MA)
         # 그 시점 RS 백분위(횡단면): 유니버스 52주수익률 순위
         r52 = ret52.loc[d]
         valid_rs = r52.dropna()
@@ -143,7 +164,7 @@ def run(years=6, sample=None):
             bucket = _signal_bucket(c, m50, m150, m200,
                                     None if pd.isna(m200p) else m200p,
                                     h, l, rs_pct[tk])
-            rec = {"date": d, "ticker": tk, "bucket": bucket}
+            rec = {"date": d, "ticker": tk, "bucket": bucket, "regime_on": reg}
             for label in FWD_WINDOWS:
                 fv = (close.iloc[pos + FWD_WINDOWS[label]][tk] / c - 1.0) * 100
                 rec[label] = fv
@@ -204,6 +225,20 @@ def _report(res):
         if len(t) == 0:
             continue
         print(f"  {y}: 트렌드 {t.mean():+6.1f}%  벤치 {b.mean():+6.1f}%  엣지 {t.mean()-b.mean():+5.1f}%p  (n={len(t)})")
+
+    # 시장 국면 필터: 미너비니 '지수 우상향일 때만 매수' 규칙의 효과
+    if "regime_on" in res.columns and res["regime_on"].notna().any():
+        print("\n[시장 국면 필터 효과 — 트렌드통과의 엣지(%p)]")
+        for name, mask in [("필터없음(전체)", res["regime_on"].notna()),
+                           ("국면 ON(지수>200MA)", res["regime_on"] == True),     # noqa: E712
+                           ("국면 OFF(지수<200MA)", res["regime_on"] == False)]:    # noqa: E712
+            g = res[mask]
+            t = g[g["bucket"] == "TREND"]
+            if t.empty:
+                continue
+            edges = "  ".join(f"{lab} {t[lab].mean()-g[lab].mean():+.2f}%p" for lab in FWD_WINDOWS)
+            print(f"  {name:<22} {edges}  (n={len(t):,})")
+        print("  → 국면 ON에서 엣지 확대, OFF(하락장)에선 음(-) → 국면을 게이트로 써야 함")
 
     print("\n⚠️ 한계: 펀더멘털·피벗타이밍 제외(기술신호만) · 생존편향(현 S&P500 잔존종목)")
 
