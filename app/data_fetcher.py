@@ -90,6 +90,9 @@ def ensure_stocks_in_db(db: Session, stock_list: list[dict]) -> None:
     db.commit()
 
 
+MIN_LISTING_DAYS = 365  # 상장 후 최소 경과일 — 미만이면 비활성화
+
+
 def fetch_and_save_prices(db: Session, ticker: str, period_days: int = 450) -> bool:
     """주가 데이터 수집 및 저장 (최근 N일)
 
@@ -100,12 +103,22 @@ def fetch_and_save_prices(db: Session, ticker: str, period_days: int = 450) -> b
     stock = db.query(Stock).filter(Stock.ticker == ticker).first()
     if not stock:
         return False
+    if not stock.is_active:
+        return False
 
     start = date.today() - timedelta(days=period_days)
     try:
         yf_ticker = yf.Ticker(ticker)
         hist = yf_ticker.history(start=start.isoformat(), auto_adjust=True)
         if hist.empty:
+            return False
+
+        # 상장 1년 미만: 스크리너 lookback(52주)을 못 채우므로 비활성화
+        first_date = hist.index[0].date() if hasattr(hist.index[0], "date") else hist.index[0].to_pydatetime().date()
+        if (date.today() - first_date).days < MIN_LISTING_DAYS:
+            stock.is_active = False
+            db.commit()
+            logger.info(f"{ticker} 상장 {(date.today() - first_date).days}일 → is_active=False")
             return False
 
         for idx, row in hist.iterrows():
@@ -140,6 +153,8 @@ def fetch_and_save_fundamentals(db: Session, ticker: str) -> bool:
     """분기/연간 EPS·매출 수집 및 저장"""
     stock = db.query(Stock).filter(Stock.ticker == ticker).first()
     if not stock:
+        return False
+    if not stock.is_active:
         return False
 
     try:
