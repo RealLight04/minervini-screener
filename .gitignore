@@ -11,3 +11,4 @@ venv/
 docs_cache/
 
 # 주의: screener.db 는 배포용 스냅샷이라 .gitignore 하지 않고 커밋에 포함함
+backtest_results.csv
