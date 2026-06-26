@@ -205,8 +205,10 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         .all()
     )[::-1]
 
-    # 분기 성장률은 '전분기 대비(QoQ)'로 계산.
-    # (yfinance 무료는 분기 매출·영업이익을 ~5분기만 줘서 YoY 3개치 산출이 불가 → QoQ로 3분기 가속 판정)
+    # 분기 성장률 기준은 '지표별로 독립' 판정:
+    #  - 그 지표의 YoY가 3분기 이상 있으면 YoY(정석) — 한국=DART, 미국 EPS=Alpha Vantage 백필
+    #  - 부족하면 QoQ 폴백 — 미국 매출·영업이익(yfinance 무료는 ~5분기라 YoY 3개치 불가)
+    # (예: 미국 종목은 EPS만 YoY, 매출·영업이익은 QoQ가 될 수 있음)
     def _qoq(attr):
         out, prev = [], None
         for f in q_funds:
@@ -217,17 +219,18 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
                 prev = cur
         return out
 
-    # YoY가 3분기 이상 있으면 YoY(정석, 한국=DART), 부족하면 QoQ 폴백(미국=yfinance)
-    yoy_rev = [f.revenue_growth_yoy for f in q_funds]
-    use_yoy = len([x for x in yoy_rev if x is not None]) >= 3
-    if use_yoy:
-        growth_basis = "YoY"
-        rev_g = yoy_rev
-        opi_g = [f.operating_income_growth_yoy for f in q_funds]
-        eps_g = [f.eps_growth_yoy for f in q_funds]
-    else:
-        growth_basis = "QoQ"
-        rev_g, opi_g, eps_g = _qoq("revenue"), _qoq("operating_income"), _qoq("eps")
+    def _metric(raw_attr, yoy_attr):
+        yoy = [getattr(f, yoy_attr) for f in q_funds]
+        if len([x for x in yoy if x is not None]) >= 3:
+            return yoy, "YoY"
+        return _qoq(raw_attr), "QoQ"
+
+    rev_g, rev_basis = _metric("revenue", "revenue_growth_yoy")
+    opi_g, opi_basis = _metric("operating_income", "operating_income_growth_yoy")
+    eps_g, eps_basis = _metric("eps", "eps_growth_yoy")
+    basis = {"revenue": rev_basis, "operating": opi_basis, "eps": eps_basis}
+    # 표 전체 안내문구용 대표 기준(하나라도 YoY면 YoY 우대 표기)
+    growth_basis = "YoY" if "YoY" in basis.values() else "QoQ"
 
     def _accel3(values):  # 최근 3개 값이 연속 증가(가속/확대)
         v = [x for x in values if x is not None][-3:]
@@ -242,6 +245,17 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
     eps_accelerating = accel["eps"]  # 기존 호환
     # Code 33: 매출·영업이익이 동시에 3분기 연속 가속 = 전방위 실적 모멘텀 (미너비니 최상급)
     code33 = accel["revenue"] and accel["operating"]
+
+    # EPS 연속 성장 streak: 최신 분기부터 YoY가 양(+)으로 끊기지 않고 이어진 분기 수.
+    # '가속'(증가율이 매분기 커짐)과 다른, '연속 성장' 개념(미너비니 핵심 점검 항목).
+    # YoY 기준일 때만 의미가 있다(QoQ는 계절성 때문에 연속성 판단 부적합).
+    eps_streak = 0
+    if eps_basis == "YoY":
+        for v in reversed(eps_g):
+            if v is not None and v > 0:
+                eps_streak += 1
+            else:
+                break
 
     q_rows = [{
         "date": f.period_date,
@@ -263,8 +277,10 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "q_funds": q_funds,
             "q_rows": q_rows,
             "growth_basis": growth_basis,
+            "basis": basis,
             "y_funds": y_funds,
             "eps_accelerating": eps_accelerating,
+            "eps_streak": eps_streak,
             "accel": accel,
             "code33": code33,
             "trade_plan": trade_plan,

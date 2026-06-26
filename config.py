@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     KOSPI_TOP_N: int = 200
     KOSDAQ_TOP_N: int = 100
     DART_API_KEY: str = ""   # OpenDART 인증키 (한국 종목 재무 수집용, .env에 보관)
+    ALPHAVANTAGE_API_KEY: str = ""   # Alpha Vantage 인증키 (미국 분기 EPS 이력 백필용, .env에 보관)
 
     class Config:
         env_file = ".env"

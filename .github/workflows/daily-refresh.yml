@@ -43,6 +43,19 @@ jobs:
       - name: Collect KR data + screen
         run: python scripts/collect_kr.py
 
+      - name: Backfill US quarterly EPS history (Alpha Vantage)
+        # 미국 관심권 종목의 분기 EPS 이력을 채워 '3분기 연속 EPS YoY' 판정을 가능케 한다.
+        # 무료 키는 하루 25건이라 미완성 종목을 매일 점진 완성(skip 로직). 한도/실패해도
+        # 파이프라인 전체는 계속 진행(continue-on-error).
+        continue-on-error: true
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+        run: python scripts/backfill_eps.py --limit 25
+
+      - name: Recompute YoY growth (network-free)
+        # DB에 누적된 분기 재무로 매출·영업이익·EPS의 YoY를 재계산(날짜 매칭).
+        run: python scripts/recompute_yoy.py
+
       - name: Commit refreshed snapshot DB & trigger Render deploy
         env:
           RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}

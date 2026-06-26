@@ -225,8 +225,9 @@
 {% macro qoq_cell(v, good) %}<td style="padding:8px; font-weight:600; color:{% if v is not none and v >= good %}#4ade80{% elif v is not none and v >= 0 %}#fbbf24{% elif v is not none %}#f87171{% else %}#475569{% endif %};">{% if v is not none %}{{ "%+.1f"|format(v) }}%{% else %}-{% endif %}</td>{% endmacro %}
 {% if accel %}
 <div style="margin-bottom:12px;">
+  {% if eps_streak and eps_streak >= 3 %}<span style="background:#1e3a5f; color:#7dd3fc; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-right:2px; font-weight:700;">🔥 EPS {{ eps_streak }}분기 연속 성장(YoY)</span>{% elif eps_streak and eps_streak == 2 %}<span style="background:#1e293b; color:#94a3b8; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-right:2px;">EPS 2분기 연속 성장(YoY)</span>{% endif %}
   {{ accel_badge(accel.revenue, "매출 3분기 가속") }}{{ accel_badge(accel.operating, "영업이익 3분기 가속") }}{{ accel_badge(accel.margin, "마진 3분기 확대") }}{{ accel_badge(accel.eps, "EPS 3분기 가속") }}
-  {% if not (accel.revenue or accel.operating or accel.eps or accel.margin) %}<span style="color:#64748b; font-size:0.74rem;">최근 3분기 연속 가속/확대 항목 없음</span>{% endif %}
+  {% if not (accel.revenue or accel.operating or accel.eps or accel.margin) and not (eps_streak and eps_streak >= 2) %}<span style="color:#64748b; font-size:0.74rem;">최근 3분기 연속 가속/확대 항목 없음</span>{% endif %}
 </div>
 {% endif %}
 <div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px; overflow-x:auto;">
@@ -235,25 +236,25 @@
     <thead>
       <tr style="color:#94a3b8; text-align:right;">
         <th style="text-align:left; padding:6px 8px; font-weight:500;">분기</th>
-        <th style="padding:6px 8px; font-weight:500;">매출 성장</th>
-        <th style="padding:6px 8px; font-weight:500;">영업이익 성장</th>
+        <th style="padding:6px 8px; font-weight:500;">매출 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.revenue }}</span></th>
+        <th style="padding:6px 8px; font-weight:500;">영업이익 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.operating }}</span></th>
         <th style="padding:6px 8px; font-weight:500;">영업이익률</th>
-        <th style="padding:6px 8px; font-weight:500;">EPS 성장</th>
+        <th style="padding:6px 8px; font-weight:500;">EPS 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.eps }}</span></th>
       </tr>
     </thead>
     <tbody>
       {% for r in q_rows %}
       <tr style="border-top:1px solid #0f172a; text-align:right;">
         <td style="text-align:left; padding:8px;">{{ r.date.strftime('%Y-%m') if r.date else '-' }}</td>
-        {{ qoq_cell(r.rev, 20 if growth_basis == 'YoY' else 5) }}
-        {{ qoq_cell(r.opi, 25 if growth_basis == 'YoY' else 10) }}
+        {{ qoq_cell(r.rev, 20 if basis.revenue == 'YoY' else 5) }}
+        {{ qoq_cell(r.opi, 25 if basis.operating == 'YoY' else 10) }}
         <td style="padding:8px; color:#cbd5e1;">{% if r.margin is not none %}{{ "%.1f"|format(r.margin) }}%{% else %}-{% endif %}</td>
-        {{ qoq_cell(r.eps, 25 if growth_basis == 'YoY' else 10) }}
+        {{ qoq_cell(r.eps, 25 if basis.eps == 'YoY' else 10) }}
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률은 <strong>{% if growth_basis == 'YoY' %}전년 동기 대비(YoY){% else %}전분기 대비(QoQ){% endif %}</strong>입니다. 미너비니는 매출·영업이익 <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>를 선호합니다. <span style="color:#475569;">{% if growth_basis == 'YoY' %}(한국 종목: OpenDART 실적 기반 YoY){% else %}(미국: 무료 데이터 한계로 YoY 3개치 불가 → QoQ 표시){% endif %}</span></p>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률 기준은 <strong>지표별</strong>로 각 열 아래에 표기했습니다 — <strong>YoY</strong>(전년 동기 대비, 정석) 또는 <strong>QoQ</strong>(전분기 대비, 폴백). 미너비니는 매출·영업이익·EPS <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>를 선호합니다. <span style="color:#475569;">(한국: OpenDART YoY · 미국 EPS: Alpha Vantage YoY · 미국 매출·영업이익: 무료 데이터로 YoY 3개치 부족 시 QoQ)</span></p>
   {% else %}
   <p style="color:#64748b; font-size:0.86rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털 필터는 기술적 조건만으로 통과 처리됩니다(참고용).</p>
   {% endif %}
