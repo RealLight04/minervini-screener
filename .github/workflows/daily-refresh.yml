@@ -43,14 +43,22 @@ jobs:
       - name: Collect KR data + screen
         run: python scripts/collect_kr.py
 
-      - name: Commit refreshed snapshot DB
+      - name: Commit refreshed snapshot DB & trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add screener.db
           if git diff --staged --quiet; then
-            echo "변경 없음 — 커밋 건너뜀(데이터가 갱신되지 않았거나 수집 실패)"
+            echo "변경 없음 — 커밋·배포 건너뜀(데이터가 갱신되지 않았거나 수집 실패)"
           else
             git commit -m "chore: 데이터 자동 갱신 (screener.db 스냅샷) [skip ci]"
             git push
+            # Render 자동배포 설정에 의존하지 않고 Deploy Hook으로 확실히 재배포
+            if [ -n "$RENDER_DEPLOY_HOOK" ]; then
+              curl -fsS -X POST "$RENDER_DEPLOY_HOOK" && echo "Render 배포 트리거 완료"
+            else
+              echo "RENDER_DEPLOY_HOOK secret 미설정 — Render 자동배포에 의존"
+            fi
           fi
