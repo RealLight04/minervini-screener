@@ -263,7 +263,21 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         "opi": opi_g[i],
         "margin": f.operating_margin,
         "eps": eps_g[i],
+        "surprise": f.eps_surprise_pct,
     } for i, f in enumerate(q_funds)]
+
+    # 어닝 서프라이즈(미국, Alpha Vantage): 최근 분기 서프라이즈 + 연속 비트(beat) 횟수.
+    # 추정치를 웃돌면(>0) 'beat'. 미너비니는 어닝 서프라이즈를 강세 모멘텀 신호로 본다.
+    eps_surprise_latest = next((f.eps_surprise_pct for f in reversed(q_funds)
+                                if f.eps_surprise_pct is not None), None)
+    beat_streak = 0
+    for f in reversed(q_funds):
+        if f.eps_surprise_pct is None:
+            break
+        if f.eps_surprise_pct > 0:
+            beat_streak += 1
+        else:
+            break
 
     trade_plan = build_trade_plan(latest_result, stock.market or "US") if latest_result else None
 
@@ -283,6 +297,8 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "eps_streak": eps_streak,
             "accel": accel,
             "code33": code33,
+            "eps_surprise_latest": eps_surprise_latest,
+            "beat_streak": beat_streak,
             "trade_plan": trade_plan,
         },
     )

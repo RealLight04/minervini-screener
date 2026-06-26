@@ -9,7 +9,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database import SessionLocal, init_db
-from app.data_fetcher import ensure_stocks_in_db, fetch_and_save_fundamentals, fetch_and_save_prices, fetch_sp500_tickers
+from app.data_fetcher import (
+    ensure_stocks_in_db,
+    fetch_and_save_fundamentals,
+    fetch_and_save_prices,
+    fetch_company_info,
+    fetch_sp500_tickers,
+)
 from app.screener import run_daily_screen
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -41,6 +47,12 @@ def run():
         logger.info("재무 데이터 수집 중...")
         for ticker in tickers:
             fetch_and_save_fundamentals(db, ticker)
+
+        # 3-1. 기업 기본정보(ROE·마진·목표가·다음 실적일) 갱신
+        #   next_earnings는 .calendar의 '미래 예정일'이라 매일 최신화해야 의미가 있다.
+        logger.info("기업 기본정보 갱신 중...")
+        for ticker in tickers:
+            fetch_company_info(db, ticker)
 
         # 4. 스크리닝 실행
         logger.info("Minervini 스크리닝 실행 중...")

@@ -343,15 +343,57 @@ def fetch_dart_quarterly(db: Session, dart, ticker: str, years: list[int]) -> bo
     return got > 0
 
 
-def fetch_company_info(db: Session, ticker: str) -> bool:
-    """yfinance .info에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일) 수집."""
+def _next_earnings_date(yf_ticker, info: dict):
+    """'다음' 실적일을 ISO 문자열로 반환.
+
+    info의 earningsTimestamp는 '최근 발표일'(과거)이라 다음 실적일이 아니다.
+    .calendar의 'Earnings Date'(미래 예정일)를 우선 쓰고, 없거나 과거면 None.
+    """
     from datetime import datetime, timezone
 
+    today = date.today()
+    # 1) .calendar 우선 — 미래 예정일
+    try:
+        cal = yf_ticker.calendar
+        dates = None
+        if isinstance(cal, dict):
+            dates = cal.get("Earnings Date")
+        elif cal is not None and hasattr(cal, "loc") and "Earnings Date" in getattr(cal, "index", []):
+            dates = list(cal.loc["Earnings Date"].values)
+        if dates is not None:
+            if not isinstance(dates, (list, tuple)):
+                dates = [dates]
+            future = []
+            for d in dates:
+                dd = d.date() if hasattr(d, "date") else d
+                if isinstance(dd, date) and dd >= today:
+                    future.append(dd)
+            if future:
+                return min(future).isoformat()
+    except Exception:
+        pass
+    # 2) 폴백: info 타임스탬프가 '미래'일 때만 채택(과거면 다음 실적일 아님)
+    ts = info.get("earningsTimestampStart") or info.get("earningsTimestamp")
+    if ts:
+        try:
+            d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            if d >= today:
+                return d.isoformat()
+        except Exception:
+            pass
+    return None
+
+
+def fetch_company_info(db: Session, ticker: str) -> bool:
+    """yfinance .info에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일) 수집."""
     stock = db.query(Stock).filter(Stock.ticker == ticker).first()
     if not stock:
         return False
+    if not stock.is_active:
+        return False
     try:
-        info = yf.Ticker(ticker).info or {}
+        yf_ticker = yf.Ticker(ticker)
+        info = yf_ticker.info or {}
         stock.roe = info.get("returnOnEquity")
         stock.profit_margin = info.get("profitMargins")
         stock.operating_margin = info.get("operatingMargins")
@@ -359,12 +401,7 @@ def fetch_company_info(db: Session, ticker: str) -> bool:
         stock.trailing_eps = info.get("trailingEps")
         stock.target_price = info.get("targetMeanPrice")
         stock.recommendation = info.get("recommendationKey")
-        ts = info.get("earningsTimestamp") or info.get("earningsTimestampStart")
-        if ts:
-            try:
-                stock.next_earnings = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
-            except Exception:
-                pass
+        stock.next_earnings = _next_earnings_date(yf_ticker, info)
         db.commit()
         return True
     except Exception as e:

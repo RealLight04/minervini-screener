@@ -18,6 +18,7 @@ from app.data_fetcher import (
     ensure_stocks_in_db,
     fetch_and_save_fundamentals,
     fetch_and_save_prices,
+    fetch_company_info,
     fetch_kr_tickers,
 )
 from app.screener import run_daily_screen
@@ -41,6 +42,7 @@ def main():
                 if fetch_and_save_prices(db, tk):
                     ok += 1
                 fetch_and_save_fundamentals(db, tk)
+                fetch_company_info(db, tk)  # ROE·마진·목표가·다음 실적일
             except Exception as e:
                 log.warning(f"{tk} 수집 실패: {e}")
             if i % 25 == 0:

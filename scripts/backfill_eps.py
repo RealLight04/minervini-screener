@@ -30,9 +30,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backfill_eps")
 
-from app.database import SessionLocal
+from app.database import SessionLocal, engine
 from app.models import Fundamental, ScreeningResult, Stock
 from config import settings
+
+# AV EARNINGS 응답엔 reportedEPS와 함께 estimatedEPS·surprisePercentage가 동봉돼
+# 추가 호출 없이 어닝 서프라이즈도 저장한다. 신규 컬럼이라 기존 DB엔 ALTER 필요.
+_NEW_COLS = {"eps_estimated": "FLOAT", "eps_surprise_pct": "FLOAT"}
+
+
+def migrate():
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(fundamentals)").fetchall()}
+        for name, typ in _NEW_COLS.items():
+            if name not in cols:
+                conn.exec_driver_sql(f"ALTER TABLE fundamentals ADD COLUMN {name} {typ}")
+        conn.commit()
 
 AV_URL = "https://www.alphavantage.co/query"
 SLEEP_SEC = 15          # 분당 4건(무료 5건/분 한도 안)
@@ -168,6 +181,9 @@ def backfill_one(db, ticker):
         # Alpha Vantage reportedEPS로 EPS 계열을 일관되게 채움(YoY 정합성).
         # 매출·영업이익은 건드리지 않음(yfinance/DART 소관).
         row.eps = eps
+        # 같은 응답에 동봉된 어닝 서프라이즈(추가 호출 0)
+        row.eps_estimated = _to_float(item.get("estimatedEPS"))
+        row.eps_surprise_pct = _to_float(item.get("surprisePercentage"))
         if is_new:
             added += 1
         else:
@@ -191,6 +207,7 @@ def main(argv):
                   "무료 발급: https://www.alphavantage.co/support/#api-key")
         return 1
 
+    migrate()
     db = SessionLocal()
     try:
         tickers = _target_tickers(db, only)

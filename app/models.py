@@ -61,6 +61,8 @@ class Fundamental(Base):
     eps_growth_yoy = Column(Float)            # 전년 동기 대비 EPS 증가율 (%)
     revenue_growth_yoy = Column(Float)        # 전년 동기 대비 매출 증가율 (%)
     operating_income_growth_yoy = Column(Float)  # 전년 동기 대비 영업이익 증가율 (%)
+    eps_estimated = Column(Float)             # 컨센서스 추정 EPS (Alpha Vantage, 미국)
+    eps_surprise_pct = Column(Float)          # 어닝 서프라이즈 (실제 대비 추정 초과율, %)
 
     stock = relationship("Stock", back_populates="fundamentals")
 
