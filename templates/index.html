@@ -40,6 +40,9 @@
     <span style="font-size:1.05rem; font-weight:800; color:{{ market.color }};">시장 국면 · {{ market.label }}</span>
   </div>
   <p style="color:#cbd5e1; font-size:0.86rem; margin-top:8px;">{{ market.advice }}</p>
+  {% if market.regime == "BEAR" %}
+  <p style="color:#fca5a5; font-size:0.82rem; margin-top:6px; font-weight:600;">🚫 약세장 게이트 작동 중 — 기술적 매수신호를 자동 보류(관심)로 전환했습니다. 시장이 회복되면 매수신호로 복귀합니다. <span style="color:#94a3b8; font-weight:400;">(백테스트: 약세 국면 매수는 시장평균 대비 −2.5~3.5%p 열위)</span></p>
+  {% endif %}
   <div style="display:flex; gap:20px; flex-wrap:wrap; margin-top:12px; font-size:0.82rem;">
     <span style="color:#94a3b8;">200일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_200 }}%</strong></span>
     <span style="color:#94a3b8;">50일선 위 종목 <strong style="color:#e2e8f0;">{{ market.pct_above_50 }}%</strong></span>

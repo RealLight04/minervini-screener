@@ -550,6 +550,47 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
     }
 
 
+def apply_regime_gate(db: Session, screen_date: date) -> int:
+    """시장 국면 게이트 — 약세장(BEAR)인 시장의 매수신호를 보류(WATCH)로 강등.
+
+    Minervini: 약세장에선 대부분 종목이 시장을 따라 하락한다. 백테스트(시점복원,
+    2020~2026)에서도 지수<200MA 국면의 트렌드 신호는 시장평균 대비 1·3·6개월
+    각 -2.2/-2.5/-3.5%p로 열위였다 → 기술적으론 매수신호여도 시장이 약하면 보류.
+
+    원래 신호는 signal_reason에 남겨 투명하게 표시(🚫 표식). 종목 자체의 기술
+    조건은 그대로라, 시장이 회복되면 다음 스크리닝에서 다시 매수신호로 복귀한다.
+    """
+    if not settings.REGIME_GATE:
+        return 0
+    markets = {m for (m,) in db.query(Stock.market).distinct() if m}
+    gated = 0
+    for mk in markets:
+        breadth = compute_market_breadth(db, screen_date, market=mk)
+        if not breadth.get("available") or breadth["regime"] != "BEAR":
+            continue
+        rows = (
+            db.query(ScreeningResult)
+            .join(Stock, ScreeningResult.stock_id == Stock.id)
+            .filter(
+                ScreeningResult.screen_date == screen_date,
+                Stock.market == mk,
+                ScreeningResult.signal.in_(["STRONG_BUY", "BUY"]),
+            )
+            .all()
+        )
+        for r in rows:
+            orig = SIGNAL_LABELS.get(r.signal, r.signal)
+            r.signal = "WATCH"
+            r.signal_reason = f"🚫 약세장 게이트 — 기술적으론 '{orig}' 신호지만 시장 추세 미흡으로 보류(시장 회복 시 복귀)"
+            r.pivot_price = None   # 약세장에선 진입가 제시 안 함
+            r.stop_loss = None
+            gated += 1
+    if gated:
+        db.commit()
+        logger.info(f"시장 국면 게이트: 약세장 시장의 매수신호 {gated}건 보류(WATCH)")
+    return gated
+
+
 def prune_old_history(db: Session, keep_price_days: int = 450, keep_screen_days: int = 90) -> None:
     """배포 스냅샷(screener.db)의 무한 증가를 막기 위해 오래된 행을 정리한다.
 
@@ -615,6 +656,9 @@ def run_daily_screen(db: Session) -> int:
 
     db.commit()
     logger.info(f"스크리닝 완료: {passed}/{len(stocks)} 종목 통과")
+
+    # 시장 국면 게이트 — 약세장 시장의 매수신호 보류(WATCH)
+    apply_regime_gate(db, screen_date)
 
     # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
     prune_old_history(db)
