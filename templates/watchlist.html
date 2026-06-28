@@ -1,23 +1,27 @@
 {% extends "base.html" %}
 {% block title %}관심종목 — Minervini Screener{% endblock %}
 {% block content %}
-<div style="margin-bottom:20px;">
-  <h2 style="font-size:1.5rem; font-weight:700;">⭐ 관심종목</h2>
-  <p style="color:#94a3b8; font-size:0.9rem; margin-top:6px;">
-    내가 추적하는 종목 — 피벗 돌파 임박(매수 대기) 종목을 한눈에. <span style="color:#64748b;">(이 브라우저에만 저장됩니다)</span>
+<div style="margin-bottom:22px;">
+  <h2 class="page-title">⭐ 관심종목</h2>
+  <p class="muted" style="font-size:0.9rem; margin-top:6px;">
+    내가 추적하는 종목 — 피벗 돌파 임박(매수 대기)을 한눈에. <span class="faint">(이 브라우저에만 저장됩니다)</span>
   </p>
 </div>
 
-<div id="wl-empty" style="display:none; color:#64748b; padding:24px 0;">
-  아직 관심종목이 없습니다. 종목 상세 페이지에서 <strong style="color:#fbbf24;">⭐ 관심종목 추가</strong> 를 눌러보세요.
+<div id="wl-empty" style="display:none;" class="faint">
+  <div class="card" style="text-align:center; padding:36px 18px;">
+    아직 관심종목이 없습니다.<br>종목 상세 페이지에서 <strong style="color:var(--amber);">☆ 관심종목</strong> 버튼을 눌러보세요.
+  </div>
 </div>
 
-<table id="wl-table" style="display:none;">
+<div class="table-wrap" id="wl-wrap" style="display:none;">
+<table class="cards" id="wl-table">
   <thead>
     <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>돌파까지</th><th>RS</th><th></th></tr>
   </thead>
   <tbody id="wl-body"></tbody>
 </table>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -35,28 +39,28 @@ function money(v, cur) {
 function render() {
   var tickers = wlGet();
   var empty = document.getElementById('wl-empty');
-  var table = document.getElementById('wl-table');
+  var wrap = document.getElementById('wl-wrap');
   var body = document.getElementById('wl-body');
-  if (!tickers.length) { empty.style.display = 'block'; table.style.display = 'none'; body.innerHTML = ''; return; }
+  if (!tickers.length) { empty.style.display = 'block'; wrap.style.display = 'none'; body.innerHTML = ''; return; }
   fetch('/api/quote?tickers=' + encodeURIComponent(tickers.join(',')))
     .then(function (r) { return r.json(); })
     .then(function (rows) {
-      if (!rows.length) { empty.style.display = 'block'; table.style.display = 'none'; return; }
-      empty.style.display = 'none'; table.style.display = 'table';
+      if (!rows.length) { empty.style.display = 'block'; wrap.style.display = 'none'; return; }
+      empty.style.display = 'none'; wrap.style.display = 'block';
       body.innerHTML = rows.map(function (d) {
         var cur = d.currency;
         var badge = '<span class="badge" style="background:' + d.signal_color + '22; color:' + d.signal_color + '; border:1px solid ' + d.signal_color + '55;">' + d.signal_label + '</span>';
-        var gap = d.gap_to_pivot != null ? '<span style="color:#fbbf24;">+' + d.gap_to_pivot + '%</span>' : '<span style="color:#475569;">-</span>';
-        var pivot = d.pivot != null ? '<span style="color:#38bdf8;">' + money(d.pivot, cur) + '</span>' : '-';
+        var gap = d.gap_to_pivot != null ? '<span style="color:var(--amber);">+' + d.gap_to_pivot + '%</span>' : '<span class="faint">-</span>';
+        var pivot = d.pivot != null ? '<span style="color:var(--accent);">' + money(d.pivot, cur) + '</span>' : '-';
         return '<tr>' +
-          '<td>' + badge + '</td>' +
-          '<td><a class="ticker-link" href="/stock/' + d.ticker + '">' + d.ticker + '</a></td>' +
-          '<td>' + (d.name || '-') + '</td>' +
-          '<td>' + money(d.close, cur) + '</td>' +
-          '<td>' + pivot + '</td>' +
-          '<td>' + gap + '</td>' +
-          '<td>' + (d.rs_rank != null ? d.rs_rank : '-') + '</td>' +
-          '<td><button onclick="wlRemove(\'' + d.ticker + '\')" style="background:none; border:1px solid #334155; color:#94a3b8; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:0.78rem;">제거</button></td>' +
+          '<td data-label="신호">' + badge + '</td>' +
+          '<td data-label="티커"><a class="ticker-link" href="/stock/' + d.ticker + '">' + d.ticker + '</a></td>' +
+          '<td data-label="회사명">' + (d.name || '-') + '</td>' +
+          '<td data-label="현재가">' + money(d.close, cur) + '</td>' +
+          '<td data-label="피벗(매수가)">' + pivot + '</td>' +
+          '<td data-label="돌파까지">' + gap + '</td>' +
+          '<td data-label="RS">' + (d.rs_rank != null ? d.rs_rank : '-') + '</td>' +
+          '<td data-label=""><button class="btn" style="padding:5px 11px; font-size:0.78rem;" onclick="wlRemove(\'' + d.ticker + '\')">제거</button></td>' +
           '</tr>';
       }).join('');
     });

@@ -2,41 +2,183 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
   <title>{% block title %}Minervini Screener{% endblock %}</title>
   <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-2: #0f172a;
+      --inset: #0b1222;
+      --border: #2b3a52;
+      --line: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --faint: #64748b;
+      --accent: #38bdf8;
+      --green: #4ade80;
+      --red: #f87171;
+      --amber: #fbbf24;
+      --radius: 14px;
+      --radius-sm: 9px;
+      --gap: 16px;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px -12px rgba(0,0,0,.55);
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-    header { background: #1e293b; padding: 16px 32px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 16px; }
-    header h1 { font-size: 1.25rem; font-weight: 700; color: #38bdf8; }
-    header a { color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
-    header a:hover { color: #e2e8f0; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-    .badge-green { background: #14532d; color: #4ade80; }
-    .badge-red { background: #450a0a; color: #f87171; }
-    .badge-gray { background: #1e293b; color: #94a3b8; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard',
+                   'Malgun Gothic', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.003em;
+    }
+
+    /* ───── 헤더 ───── */
+    header {
+      background: rgba(15,23,42,.85);
+      backdrop-filter: saturate(160%) blur(10px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .nav {
+      max-width: 1120px; margin: 0 auto;
+      padding: 12px 18px;
+      display: flex; align-items: center; gap: 18px;
+    }
+    .brand { font-size: 1.12rem; font-weight: 750; color: var(--text); text-decoration: none; white-space: nowrap; letter-spacing: -0.02em; }
+    .brand span { color: var(--accent); }
+    .nav-links { display: flex; gap: 16px; align-items: center; }
+    .nav a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color .15s; }
+    .nav a:hover { color: var(--text); }
+    .search { margin-left: auto; position: relative; }
+    .search input {
+      background: var(--inset); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px 8px 32px; border-radius: 10px; font-size: 0.88rem; width: 200px;
+      transition: border-color .15s, width .2s;
+    }
+    .search input:focus { outline: none; border-color: var(--accent); }
+    .search::before {
+      content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      font-size: 0.8rem; opacity: .6; pointer-events: none;
+    }
+
+    .container { max-width: 1120px; margin: 0 auto; padding: 26px 18px 64px; }
+
+    /* ───── 타이포 ───── */
+    h2.page-title { font-size: 1.45rem; font-weight: 760; letter-spacing: -0.02em; }
+    .section-title {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      font-size: 1.06rem; font-weight: 720; margin: 30px 0 13px; letter-spacing: -0.01em;
+    }
+    .section-title .hint { font-weight: 400; font-size: 0.8rem; color: var(--faint); }
+    .muted { color: var(--muted); }
+    .faint { color: var(--faint); }
+
+    /* ───── 카드 ───── */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow);
+    }
+
+    /* ───── 배지 / 칩 ───── */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 650; white-space: nowrap; }
+    .badge-green { background: #14532d; color: var(--green); }
+    .badge-red { background: #450a0a; color: var(--red); }
+    .badge-gray { background: #243045; color: var(--muted); }
+
+    /* ───── 버튼 ───── */
+    .btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      border-radius: 10px; padding: 8px 15px; cursor: pointer; font-size: 0.86rem; font-weight: 550;
+      transition: border-color .15s, background .15s; -webkit-tap-highlight-color: transparent;
+    }
+    .btn:hover { border-color: var(--accent); }
+
+    /* ───── 탭 ───── */
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .tab {
+      text-decoration: none; padding: 8px 17px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
+      background: var(--surface); color: var(--muted); border: 1px solid var(--border); transition: all .15s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--accent); color: #08111f; border-color: var(--accent); }
+
+    /* ───── 테이블 ───── */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
     table { width: 100%; border-collapse: collapse; }
-    th { text-align: left; padding: 10px 12px; background: #1e293b; color: #94a3b8; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-    td { padding: 10px 12px; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
-    tr:hover td { background: #1e293b; }
-    a.ticker-link { color: #38bdf8; text-decoration: none; font-weight: 600; }
+    thead th {
+      text-align: left; padding: 11px 13px; background: var(--inset); color: var(--muted);
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+      white-space: nowrap; border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 12px 13px; border-bottom: 1px solid var(--line); font-size: 0.9rem; vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background .12s; }
+    tbody tr:hover td { background: rgba(56,189,248,.05); }
+    a.ticker-link { color: var(--accent); text-decoration: none; font-weight: 650; }
     a.ticker-link:hover { text-decoration: underline; }
+
+    /* 모바일: 테이블 → 카드 스택 */
+    @media (max-width: 720px) {
+      table.cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      table.cards tbody { display: flex; flex-direction: column; gap: 11px; }
+      table.cards tr {
+        display: block; background: var(--surface); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 6px 15px;
+      }
+      table.cards tr:hover td { background: none; }
+      table.cards td {
+        display: flex; justify-content: space-between; align-items: center; gap: 14px;
+        padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; text-align: right;
+      }
+      table.cards tr td:last-child { border-bottom: none; }
+      table.cards td::before {
+        content: attr(data-label); color: var(--muted); font-size: 0.78rem; font-weight: 500;
+        text-align: left; white-space: nowrap; letter-spacing: 0;
+      }
+      table.cards td[data-label=""]::before { content: none; }
+      /* 근거처럼 긴 텍스트 셀은 세로로 */
+      table.cards td.stack { flex-direction: column; align-items: stretch; text-align: left; gap: 4px; }
+    }
+
+    /* ───── 반응형 헤더 ───── */
+    @media (max-width: 600px) {
+      .nav { padding: 11px 15px; gap: 13px; flex-wrap: wrap; }
+      .brand { font-size: 1.05rem; }
+      .nav-links { gap: 14px; order: 3; }
+      .search { margin-left: auto; order: 2; }
+      .search input { width: 150px; }
+      .search input:focus { width: 180px; }
+      .container { padding: 20px 14px 56px; }
+      h2.page-title { font-size: 1.3rem; }
+      .section-title { margin: 26px 0 12px; }
+    }
+    @media (max-width: 380px) {
+      .search input { width: 120px; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <h1>📈 Minervini Screener</h1>
-    <a href="/">홈</a>
-    <a href="/watchlist">⭐ 관심종목</a>
-    <form action="/search" method="get" style="margin-left:auto;">
-      <input name="ticker" placeholder="티커 검색 (예: NVDA)" autocomplete="off"
-             style="background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:6px 10px; border-radius:6px; font-size:0.85rem; width:180px;">
-    </form>
+    <nav class="nav">
+      <a class="brand" href="/">📈 <span>Minervini</span> Screener</a>
+      <div class="nav-links">
+        <a href="/">홈</a>
+        <a href="/watchlist">⭐ 관심종목</a>
+      </div>
+      <form class="search" action="/search" method="get">
+        <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
+      </form>
+    </nav>
   </header>
-  <div class="container">
+  <main class="container">
     {% block content %}{% endblock %}
-  </div>
+  </main>
   {% block scripts %}{% endblock %}
 </body>
 </html>

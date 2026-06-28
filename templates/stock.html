@@ -223,7 +223,7 @@
 <h3 style="font-size:1rem; font-weight:600; margin-bottom:6px; color:#94a3b8;">
   실적 추이 (분기 · 전년 동기 대비)
 </h3>
-{% macro qoq_cell(v, good) %}<td style="padding:8px; font-weight:600; color:{% if v is not none and v >= good %}#4ade80{% elif v is not none and v >= 0 %}#fbbf24{% elif v is not none %}#f87171{% else %}#475569{% endif %};">{% if v is not none %}{{ "%+.1f"|format(v) }}%{% else %}-{% endif %}</td>{% endmacro %}
+{% macro qoq_cell(v, good, label) %}<td data-label="{{ label }}" style="padding:8px; font-weight:600; text-align:right; color:{% if v is not none and v >= good %}#4ade80{% elif v is not none and v >= 0 %}#fbbf24{% elif v is not none %}#f87171{% else %}#475569{% endif %};">{% if v is not none %}{{ "%+.1f"|format(v) }}%{% else %}-{% endif %}</td>{% endmacro %}
 {% if accel %}
 <div style="margin-bottom:12px;">
   {% if eps_streak and eps_streak >= 3 %}<span style="background:#1e3a5f; color:#7dd3fc; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-right:2px; font-weight:700;">🔥 EPS {{ eps_streak }}분기 연속 성장(YoY)</span>{% elif eps_streak and eps_streak == 2 %}<span style="background:#1e293b; color:#94a3b8; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-right:2px;">EPS 2분기 연속 성장(YoY)</span>{% endif %}
@@ -232,28 +232,28 @@
   {% if not (accel.revenue or accel.operating or accel.eps or accel.margin) and not (eps_streak and eps_streak >= 2) and not (beat_streak and beat_streak >= 2) %}<span style="color:#64748b; font-size:0.74rem;">최근 3분기 연속 가속/확대 항목 없음</span>{% endif %}
 </div>
 {% endif %}
-<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px; overflow-x:auto;">
+<div class="table-wrap" style="margin-bottom:24px;">
   {% if q_rows %}
-  <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+  <table class="cards" style="font-size:0.82rem;">
     <thead>
-      <tr style="color:#94a3b8; text-align:right;">
-        <th style="text-align:left; padding:6px 8px; font-weight:500;">분기</th>
-        <th style="padding:6px 8px; font-weight:500;">매출 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.revenue }}</span></th>
-        <th style="padding:6px 8px; font-weight:500;">영업이익 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.operating }}</span></th>
-        <th style="padding:6px 8px; font-weight:500;">영업이익률</th>
-        <th style="padding:6px 8px; font-weight:500;">EPS 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.eps }}</span></th>
-        <th style="padding:6px 8px; font-weight:500;">어닝 서프라이즈<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">추정치 대비</span></th>
+      <tr style="text-align:right;">
+        <th style="text-align:left; padding:8px; font-weight:500;">분기</th>
+        <th style="padding:8px; font-weight:500;">매출 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.revenue }}</span></th>
+        <th style="padding:8px; font-weight:500;">영업이익 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.operating }}</span></th>
+        <th style="padding:8px; font-weight:500;">영업이익률</th>
+        <th style="padding:8px; font-weight:500;">EPS 성장<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">{{ basis.eps }}</span></th>
+        <th style="padding:8px; font-weight:500;">어닝 서프라이즈<br><span style="font-size:0.66rem; color:#64748b; font-weight:400;">추정치 대비</span></th>
       </tr>
     </thead>
     <tbody>
       {% for r in q_rows %}
       <tr style="border-top:1px solid #0f172a; text-align:right;">
-        <td style="text-align:left; padding:8px;">{{ r.date.strftime('%Y-%m') if r.date else '-' }}</td>
-        {{ qoq_cell(r.rev, 20 if basis.revenue == 'YoY' else 5) }}
-        {{ qoq_cell(r.opi, 25 if basis.operating == 'YoY' else 10) }}
-        <td style="padding:8px; color:#cbd5e1;">{% if r.margin is not none %}{{ "%.1f"|format(r.margin) }}%{% else %}-{% endif %}</td>
-        {{ qoq_cell(r.eps, 25 if basis.eps == 'YoY' else 10) }}
-        <td style="padding:8px; font-weight:600; color:{% if r.surprise is not none and r.surprise > 0 %}#c4b5fd{% elif r.surprise is not none and r.surprise < 0 %}#fca5a5{% else %}#475569{% endif %};">{% if r.surprise is not none %}{{ "%+.1f"|format(r.surprise) }}%{% else %}-{% endif %}</td>
+        <td data-label="" style="text-align:left; padding:8px; font-weight:700; color:#cbd5e1;">{{ r.date.strftime('%Y-%m') if r.date else '-' }}</td>
+        {{ qoq_cell(r.rev, 20 if basis.revenue == 'YoY' else 5, "매출 성장 (" ~ basis.revenue ~ ")") }}
+        {{ qoq_cell(r.opi, 25 if basis.operating == 'YoY' else 10, "영업이익 성장 (" ~ basis.operating ~ ")") }}
+        <td data-label="영업이익률" style="padding:8px; text-align:right; color:#cbd5e1;">{% if r.margin is not none %}{{ "%.1f"|format(r.margin) }}%{% else %}-{% endif %}</td>
+        {{ qoq_cell(r.eps, 25 if basis.eps == 'YoY' else 10, "EPS 성장 (" ~ basis.eps ~ ")") }}
+        <td data-label="어닝 서프라이즈" style="padding:8px; text-align:right; font-weight:600; color:{% if r.surprise is not none and r.surprise > 0 %}#c4b5fd{% elif r.surprise is not none and r.surprise < 0 %}#fca5a5{% else %}#475569{% endif %};">{% if r.surprise is not none %}{{ "%+.1f"|format(r.surprise) }}%{% else %}-{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
