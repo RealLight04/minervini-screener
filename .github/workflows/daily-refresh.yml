@@ -65,13 +65,26 @@ jobs:
           git add screener.db
           if git diff --staged --quiet; then
             echo "변경 없음 — 커밋·배포 건너뜀(데이터가 갱신되지 않았거나 수집 실패)"
-          else
-            git commit -m "chore: 데이터 자동 갱신 (screener.db 스냅샷) [skip ci]"
-            git push
-            # Render 자동배포 설정에 의존하지 않고 Deploy Hook으로 확실히 재배포
-            if [ -n "$RENDER_DEPLOY_HOOK" ]; then
-              curl -fsS -X POST "$RENDER_DEPLOY_HOOK" && echo "Render 배포 트리거 완료"
-            else
-              echo "RENDER_DEPLOY_HOOK secret 미설정 — Render 자동배포에 의존"
+            exit 0
+          fi
+          git commit -m "chore: 데이터 자동 갱신 (screener.db 스냅샷) [skip ci]"
+          # 수집이 ~10분 걸리는 동안 개발 푸시로 origin이 움직이면 push가 non-fast-forward로
+          # 거부된다(과거 실패 원인). push 전에 rebase로 원격 변경을 흡수하고 최대 5회 재시도.
+          pushed=""
+          for i in 1 2 3 4 5; do
+            if git pull --rebase --autostash origin main && git push; then
+              pushed=1; break
             fi
+            echo "push 실패(원격이 갱신됨) — 재시도 $i/5"
+            sleep 5
+          done
+          if [ -z "$pushed" ]; then
+            echo "::error::screener.db push 실패(5회 재시도 후)"; exit 1
+          fi
+          # Render 배포 훅은 실패해도 데이터 push 성공을 망치지 않도록 비치명적 처리(-f 제거)
+          if [ -n "$RENDER_DEPLOY_HOOK" ]; then
+            curl -sS -X POST "$RENDER_DEPLOY_HOOK" && echo "Render 배포 트리거 완료" \
+              || echo "::warning::Render 배포 훅 호출 실패 — 데이터 push는 성공(자동배포로 반영)"
+          else
+            echo "RENDER_DEPLOY_HOOK secret 미설정 — Render 자동배포에 의존"
           fi
