@@ -9,7 +9,7 @@ name: Daily data refresh
 on:
   workflow_dispatch:        # 수동 실행 버튼
   schedule:
-    - cron: "0 22 * * 1-5"  # 평일 22:00 UTC(미국 장 마감 후) = 07:00 KST 다음날
+    - cron: "0 22 * * *"    # 매일 22:00 UTC(미국 장 마감 후) = 07:00 KST 다음날
 
 # 동시 실행 방지(이전 런이 끝나기 전 새 런이 겹치지 않게)
 concurrency:
