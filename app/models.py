@@ -110,6 +110,7 @@ class ScreeningResult(Base):
     vcp_detected = Column(Boolean, default=False)
     vcp_contractions = Column(Integer)  # 조정 횟수
     vcp_volume_dryup = Column(Boolean, default=False)  # 베이스 우측 거래량 축소(dry-up)
+    vcp_pivot = Column(Float)  # VCP 피벗(돌파선) — 매수신호 여부와 무관하게 저장(레지스트리용)
 
     # 거래량 / 유동성
     avg_volume = Column(Float)        # 50일 평균 거래량
@@ -126,3 +127,34 @@ class ScreeningResult(Base):
     stop_loss = Column(Float)       # 권장 손절가 (피벗 -8%, Minervini 기준)
 
     stock = relationship("Stock", back_populates="results")
+
+
+class VCPEvent(Base):
+    """VCP(변동성 축소 패턴) 발생 종목의 이력·돌파 추적 레지스트리.
+
+    ScreeningResult는 90일 후 정리되고 전체에 섞여 있어, VCP만 따로 누적 관리하기
+    위해 별도 테이블로 둔다. 한 베이스를 '최초발생일~최근일'로 한 행에 누적하고,
+    돌파/실패 시 상태를 확정한다(중복 행 방지)."""
+    __tablename__ = "vcp_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False, index=True)
+    first_detected = Column(Date, nullable=False)   # 이 VCP 베이스 최초 탐지일
+    last_detected = Column(Date, nullable=False)     # 마지막으로 VCP가 유지된 날
+    status = Column(String, default="forming", index=True)  # forming / broke_out / failed
+
+    # 최신(last_detected 시점) 스냅샷
+    contractions = Column(Integer)
+    pivot_price = Column(Float)      # 돌파 트리거 가격
+    stop_loss = Column(Float)
+    rs_rank = Column(Float)
+    close = Column(Float)
+    volume_dryup = Column(Boolean, default=False)
+
+    # 결과 추적
+    breakout_date = Column(Date)     # 피벗 돌파 확정일
+    breakout_price = Column(Float)   # 돌파 시 종가
+    resolved_date = Column(Date)     # 실패/만료 확정일
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    stock = relationship("Stock")

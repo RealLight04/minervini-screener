@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -316,6 +316,56 @@ def trigger_screen(db: Session = Depends(get_db)):
 def watchlist(request: Request):
     """관심종목 페이지 (목록은 브라우저 localStorage에 저장 → JS가 채움)"""
     return templates.TemplateResponse(request, "watchlist.html", context={})
+
+
+@router.get("/vcp", response_class=HTMLResponse)
+def vcp_page(request: Request, db: Session = Depends(get_db)):
+    """VCP 레지스트리 — 형성 중(감시 대상) + 최근 돌파(셋업 결과) 이력."""
+    from app.models import VCPEvent
+
+    latest = _latest_screen_date(db) or date.today()
+
+    def _days(a, b):
+        return (a - b).days if (a and b) else None
+
+    # 형성 중 — RS 강한 순
+    forming = (
+        db.query(VCPEvent, Stock)
+        .join(Stock, Stock.id == VCPEvent.stock_id)
+        .filter(VCPEvent.status == "forming")
+        .order_by(VCPEvent.rs_rank.desc())
+        .all()
+    )
+    forming_rows = []
+    for ev, s in forming:
+        gap = (round((ev.pivot_price / ev.close - 1) * 100, 1)
+               if (ev.pivot_price and ev.close and ev.close < ev.pivot_price) else None)
+        forming_rows.append({"ev": ev, "stock": s, "market": s.market or "US",
+                             "days": _days(latest, ev.first_detected), "gap": gap})
+
+    # 최근 30일 돌파 — 돌파 후 성과(현재가 대비)까지
+    broke = (
+        db.query(VCPEvent, Stock)
+        .join(Stock, Stock.id == VCPEvent.stock_id)
+        .filter(VCPEvent.status == "broke_out", VCPEvent.breakout_date >= latest - timedelta(days=30))
+        .order_by(VCPEvent.breakout_date.desc())
+        .all()
+    )
+    broke_rows = []
+    for ev, s in broke:
+        cur = (db.query(ScreeningResult.close)
+               .filter(ScreeningResult.stock_id == s.id)
+               .order_by(ScreeningResult.screen_date.desc()).first())
+        cur_close = cur[0] if cur else None
+        ret = (round((cur_close / ev.breakout_price - 1) * 100, 1)
+               if (cur_close and ev.breakout_price) else None)
+        broke_rows.append({"ev": ev, "stock": s, "market": s.market or "US",
+                           "base_days": _days(ev.breakout_date, ev.first_detected),
+                           "cur_close": cur_close, "ret": ret})
+
+    return templates.TemplateResponse(request, "vcp.html", context={
+        "forming": forming_rows, "broke": broke_rows, "screen_date": latest,
+    })
 
 
 @router.get("/api/quote")

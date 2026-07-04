@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}VCP 레지스트리 — Minervini Screener{% endblock %}
+{% block content %}
+<div style="margin-bottom:22px;">
+  <div style="display:flex; align-items:baseline; gap:11px; flex-wrap:wrap;">
+    <h2 class="page-title">🌀 VCP 레지스트리</h2>
+    <span class="faint" style="font-size:0.9rem;">{{ screen_date }} 기준</span>
+  </div>
+  <p class="muted" style="font-size:0.9rem; margin-top:6px;">
+    변동성 축소 패턴(VCP) 발생 종목을 <strong>형성 → 돌파/실패</strong>까지 추적합니다.
+    <span style="color:var(--amber);">형성 중 {{ forming|length }}</span> ·
+    <span style="color:var(--green);">최근 돌파 {{ broke|length }}</span>
+  </p>
+</div>
+
+<!-- 형성 중 (감시 대상) -->
+<div class="section-title" style="color:var(--amber);">🔍 형성 중 <span class="hint">베이스 완성 단계 · 피벗 돌파를 감시 (RS 강한 순)</span></div>
+{% if forming %}
+<div class="table-wrap">
+<table class="cards">
+  <thead>
+    <tr><th>티커</th><th>회사명</th><th>시장</th><th>형성일</th><th>수축</th><th>현재가</th><th>피벗(돌파선)</th><th>돌파까지</th><th>RS</th><th>거래량</th></tr>
+  </thead>
+  <tbody>
+    {% for r in forming %}
+    <tr>
+      <td data-label="티커"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></td>
+      <td data-label="회사명">{{ r.stock.name or '-' }}</td>
+      <td data-label="시장"><span class="faint">{{ market_labels.get(r.market, r.market) }}</span></td>
+      <td data-label="형성일">{% if r.days is not none %}{{ r.days }}일{% else %}-{% endif %}</td>
+      <td data-label="수축">{% if r.ev.contractions %}{{ r.ev.contractions }}회{% else %}-{% endif %}</td>
+      <td data-label="현재가">{{ fmt_price(r.ev.close, r.market) }}</td>
+      <td data-label="피벗(돌파선)"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot_price, r.market) }}</span></td>
+      <td data-label="돌파까지">{% if r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
+      <td data-label="RS">{% if r.ev.rs_rank %}<span class="badge {% if r.ev.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="거래량">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">🫧 마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="faint" style="font-size:0.78rem; margin-top:10px;">💡 <strong>돌파까지 ≤3%</strong>이고 <strong>거래량 마름</strong>이면 임박 신호 — 관심종목에 담아 거래량 동반 돌파를 노리세요.</p>
+{% else %}
+<p class="faint" style="padding:12px 0;">형성 중인 VCP가 없습니다. (다음 스크리닝부터 누적됩니다)</p>
+{% endif %}
+
+<!-- 최근 돌파 (셋업 결과) -->
+<div class="section-title" style="color:var(--green);">🚀 최근 돌파 <span class="hint">최근 30일 · 피벗 돌파 후 성과</span></div>
+{% if broke %}
+<div class="table-wrap">
+<table class="cards">
+  <thead>
+    <tr><th>티커</th><th>회사명</th><th>돌파일</th><th>베이스기간</th><th>돌파가</th><th>현재가</th><th>돌파후</th><th>RS</th></tr>
+  </thead>
+  <tbody>
+    {% for r in broke %}
+    <tr>
+      <td data-label="티커"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></td>
+      <td data-label="회사명">{{ r.stock.name or '-' }}</td>
+      <td data-label="돌파일">{{ r.ev.breakout_date }}</td>
+      <td data-label="베이스기간">{% if r.base_days is not none %}{{ r.base_days }}일{% else %}-{% endif %}</td>
+      <td data-label="돌파가">{{ fmt_price(r.ev.breakout_price, r.market) }}</td>
+      <td data-label="현재가">{{ fmt_price(r.cur_close, r.market) }}</td>
+      <td data-label="돌파후">{% if r.ret is not none %}<span style="color:{% if r.ret >= 0 %}var(--green){% else %}var(--red){% endif %}; font-weight:650;">{{ "%+.1f"|format(r.ret) }}%</span>{% else %}-{% endif %}</td>
+      <td data-label="RS">{% if r.ev.rs_rank %}{{ "%.0f"|format(r.ev.rs_rank) }}{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="faint" style="padding:12px 0;">최근 30일 내 돌파한 VCP가 없습니다.</p>
+{% endif %}
+
+<p class="faint" style="margin-top:30px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.78rem; line-height:1.6;">
+  🌀 <strong>VCP(Volatility Contraction Pattern)</strong>는 베이스에서 조정폭이 점점 줄며 매물이 마르는 미너비니 핵심 셋업입니다.
+  피벗(직전 고점)을 <strong>거래량 동반해 돌파</strong>하는 순간이 매수 시점 — 이 표는 그 형성부터 돌파까지를 자동 추적합니다.
+</p>
+{% endblock %}

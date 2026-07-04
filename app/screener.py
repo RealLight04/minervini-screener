@@ -169,6 +169,7 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     vcp_result = detect_vcp(series)
     result.vcp_detected = vcp_result["detected"]
     result.vcp_contractions = vcp_result["contractions"]
+    result.vcp_pivot = vcp_result.get("pivot")   # 레지스트리용(매수신호 여부 무관)
     # 피벗: VCP가 있으면 그 피벗, 없으면 베이스 피벗으로 폴백 (돌파대기/적극매수 표면화)
     pivot = vcp_result.get("pivot") if result.vcp_detected else None
     if pivot is None:
@@ -591,6 +592,86 @@ def apply_regime_gate(db: Session, screen_date: date) -> int:
     return gated
 
 
+VCP_STALE_DAYS = 15   # VCP가 이만큼 재확인 안 되고 돌파도 없으면 실패로 확정
+
+
+def _migrate_schema():
+    """새 테이블(vcp_events)·신규 컬럼(vcp_pivot) 보장. init_db가 create_all+ALTER 수행."""
+    from app.database import init_db
+    init_db()
+
+
+def update_vcp_registry(db: Session, screen_date: date) -> dict:
+    """오늘 스크리닝 결과로 VCP 레지스트리(vcp_events)를 갱신.
+
+    한 VCP 베이스를 한 행에 '최초발생일~최근일'로 누적하고, 다음처럼 상태를 확정한다:
+      - 종가 ≥ 피벗           → 돌파(broke_out) 확정 (매수 트리거 발생)
+      - VCP 지속 탐지          → forming 유지, 최근일·스냅샷 갱신 (없으면 신규 생성)
+      - 미탐지 + STALE_DAYS 방치 → 실패(failed) 확정
+    """
+    from app.models import VCPEvent
+
+    results = db.query(ScreeningResult).filter(ScreeningResult.screen_date == screen_date).all()
+    open_events = {e.stock_id: e for e in db.query(VCPEvent).filter(VCPEvent.status == "forming").all()}
+    stats = {"new": 0, "updated": 0, "broke_out": 0, "failed": 0}
+    seen = set()
+
+    for r in results:
+        seen.add(r.stock_id)
+        ev = open_events.get(r.stock_id)
+
+        # 1) 열린 이벤트가 있고 종가가 피벗 돌파 → 돌파 확정(VCP 재탐지 여부 무관)
+        if ev and ev.pivot_price and r.close and r.close >= ev.pivot_price:
+            ev.status = "broke_out"
+            ev.breakout_date = screen_date
+            ev.breakout_price = r.close
+            ev.resolved_date = screen_date
+            ev.close = r.close
+            ev.rs_rank = r.rs_rank
+            stats["broke_out"] += 1
+            continue
+
+        # 2) 오늘 VCP 탐지 → 갱신 또는 신규
+        if r.vcp_detected:
+            if ev:
+                ev.last_detected = screen_date
+                ev.contractions = r.vcp_contractions
+                ev.pivot_price = r.vcp_pivot or ev.pivot_price
+                ev.stop_loss = round(ev.pivot_price * 0.92, 2) if ev.pivot_price else None
+                ev.rs_rank = r.rs_rank
+                ev.close = r.close
+                ev.volume_dryup = bool(r.vcp_volume_dryup)
+                stats["updated"] += 1
+            else:
+                pivot = r.vcp_pivot
+                db.add(VCPEvent(
+                    stock_id=r.stock_id, first_detected=screen_date, last_detected=screen_date,
+                    status="forming", contractions=r.vcp_contractions,
+                    pivot_price=pivot, stop_loss=round(pivot * 0.92, 2) if pivot else None,
+                    rs_rank=r.rs_rank, close=r.close, volume_dryup=bool(r.vcp_volume_dryup),
+                ))
+                stats["new"] += 1
+            continue
+
+        # 3) 미탐지 + 오래 방치 → 실패 확정
+        if ev and (screen_date - ev.last_detected).days > VCP_STALE_DAYS:
+            ev.status = "failed"
+            ev.resolved_date = screen_date
+            ev.close = r.close
+            stats["failed"] += 1
+
+    # 스크리닝에서 빠진 종목(비활성 등)의 오래된 forming 이벤트도 실패 처리
+    for sid, ev in open_events.items():
+        if sid not in seen and (screen_date - ev.last_detected).days > VCP_STALE_DAYS:
+            ev.status = "failed"
+            ev.resolved_date = screen_date
+
+    db.commit()
+    logger.info(f"VCP 레지스트리: 신규 {stats['new']}, 갱신 {stats['updated']}, "
+                f"돌파 {stats['broke_out']}, 실패 {stats['failed']}")
+    return stats
+
+
 def prune_old_history(db: Session, keep_price_days: int = 450, keep_screen_days: int = 90) -> None:
     """배포 스냅샷(screener.db)의 무한 증가를 막기 위해 오래된 행을 정리한다.
 
@@ -613,16 +694,28 @@ def prune_old_history(db: Session, keep_price_days: int = 450, keep_screen_days:
         .filter(ScreeningResult.screen_date < latest - timedelta(days=keep_screen_days))
         .delete(synchronize_session=False)
     )
+    # VCP 이벤트: 형성 중(forming)은 영구 보존, 완료된 건(broke_out/failed)만 180일 후 정리
+    from app.models import VCPEvent
+    n_vcp = (
+        db.query(VCPEvent)
+        .filter(
+            VCPEvent.status != "forming",
+            VCPEvent.resolved_date.isnot(None),
+            VCPEvent.resolved_date < latest - timedelta(days=180),
+        )
+        .delete(synchronize_session=False)
+    )
     db.commit()
-    if n_price or n_screen:
+    if n_price or n_screen or n_vcp:
         logger.info(
-            f"오래된 데이터 정리: 일봉 {n_price}행, 스크리닝 {n_screen}행 "
+            f"오래된 데이터 정리: 일봉 {n_price}행, 스크리닝 {n_screen}행, VCP이벤트 {n_vcp}행 "
             f"(보존 {keep_price_days}/{keep_screen_days}일)"
         )
 
 
 def run_daily_screen(db: Session) -> int:
     """전체 종목 스크리닝 실행 (일일 배치)"""
+    _migrate_schema()   # vcp_events 테이블·vcp_pivot 컬럼 보장(기존 DB용)
     screen_date = date.today()
     stocks = db.query(Stock).filter(Stock.is_active == True).all()
 
@@ -659,6 +752,9 @@ def run_daily_screen(db: Session) -> int:
 
     # 시장 국면 게이트 — 약세장 시장의 매수신호 보류(WATCH)
     apply_regime_gate(db, screen_date)
+
+    # VCP 레지스트리 갱신 (발생·돌파·실패 이력 누적)
+    update_vcp_registry(db, screen_date)
 
     # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
     prune_old_history(db)
