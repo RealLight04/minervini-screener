@@ -7,6 +7,9 @@
   </span>
 {% endmacro %}
 
+{# 거래량(50일 평균 대비) 배지: ≥1.4=대량(초록), <0.85=한산(파랑), 그 외 보통 #}
+{% macro vol_badge(v) %}{% if v is none %}<span class="faint">-</span>{% elif v >= 1.4 %}<span class="badge" style="background:#14532d; color:#4ade80;" title="평균의 {{ '%.1f'|format(v) }}배 — 대량">{{ "%.1f"|format(v) }}x 🔊</span>{% elif v < 0.85 %}<span class="badge" style="background:#1e3a5f; color:#7dd3fc;" title="평균의 {{ '%.1f'|format(v) }}배 — 한산">{{ "%.1f"|format(v) }}x</span>{% else %}<span class="badge badge-gray">{{ "%.1f"|format(v) }}x</span>{% endif %}{% endmacro %}
+
 {% block content %}
 <div style="margin-bottom: 22px;">
   <div style="display:flex; align-items:baseline; gap:11px; flex-wrap:wrap;">
@@ -99,7 +102,7 @@
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>손절가</th><th>RS</th><th>VCP</th><th>근거</th></tr>
+    <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>손절가</th><th>RS</th><th>거래량</th><th>VCP</th><th>근거</th></tr>
   </thead>
   <tbody>
     {% for r, s in buy_list %}
@@ -111,6 +114,7 @@
       <td data-label="피벗(매수가)">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
       <td data-label="손절가">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
       <td data-label="RS">{% if r.rs_rank %}<span class="badge {% if r.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="거래량">{{ vol_badge(r.vol_vs_avg) }}</td>
       <td data-label="VCP">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
       <td data-label="근거" class="stack muted" style="font-size:0.82rem;">{{ r.signal_reason }}</td>
     </tr>

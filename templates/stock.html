@@ -305,17 +305,28 @@
     <span style="color:#64748b; font-size:0.8rem;">{% if result.vcp_volume_dryup %}매도세 고갈 — 건강한 수축{% else %}뚜렷한 축소 없음{% endif %}</span>
   </div>
   <!-- 현재 거래량 -->
-  <div style="display:flex; align-items:center; gap:10px; padding-top:10px;">
+  <div style="display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #0f172a; flex-wrap:wrap;">
     <span style="font-size:0.9rem; color:#94a3b8;">최근 거래량(50일 평균 대비)</span>
     {% if result.vol_vs_avg %}
-    <span style="font-weight:600; color:{% if result.vol_vs_avg >= 1.4 %}#4ade80{% elif result.vol_vs_avg >= 1.0 %}#fbbf24{% else %}#94a3b8{% endif %};">{{ "%.1f"|format(result.vol_vs_avg) }}x</span>
-    <span style="color:#64748b; font-size:0.8rem;">{% if result.vol_vs_avg >= 1.4 %}돌파 거래량(40%+↑) — 신뢰도 높음{% elif result.vol_vs_avg < 0.85 %}조용한 거래 — 눌림/관망{% else %}보통{% endif %}</span>
+    <span style="font-weight:600; color:{% if result.vol_vs_avg >= 1.4 %}#4ade80{% elif result.vol_vs_avg >= 1.0 %}#fbbf24{% else %}#7dd3fc{% endif %};">{{ "%.1f"|format(result.vol_vs_avg) }}x</span>
+    <span style="color:#64748b; font-size:0.8rem;">{% if result.vol_vs_avg >= 1.4 %}대량(평균 +40%↑) — 돌파 신뢰도↑{% elif result.vol_vs_avg < 0.85 %}한산 — 눌림/관망{% else %}보통{% endif %}</span>
     {% else %}<span style="color:#64748b;">-</span>{% endif %}
   </div>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:12px;">미너비니: 돌파는 <strong>거래량 급증(평균 +40% 이상)</strong>을 동반해야 신뢰도가 높고, 베이스(수축 구간)에선 <strong>거래량이 말라야</strong> 합니다.</p>
+  <!-- 매집/분산 (최근 25일 대량거래일의 방향) -->
+  {% set ad = ad_interpret(result.accum_days, result.distrib_days) %}
+  <div style="display:flex; align-items:center; gap:10px; padding-top:10px; flex-wrap:wrap;">
+    <span style="font-size:0.9rem; color:#94a3b8;">매집/분산(최근 25일)</span>
+    <span style="font-weight:700; color:{{ ad.color }};">{{ ad.label }}</span>
+    <span style="color:#64748b; font-size:0.8rem;">{{ ad.note }}</span>
+  </div>
+  <p style="color:#64748b; font-size:0.74rem; margin-top:12px;">미너비니: 돌파는 <strong>거래량 급증(평균 +40%↑)</strong>을 동반해야 하고, 베이스에선 <strong>거래량이 말라야</strong> 합니다. 대량 <strong style="color:#4ade80;">상승</strong>일(매집)이 대량 <strong style="color:#f87171;">하락</strong>일(분산)보다 많아야 기관이 사들이는 건강한 종목입니다.</p>
 </div>
 {% if result.avg_volume %}
-<div style="color:#475569; font-size:0.78rem; margin-bottom:24px;">유동성: 50일 평균 거래량 {{ "{:,}".format(result.avg_volume|int) }}주 · {% if result.liquidity_pass %}<span style="color:#4ade80;">최소 유동성 충족</span>{% else %}<span style="color:#f87171;">유동성 미달(매수 제외)</span>{% endif %}</div>
+<div style="color:#475569; font-size:0.78rem; margin-bottom:24px;">
+  유동성: 50일 평균 <strong style="color:#94a3b8;">{{ "{:,}".format(result.avg_volume|int) }}주</strong> ·
+  일평균 거래대금 <strong style="color:#94a3b8;">{{ fmt_turnover(result.avg_volume, result.close, mk) }}</strong> ·
+  {% if result.liquidity_pass %}<span style="color:#4ade80;">기관 진입 가능 유동성</span>{% else %}<span style="color:#f87171;">유동성 미달(매수 제외)</span>{% endif %}
+</div>
 {% endif %}
 
 {% else %}

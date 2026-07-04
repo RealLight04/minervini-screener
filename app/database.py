@@ -29,8 +29,11 @@ def init_db():
     # 기존 SQLite DB에 신규 컬럼 보강(create_all은 ALTER를 못 함) — 앱 시작 시 자가치유.
     # 이게 없으면 vcp_pivot 없는 DB에서 ScreeningResult 쿼리가 'no such column'으로 깨진다.
     if db_url.startswith("sqlite"):
+        new_cols = {"vcp_pivot": "FLOAT", "accum_days": "INTEGER", "distrib_days": "INTEGER"}
         with engine.connect() as conn:
             cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(screening_results)").fetchall()}
-            if cols and "vcp_pivot" not in cols:
-                conn.exec_driver_sql("ALTER TABLE screening_results ADD COLUMN vcp_pivot FLOAT")
+            if cols:  # 테이블이 이미 있으면 없는 컬럼만 ALTER
+                for name, typ in new_cols.items():
+                    if name not in cols:
+                        conn.exec_driver_sql(f"ALTER TABLE screening_results ADD COLUMN {name} {typ}")
                 conn.commit()

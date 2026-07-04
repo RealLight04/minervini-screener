@@ -185,6 +185,20 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
         result.vol_vs_avg = round(recent_vol / avg_vol_50, 2) if avg_vol_50 else None
         # VCP 거래량 마름: 최근 10일 평균이 50일 평균의 85% 미만 = 매도세 고갈
         result.vcp_volume_dryup = bool(avg_vol_50 and recent_10_avg < avg_vol_50 * 0.85)
+        # 매집/분산: 최근 25거래일 중 '상승+대량'=매집(기관매수), '하락+대량'=분산(기관매도)
+        accum = distrib = 0
+        for d, v in vol_series.tail(25).items():
+            if d not in series.index:
+                continue
+            pos = series.index.get_loc(d)
+            if pos == 0 or float(v) <= avg_vol_50:   # 첫날이거나 평균 이하(대량 아님) 제외
+                continue
+            if float(series.iloc[pos]) > float(series.iloc[pos - 1]):
+                accum += 1
+            elif float(series.iloc[pos]) < float(series.iloc[pos - 1]):
+                distrib += 1
+        result.accum_days = accum
+        result.distrib_days = distrib
         # 유동성: 최소 주가 & 최소 평균 거래량 충족 (페니/저유동 제외). 최소주가는 시장별.
         min_price = settings.MIN_PRICE if stock.market == "US" else settings.MIN_PRICE_KR
         result.liquidity_pass = bool(close >= min_price and avg_vol_50 >= settings.MIN_VOLUME)

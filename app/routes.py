@@ -45,8 +45,40 @@ REC_LABELS = {
     "underperform": "비중축소", "sell": "매도",
 }
 
+def fmt_turnover(avg_volume, close, market: str = "US") -> str:
+    """거래대금(≈평균거래량×현재가) = 유동성 규모. 미국 $M/$B, 한국 억/조원."""
+    if not avg_volume or not close:
+        return "-"
+    val = avg_volume * close
+    if market == "US":
+        if val >= 1e9:
+            return f"${val/1e9:.1f}B"
+        if val >= 1e6:
+            return f"${val/1e6:.0f}M"
+        return f"${val:,.0f}"
+    if val >= 1e12:
+        return f"{val/1e12:.1f}조원"
+    if val >= 1e8:
+        return f"{val/1e8:,.0f}억원"
+    return f"{val:,.0f}원"
+
+
+def ad_interpret(accum, distrib) -> dict:
+    """최근 25일 매집(accum)/분산(distrib) 일수 → 해석. 미너비니: 대량거래일의 방향이 기관 의중."""
+    a, d = accum or 0, distrib or 0
+    if d >= 5 and d >= a:
+        return {"label": f"분산 우세 {a}:{d}", "note": "기관 매도 경계 — 대량 하락일 누적", "color": "#f87171"}
+    if a >= d + 2:
+        return {"label": f"매집 우세 {a}:{d}", "note": "기관 매수 유입 — 대량 상승일 우세(건강)", "color": "#4ade80"}
+    if d >= a + 2:
+        return {"label": f"분산 우세 {a}:{d}", "note": "기관 매도 압력 — 대량 하락일 우세", "color": "#f87171"}
+    return {"label": f"중립 {a}:{d}", "note": "매집·분산 뚜렷하지 않음", "color": "#94a3b8"}
+
+
 templates.env.globals["fmt_price"] = fmt_price
 templates.env.globals["fmt_amount"] = fmt_amount
+templates.env.globals["fmt_turnover"] = fmt_turnover
+templates.env.globals["ad_interpret"] = ad_interpret
 templates.env.globals["market_labels"] = MARKET_LABELS
 templates.env.globals["rec_labels"] = REC_LABELS
 

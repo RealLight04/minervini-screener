@@ -115,6 +115,8 @@ class ScreeningResult(Base):
     # 거래량 / 유동성
     avg_volume = Column(Float)        # 50일 평균 거래량
     vol_vs_avg = Column(Float)        # 최근 거래량 / 50일 평균 (1.0 = 평균)
+    accum_days = Column(Integer)      # 최근 25일 매집일수(상승+대량거래)
+    distrib_days = Column(Integer)    # 최근 25일 분산일수(하락+대량거래)
     liquidity_pass = Column(Boolean, default=True)  # 최소 주가·거래량 충족
 
     # 최종 결과
