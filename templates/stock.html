@@ -314,10 +314,20 @@
   </div>
   <!-- 매집/분산 (최근 25일 대량거래일의 방향) -->
   {% set ad = ad_interpret(result.accum_days, result.distrib_days) %}
-  <div style="display:flex; align-items:center; gap:10px; padding-top:10px; flex-wrap:wrap;">
-    <span style="font-size:0.9rem; color:#94a3b8;">매집/분산(최근 25일)</span>
-    <span style="font-weight:700; color:{{ ad.color }};">{{ ad.label }}</span>
-    <span style="color:#64748b; font-size:0.8rem;">{{ ad.note }}</span>
+  <div style="padding-top:12px;">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+      <span style="font-size:0.9rem; color:#94a3b8;">매집 / 분산 <span style="color:#64748b; font-size:0.78rem;">(최근 25거래일)</span></span>
+      <span style="font-weight:700; color:#4ade80;">매집 {{ ad.accum }}일</span>
+      <span style="color:#475569;">vs</span>
+      <span style="font-weight:700; color:#f87171;">분산 {{ ad.distrib }}일</span>
+      <span class="badge" style="background:{{ ad.color }}22; color:{{ ad.color }}; border:1px solid {{ ad.color }}55; font-weight:700;">{{ ad.verdict }}</span>
+    </div>
+    <div style="color:#cbd5e1; font-size:0.82rem; line-height:1.5;">{{ ad.note }}</div>
+    <div style="color:#64748b; font-size:0.72rem; margin-top:6px; line-height:1.5;">
+      💡 <strong style="color:#4ade80;">매집일</strong> = 평균 이상 대량거래 + <strong>상승</strong> 마감(기관 매수 흔적) ·
+      <strong style="color:#f87171;">분산일</strong> = 대량거래 + <strong>하락</strong> 마감(기관 매도 흔적).
+      숫자 <strong>{{ ad.accum }}:{{ ad.distrib }}</strong> = 25일 중 매집일 {{ ad.accum }}일, 분산일 {{ ad.distrib }}일이란 뜻입니다.
+    </div>
   </div>
   <p style="color:#64748b; font-size:0.74rem; margin-top:12px;">미너비니: 돌파는 <strong>거래량 급증(평균 +40%↑)</strong>을 동반해야 하고, 베이스에선 <strong>거래량이 말라야</strong> 합니다. 대량 <strong style="color:#4ade80;">상승</strong>일(매집)이 대량 <strong style="color:#f87171;">하락</strong>일(분산)보다 많아야 기관이 사들이는 건강한 종목입니다.</p>
 </div>

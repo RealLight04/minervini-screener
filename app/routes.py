@@ -64,15 +64,26 @@ def fmt_turnover(avg_volume, close, market: str = "US") -> str:
 
 
 def ad_interpret(accum, distrib) -> dict:
-    """최근 25일 매집(accum)/분산(distrib) 일수 → 해석. 미너비니: 대량거래일의 방향이 기관 의중."""
+    """최근 25일 매집(accum)/분산(distrib) 일수 → 해석. 미너비니: 대량거래일의 방향이 기관 의중.
+
+    매집일 = 대량거래 + 상승 마감(기관이 사들인 흔적)
+    분산일 = 대량거래 + 하락 마감(기관이 판 흔적)
+    """
     a, d = accum or 0, distrib or 0
+    if a == 0 and d == 0:
+        return {"verdict": "자료 부족", "color": "#94a3b8", "accum": a, "distrib": d,
+                "note": "최근 25일 중 평균을 크게 웃도는 대량거래일이 없었습니다."}
     if d >= 5 and d >= a:
-        return {"label": f"분산 우세 {a}:{d}", "note": "기관 매도 경계 — 대량 하락일 누적", "color": "#f87171"}
+        return {"verdict": "분산 우세", "color": "#f87171", "accum": a, "distrib": d,
+                "note": "대량 하락일이 많습니다 — 기관이 파는 흔적. 신규 매수는 신중하고, 보유 중이면 경계하세요."}
     if a >= d + 2:
-        return {"label": f"매집 우세 {a}:{d}", "note": "기관 매수 유입 — 대량 상승일 우세(건강)", "color": "#4ade80"}
+        return {"verdict": "매집 우세", "color": "#4ade80", "accum": a, "distrib": d,
+                "note": "대량 상승일이 우세 — 기관이 사들이는 흔적입니다(건강). 미너비니가 선호하는 패턴이에요."}
     if d >= a + 2:
-        return {"label": f"분산 우세 {a}:{d}", "note": "기관 매도 압력 — 대량 하락일 우세", "color": "#f87171"}
-    return {"label": f"중립 {a}:{d}", "note": "매집·분산 뚜렷하지 않음", "color": "#94a3b8"}
+        return {"verdict": "분산 우세", "color": "#f87171", "accum": a, "distrib": d,
+                "note": "대량 하락일이 우세 — 기관 매도 압력이 있습니다. 추세 약화에 주의하세요."}
+    return {"verdict": "중립", "color": "#94a3b8", "accum": a, "distrib": d,
+            "note": "매집일과 분산일이 팽팽해 방향이 불분명합니다. 대량거래를 동반한 돌파를 기다리세요."}
 
 
 templates.env.globals["fmt_price"] = fmt_price
