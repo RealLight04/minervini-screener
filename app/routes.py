@@ -86,10 +86,84 @@ def ad_interpret(accum, distrib) -> dict:
             "note": "매집일과 분산일이 팽팽해 방향이 불분명합니다. 대량거래를 동반한 돌파를 기다리세요."}
 
 
+def volume_verdict(r) -> dict:
+    """종목의 '현재 국면 + 거래량'을 조합해 거래량이 지금 건강한지 한 줄로 판정.
+
+    미너비니 원칙: 오를 땐/돌파할 땐 거래량 많아야 좋고, 쉴 때(베이스·조정)엔
+    거래량 적어야(dry-up) 좋다. 즉 같은 '거래량 적음'도 국면에 따라 정반대.
+    """
+    v = r.vol_vs_avg
+    a, d = r.accum_days or 0, r.distrib_days or 0
+    close, ma50, ma200 = r.close, r.ma50, r.ma200
+    pivot = r.vcp_pivot or r.pivot_price
+
+    GOOD = ("good", "#4ade80", "🟢")
+    WATCH = ("watch", "#fbbf24", "🟡")
+    BAD = ("bad", "#f87171", "🔴")
+    NEU = ("neutral", "#94a3b8", "⚪")
+
+    def mk(t, headline, detail):
+        return {"status": t[0], "color": t[1], "icon": t[2], "headline": headline, "detail": detail}
+
+    if v is None:
+        return mk(NEU, "거래량 자료 부족", "거래량 데이터가 아직 충분하지 않습니다.")
+
+    # 현재 국면 판정
+    if r.signal == "STRONG_BUY":
+        phase = "breakout"
+    elif (ma200 and close and close < ma200) or (ma50 and close and close < ma50):
+        phase = "downtrend"
+    elif r.vcp_detected or (pivot and close and close < pivot):
+        phase = "base"
+    else:
+        phase = "uptrend"
+
+    if phase == "breakout":
+        if v >= 1.4:
+            return mk(GOOD, "돌파 거래량 확인 — 좋음",
+                      f"피벗 돌파에 대량거래({v:.1f}x)가 붙었습니다. 기관 매수 동반 = 신뢰도 높은 돌파.")
+        if v < 1.0:
+            return mk(WATCH, "거래량 없는 돌파 — 주의",
+                      f"돌파했지만 거래량이 평균 이하({v:.1f}x)입니다. 가짜 돌파·되돌림 가능, 거래 확대를 확인하세요.")
+        return mk(WATCH, "돌파 거래량 보통",
+                  f"거래량 {v:.1f}x — 평균 +40% 이상으로 더 늘면 신뢰도가 올라갑니다.")
+
+    if phase == "base":
+        if r.vcp_volume_dryup or v < 0.85:
+            return mk(GOOD, "거래량 마름 — 돌파 준비(좋음)",
+                      f"베이스에서 거래량이 말랐습니다({v:.1f}x). 매물 고갈 = 미너비니가 원하는 VCP 상태.")
+        if v >= 1.4 and d >= a:
+            return mk(WATCH, "베이스 대량 분산 — 주의",
+                      f"쉬는 구간인데 대량거래({v:.1f}x)에 분산일이 많습니다. 매물 출회 주의.")
+        return mk(NEU, "베이스 형성 중",
+                  "거래량이 마르는지(dry-up) 지켜보세요 — 말라야 돌파 준비가 됩니다.")
+
+    if phase == "downtrend":
+        if d >= a + 2 or d >= 5:
+            return mk(BAD, "하락 + 분산 — 경계",
+                      f"기관 매도 흔적입니다(분산 {d} vs 매집 {a}). 신규 매수 금물, 보유 시 방어.")
+        if v < 0.85:
+            return mk(WATCH, "하락하나 거래 한산",
+                      "던지는 물량은 적습니다 — 투매는 아니나 추세가 약합니다. 관망.")
+        return mk(WATCH, "추세 약화 구간",
+                  "50일선 아래입니다 — 거래량 방향(매집/분산)을 주시하세요.")
+
+    # uptrend
+    if a >= d + 2:
+        return mk(GOOD, "상승 + 매집 우세 — 건강",
+                  f"상승 추세에 매집({a})이 분산({d})보다 우세합니다. 기관이 사들이는 중.")
+    if d >= a + 2 or d >= 5:
+        return mk(BAD, "상승하나 분산 누적 — 주의",
+                  f"오르지만 대량 하락일(분산 {d})이 쌓입니다. 기관 이탈 신호일 수 있어요.")
+    return mk(NEU, "상승 추세 · 균형",
+              "매집·분산이 팽팽합니다 — 돌파 시 거래량이 확대되는지 확인하세요.")
+
+
 templates.env.globals["fmt_price"] = fmt_price
 templates.env.globals["fmt_amount"] = fmt_amount
 templates.env.globals["fmt_turnover"] = fmt_turnover
 templates.env.globals["ad_interpret"] = ad_interpret
+templates.env.globals["volume_verdict"] = volume_verdict
 templates.env.globals["market_labels"] = MARKET_LABELS
 templates.env.globals["rec_labels"] = REC_LABELS
 

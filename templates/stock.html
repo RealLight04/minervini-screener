@@ -270,6 +270,15 @@
 <!-- VCP + 거래량 분석 -->
 <div class="sec-title">VCP · 거래량 분석 <span class="sub">변동성 축소 · 매집/분산 · 유동성</span></div>
 <div class="card" style="margin-bottom:24px;">
+  <!-- 거래량 종합 판정 (국면 + 거래량 조합) -->
+  {% set vv = volume_verdict(result) %}
+  <div style="background:{{ vv.color }}14; border:1px solid {{ vv.color }}44; border-radius:10px; padding:13px 15px; margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
+      <span style="font-size:1.05rem;">{{ vv.icon }}</span>
+      <span style="font-weight:750; color:{{ vv.color }}; font-size:0.98rem;">거래량 종합 · {{ vv.headline }}</span>
+    </div>
+    <div class="note" style="margin-top:6px; color:#cbd5e1;">{{ vv.detail }}</div>
+  </div>
   <!-- VCP -->
   <div style="display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid #0f172a;">
     <span style="color:{% if result.vcp_detected %}#4ade80{% else %}#64748b{% endif %}; font-weight:600;">
