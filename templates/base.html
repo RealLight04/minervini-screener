@@ -79,6 +79,21 @@
     .muted { color: var(--muted); }
     .faint { color: var(--faint); }
 
+    /* ───── 종목 상세: 섹션 제목·설명·지표카드 (가독성 표준) ───── */
+    .sec-title {
+      display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
+      font-size: 1.05rem; font-weight: 720; color: var(--text);
+      letter-spacing: -0.01em; margin: 32px 0 14px; padding-left: 11px;
+      border-left: 3px solid var(--accent);
+    }
+    .sec-title .sub { font-weight: 400; font-size: 0.8rem; color: var(--faint); }
+    .note { color: var(--muted); font-size: 0.82rem; line-height: 1.7; }
+    .note-sm { color: var(--faint); font-size: 0.78rem; line-height: 1.65; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 11px; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 15px; }
+    .stat .k { color: var(--muted); font-size: 0.8rem; margin-bottom: 6px; }
+    .stat .v { font-size: 1.15rem; font-weight: 650; letter-spacing: -0.01em; }
+
     /* ───── 카드 ───── */
     .card {
       background: var(--surface); border: 1px solid var(--border);

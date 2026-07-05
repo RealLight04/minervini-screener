@@ -42,8 +42,8 @@
 {% endif %}
 
 <!-- 가격 차트 -->
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">가격 차트 <span style="font-weight:400; font-size:0.78rem; color:#64748b;">최근 1년 · 50/150/200일 이동평균선</span></h3>
-<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+<div class="sec-title">가격 차트 <span class="sub">최근 1년 · 50/150/200일 이동평균선</span></div>
+<div class="card" style="margin-bottom:24px;">
   <div id="priceChart" style="height:380px; width:100%;"></div>
   <div style="display:flex; gap:14px; flex-wrap:wrap; margin-top:10px; font-size:0.76rem; color:#94a3b8;">
     <span><span style="color:#4ade80; font-weight:700;">▮</span> 양봉 / <span style="color:#f87171; font-weight:700;">▮</span> 음봉</span>
@@ -124,7 +124,8 @@
 
 {% if result %}
 <!-- 주요 지표 카드 -->
-<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px; margin-bottom:32px;">
+<div class="sec-title">주요 지표 <span class="sub">현재가 · 이동평균 · 52주 범위 · RS · 거래량</span></div>
+<div class="stat-grid" style="margin-bottom:32px;">
   {% set cards = [
     ("현재가", fmt_price(result.close, mk)),
     ("50일 MA", fmt_price(result.ma50, mk)),
@@ -133,71 +134,49 @@
     ("52주 고가", fmt_price(result.week52_high, mk)),
     ("52주 저가", fmt_price(result.week52_low, mk)),
     ("RS 순위", ("%.0f"|format(result.rs_rank)) if result.rs_rank else '-'),
-    ("거래량(50일평균比)", (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-'),
+    ("거래량(50일평균 대비)", (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-'),
   ] %}
   {% for label, val in cards %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">{{ label }}</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ val }}</div>
-  </div>
+  <div class="stat"><div class="k">{{ label }}</div><div class="v">{{ val }}</div></div>
   {% endfor %}
 </div>
 
 <!-- 밸류에이션 · 수익성 (기업 기본정보) -->
 {% if stock.roe is not none or stock.target_price or stock.recommendation or stock.next_earnings %}
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">밸류에이션 · 수익성 <span style="font-weight:400; font-size:0.78rem; color:#64748b;">증권사 컨센서스 · 수익성 지표</span></h3>
-<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-bottom:32px;">
+<div class="sec-title">밸류에이션 · 수익성 <span class="sub">증권사 컨센서스 · 수익성 지표</span></div>
+<div class="stat-grid" style="margin-bottom:32px;">
   {% if stock.roe is not none %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">ROE (자기자본이익률)</div>
-    <div style="font-size:1.1rem; font-weight:600; color:{% if stock.roe >= 0.17 %}#4ade80{% elif stock.roe >= 0 %}#fbbf24{% else %}#f87171{% endif %};">{{ "%.1f"|format(stock.roe * 100) }}%</div>
-  </div>
+  <div class="stat"><div class="k">ROE (자기자본이익률)</div>
+    <div class="v" style="color:{% if stock.roe >= 0.17 %}#4ade80{% elif stock.roe >= 0 %}#fbbf24{% else %}#f87171{% endif %};">{{ "%.1f"|format(stock.roe * 100) }}%</div></div>
   {% endif %}
   {% if stock.operating_margin is not none %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">영업이익률</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ "%.1f"|format(stock.operating_margin * 100) }}%</div>
-  </div>
+  <div class="stat"><div class="k">영업이익률</div><div class="v">{{ "%.1f"|format(stock.operating_margin * 100) }}%</div></div>
   {% endif %}
   {% if stock.profit_margin is not none %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">순이익률</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ "%.1f"|format(stock.profit_margin * 100) }}%</div>
-  </div>
+  <div class="stat"><div class="k">순이익률</div><div class="v">{{ "%.1f"|format(stock.profit_margin * 100) }}%</div></div>
   {% endif %}
   {% if stock.target_price %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">목표주가 (평균)</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ fmt_price(stock.target_price, mk) }}
-      {% if result and result.close %}<span style="font-size:0.78rem; color:{% if stock.target_price > result.close %}#4ade80{% else %}#f87171{% endif %};">({{ "%+.0f"|format((stock.target_price / result.close - 1) * 100) }}%)</span>{% endif %}
-    </div>
-  </div>
+  <div class="stat"><div class="k">목표주가 (평균)</div>
+    <div class="v">{{ fmt_price(stock.target_price, mk) }}{% if result and result.close %} <span style="font-size:0.8rem; color:{% if stock.target_price > result.close %}#4ade80{% else %}#f87171{% endif %};">({{ "%+.0f"|format((stock.target_price / result.close - 1) * 100) }}%)</span>{% endif %}</div></div>
   {% endif %}
   {% if stock.forward_eps is not none %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">선행/후행 EPS</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ fmt_price(stock.forward_eps, mk) }} <span style="font-size:0.78rem; color:#64748b;">/ {{ fmt_price(stock.trailing_eps, mk) if stock.trailing_eps is not none else '-' }}</span></div>
-  </div>
+  <div class="stat"><div class="k">선행/후행 EPS</div>
+    <div class="v">{{ fmt_price(stock.forward_eps, mk) }} <span style="font-size:0.8rem; color:#64748b;">/ {{ fmt_price(stock.trailing_eps, mk) if stock.trailing_eps is not none else '-' }}</span></div></div>
   {% endif %}
   {% if stock.recommendation %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">투자의견 (컨센서스)</div>
-    <div style="font-size:1.1rem; font-weight:600;">{{ rec_labels.get(stock.recommendation, stock.recommendation) }}</div>
-  </div>
+  <div class="stat"><div class="k">투자의견 (컨센서스)</div><div class="v">{{ rec_labels.get(stock.recommendation, stock.recommendation) }}</div></div>
   {% endif %}
   {% if stock.next_earnings %}
-  <div style="background:#1e293b; border-radius:8px; padding:14px;">
-    <div style="color:#94a3b8; font-size:0.75rem; margin-bottom:4px;">다음 실적 발표일 (예정)</div>
-    <div style="font-size:1.1rem; font-weight:600; color:#38bdf8;">{{ stock.next_earnings }}</div>
-    <div style="color:#64748b; font-size:0.68rem; margin-top:3px;">실적 직전·직후는 변동성 큼 — 진입 타이밍 주의</div>
-  </div>
+  <div class="stat"><div class="k">다음 실적 발표일 (예정)</div>
+    <div class="v" style="color:#38bdf8;">{{ stock.next_earnings }}</div>
+    <div class="note-sm" style="margin-top:4px;">실적 직전·직후는 변동성 큼 — 진입 주의</div></div>
   {% endif %}
 </div>
 {% endif %}
 
 <!-- 기술적 조건 체크리스트 -->
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">기술적 조건 (Stage 2)</h3>
-<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+<div class="sec-title">기술적 조건 <span class="sub">Stage 2 상승추세 — 8개 모두 충족해야 통과</span></div>
+<div class="card" style="margin-bottom:24px;">
   {% set conditions = [
     ("현재가 > 150일 MA", result.cond_price_above_ma150),
     ("현재가 > 200일 MA", result.cond_price_above_ma200),
@@ -220,9 +199,7 @@
 
 <!-- 펀더멘털: 분기 실적 추이 -->
 {% macro accel_badge(on, label) %}{% if on %}<span style="background:#14532d; color:#4ade80; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">⚡ {{ label }}</span>{% endif %}{% endmacro %}
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:6px; color:#94a3b8;">
-  실적 추이 (분기 · 전년 동기 대비)
-</h3>
+<div class="sec-title">실적 추이 <span class="sub">분기별 성장률 · 어닝 서프라이즈</span></div>
 {% macro qoq_cell(v, good, label) %}<td data-label="{{ label }}" style="padding:8px; font-weight:600; text-align:right; color:{% if v is not none and v >= good %}#4ade80{% elif v is not none and v >= 0 %}#fbbf24{% elif v is not none %}#f87171{% else %}#475569{% endif %};">{% if v is not none %}{{ "%+.1f"|format(v) }}%{% else %}-{% endif %}</td>{% endmacro %}
 {% if accel %}
 <div style="margin-bottom:12px;">
@@ -258,16 +235,20 @@
       {% endfor %}
     </tbody>
   </table>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:10px;">성장률 기준은 <strong>지표별</strong>로 각 열 아래에 표기했습니다 — <strong>YoY</strong>(전년 동기 대비, 정석) 또는 <strong>QoQ</strong>(전분기 대비, 폴백). 미너비니는 매출·영업이익·EPS <strong>증가율이 분기마다 커지는 '가속'</strong>과 <strong>영업이익률 확대</strong>, 그리고 <strong>어닝 서프라이즈</strong>(컨센서스 추정치를 웃도는 실적)를 강세 신호로 봅니다. <span style="color:#475569;">(한국: OpenDART YoY · 미국 EPS·서프라이즈: Alpha Vantage · 미국 매출·영업이익: 무료 데이터로 YoY 3개치 부족 시 QoQ)</span></p>
+  <div class="note-sm" style="margin-top:12px;">
+    <div><strong>YoY</strong> 전년 동기 대비(정석) · <strong>QoQ</strong> 전분기 대비(폴백) — 기준은 각 열 아래 표기</div>
+    <div style="margin-top:4px;">💡 미너비니는 증가율이 <strong>분기마다 커지는 '가속'</strong>과 <strong>어닝 서프라이즈</strong>(추정치 초과)를 강세 신호로 봅니다.</div>
+    <div style="margin-top:4px; color:var(--faint); opacity:.7;">출처: 한국=OpenDART · 미국 EPS/서프라이즈=Alpha Vantage · 미국 매출/영익=yfinance</div>
+  </div>
   {% else %}
-  <p style="color:#64748b; font-size:0.86rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털 필터는 기술적 조건만으로 통과 처리됩니다(참고용).</p>
+  <p class="note" style="font-size:0.88rem;">분기 재무 데이터 없음 — 이 경우 펀더멘털은 기술적 조건만으로 통과 처리됩니다(참고용).</p>
   {% endif %}
 </div>
 
 <!-- 연간 EPS 추이 -->
 {% if y_funds %}
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">연간 EPS 추이</h3>
-<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+<div class="sec-title">연간 EPS 추이 <span class="sub">3년 우상향 = 실적 성장 확인</span></div>
+<div class="card" style="margin-bottom:24px;">
   <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
     {% for f in y_funds %}
     <div style="text-align:center;">
@@ -287,8 +268,8 @@
 {% endif %}
 
 <!-- VCP + 거래량 분석 -->
-<h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color:#94a3b8;">VCP · 거래량 분석</h3>
-<div style="background:#1e293b; border-radius:8px; padding:16px; margin-bottom:24px;">
+<div class="sec-title">VCP · 거래량 분석 <span class="sub">변동성 축소 · 매집/분산 · 유동성</span></div>
+<div class="card" style="margin-bottom:24px;">
   <!-- VCP -->
   <div style="display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid #0f172a;">
     <span style="color:{% if result.vcp_detected %}#4ade80{% else %}#64748b{% endif %}; font-weight:600;">
@@ -329,12 +310,12 @@
       숫자 <strong>{{ ad.accum }}:{{ ad.distrib }}</strong> = 25일 중 매집일 {{ ad.accum }}일, 분산일 {{ ad.distrib }}일이란 뜻입니다.
     </div>
   </div>
-  <p style="color:#64748b; font-size:0.74rem; margin-top:12px;">미너비니: 돌파는 <strong>거래량 급증(평균 +40%↑)</strong>을 동반해야 하고, 베이스에선 <strong>거래량이 말라야</strong> 합니다. 대량 <strong style="color:#4ade80;">상승</strong>일(매집)이 대량 <strong style="color:#f87171;">하락</strong>일(분산)보다 많아야 기관이 사들이는 건강한 종목입니다.</p>
+  <p class="note-sm" style="margin-top:12px;">💡 돌파는 <strong>거래량 급증(+40%↑)</strong>을 동반해야 하고, 베이스에선 <strong>거래량이 말라야</strong> 합니다. 대량 <strong style="color:#4ade80;">상승일(매집)</strong>이 대량 <strong style="color:#f87171;">하락일(분산)</strong>보다 많아야 기관이 사들이는 건강한 종목입니다.</p>
 </div>
 {% if result.avg_volume %}
-<div style="color:#475569; font-size:0.78rem; margin-bottom:24px;">
-  유동성: 50일 평균 <strong style="color:#94a3b8;">{{ "{:,}".format(result.avg_volume|int) }}주</strong> ·
-  일평균 거래대금 <strong style="color:#94a3b8;">{{ fmt_turnover(result.avg_volume, result.close, mk) }}</strong> ·
+<div class="note" style="margin-bottom:24px;">
+  유동성 · 50일 평균 <strong style="color:var(--text);">{{ "{:,}".format(result.avg_volume|int) }}주</strong> ·
+  일평균 거래대금 <strong style="color:var(--text);">{{ fmt_turnover(result.avg_volume, result.close, mk) }}</strong> ·
   {% if result.liquidity_pass %}<span style="color:#4ade80;">기관 진입 가능 유동성</span>{% else %}<span style="color:#f87171;">유동성 미달(매수 제외)</span>{% endif %}
 </div>
 {% endif %}
