@@ -109,21 +109,28 @@ def main():
         breakouts, sells = _details(db, latest, br_ids), _details(db, latest, sl_ids)
         log.info(f"{latest}: 새 돌파 {len(breakouts)}, 새 매도 {len(sells)}")
 
+        # 시장별 가드: 하루에 시장별 런이 따로 돈다(한국 15:50 KST, 미국 새벽 KST).
+        # 한국 런 시점엔 미국 데이터가 아직 전일이라 미국 diff가 비어 있고, 이때 날짜 전체를
+        # '발송됨'으로 잠그면 저녁 미국 런의 새 돌파가 영영 안 나간다 → 시장 단위로 잠근다.
+        # diff가 빈 시장은 잠그지 않아, 그 시장 데이터가 늦게 갱신되면 그때 발송된다.
         sent = 0
-        for sub in subs:
-            mk = sub["market"]
+        for mk in ("US", "KOSPI", "KOSDAQ"):
+            if A.get_meta(f"last_notified_{mk}") == str(latest):
+                continue          # 이 시장은 이 날짜에 이미 발송함
             br = [r for r in breakouts if (r[2] or "US") == mk]
             sl = [r for r in sells if (r[2] or "US") == mk]
             if not br and not sl:
-                continue
-            subject = f"[Minervini] {MARKET_LABEL.get(mk, mk)} 새 돌파 {len(br)}·매도 {len(sl)} ({latest})"
-            ok, msg = A.send_email(sub["email"], subject, _build_html(latest, mk, br, sl, sub["token"]))
-            if ok:
-                sent += 1
-            else:
-                log.warning(f"{sub['email']} 발송 실패: {msg}")
+                continue          # 신호 없음 — 잠그지 않고 다음 데이터 갱신을 기다림
+            for sub in (s for s in subs if s["market"] == mk):
+                subject = f"[Minervini] {MARKET_LABEL.get(mk, mk)} 새 돌파 {len(br)}·매도 {len(sl)} ({latest})"
+                ok, msg = A.send_email(sub["email"], subject, _build_html(latest, mk, br, sl, sub["token"]))
+                if ok:
+                    sent += 1
+                else:
+                    log.warning(f"{sub['email']} 발송 실패: {msg}")
+            A.set_meta(f"last_notified_{mk}", str(latest))
+            log.info(f"{mk}: 돌파 {len(br)}·매도 {len(sl)} → 발송 잠금({latest})")
 
-        A.set_meta("last_notified_date", str(latest))
         log.info(f"발송 완료: {sent}명")
         return 0
     finally:
