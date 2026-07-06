@@ -1,9 +1,10 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app import alerts as alerts_mod
 from app.database import get_db
 from app.models import Fundamental, ScreeningResult, Stock
 from app.screener import SIGNAL_LABELS, build_trade_plan, compute_market_breadth
@@ -159,11 +160,31 @@ def volume_verdict(r) -> dict:
               "매집·분산이 팽팽합니다 — 돌파 시 거래량이 확대되는지 확인하세요.")
 
 
+def est_revision(up, down, chg) -> dict | None:
+    """애널리스트 EPS 추정치 상향/하향 해석. 데이터 없으면(한국 등) None."""
+    if up is None and down is None and chg is None:
+        return None
+    u, d = up or 0, down or 0
+    net = u - d
+    parts = []
+    if u or d:
+        parts.append(f"30일 {u}명↑ / {d}명↓")
+    if chg is not None:
+        parts.append(f"연간EPS 추정 {'+' if chg >= 0 else ''}{chg}%")
+    note = " · ".join(parts) if parts else "데이터 부족"
+    if net >= 3 or (chg is not None and chg >= 3 and net >= 0):
+        return {"label": "추정치 상향", "icon": "📈", "color": "#4ade80", "note": note, "good": True}
+    if net <= -3 or (chg is not None and chg <= -3):
+        return {"label": "추정치 하향", "icon": "📉", "color": "#f87171", "note": note, "good": False}
+    return {"label": "추정치 보합", "icon": "➖", "color": "#94a3b8", "note": note, "good": None}
+
+
 templates.env.globals["fmt_price"] = fmt_price
 templates.env.globals["fmt_amount"] = fmt_amount
 templates.env.globals["fmt_turnover"] = fmt_turnover
 templates.env.globals["ad_interpret"] = ad_interpret
 templates.env.globals["volume_verdict"] = volume_verdict
+templates.env.globals["est_revision"] = est_revision
 templates.env.globals["market_labels"] = MARKET_LABELS
 templates.env.globals["rec_labels"] = REC_LABELS
 
@@ -433,6 +454,46 @@ def trigger_screen(db: Session = Depends(get_db)):
 def watchlist(request: Request):
     """관심종목 페이지 (목록은 브라우저 localStorage에 저장 → JS가 채움)"""
     return templates.TemplateResponse(request, "watchlist.html", context={})
+
+
+@router.get("/alerts", response_class=HTMLResponse)
+def alerts_page(request: Request, ok: str = "", err: str = ""):
+    """이메일 알림 구독 페이지."""
+    return templates.TemplateResponse(request, "alerts.html", context={
+        "avail_markets": MARKETS, "ok": ok, "err": err,
+        "email_enabled": alerts_mod.email_enabled(),
+    })
+
+
+@router.post("/alerts/subscribe")
+def alerts_subscribe(email: str = Form(...), market: str = Form("US")):
+    email = (email or "").strip().lower()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return RedirectResponse("/alerts?err=이메일 형식을 확인하세요", status_code=303)
+    if not alerts_mod.email_enabled():
+        return RedirectResponse("/alerts?err=관리자가 발송 계정을 아직 설정하지 않았습니다", status_code=303)
+    token, already = alerts_mod.add_subscriber(email, market if market in MARKETS else "US")
+    if already:
+        return RedirectResponse("/alerts?ok=이미 구독 중입니다", status_code=303)
+    sent, msg = alerts_mod.send_confirmation(email, token)
+    if not sent:
+        return RedirectResponse(f"/alerts?err=확인메일 발송 실패 ({msg[:50]})", status_code=303)
+    return RedirectResponse("/alerts?ok=확인 메일을 보냈습니다 — 메일함에서 '구독 확정'을 눌러주세요", status_code=303)
+
+
+@router.get("/alerts/confirm", response_class=HTMLResponse)
+def alerts_confirm(request: Request, token: str = ""):
+    email = alerts_mod.confirm(token)
+    msg = (f"✅ {email} 구독이 확정되었습니다! 매일 새 돌파·매도신호를 보내드립니다."
+           if email else "잘못되었거나 만료된 링크입니다.")
+    return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
+
+
+@router.get("/alerts/unsubscribe", response_class=HTMLResponse)
+def alerts_unsubscribe(request: Request, token: str = ""):
+    email = alerts_mod.unsubscribe(token)
+    msg = f"{email} 구독이 취소되었습니다." if email else "잘못된 링크입니다."
+    return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
 
 
 @router.get("/vcp", response_class=HTMLResponse)

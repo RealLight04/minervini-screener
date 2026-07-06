@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     REGIME_GATE: bool = True
     DART_API_KEY: str = ""   # OpenDART 인증키 (한국 종목 재무 수집용, .env에 보관)
     ALPHAVANTAGE_API_KEY: str = ""   # Alpha Vantage 인증키 (미국 분기 EPS 이력 백필용, .env에 보관)
+    # 이메일 알림(Gmail SMTP). 앱 비밀번호는 .env에만 보관.
+    GMAIL_USER: str = ""             # 발송 Gmail 주소
+    GMAIL_APP_PASSWORD: str = ""     # Gmail 앱 비밀번호(16자리, 공백 제거)
+    ALERT_BASE_URL: str = "https://liam.tail6fe9f6.ts.net"  # 확인/구독취소 링크용 사이트 주소
 
     class Config:
         env_file = ".env"

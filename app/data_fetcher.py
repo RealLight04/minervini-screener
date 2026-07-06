@@ -384,8 +384,36 @@ def _next_earnings_date(yf_ticker, info: dict):
     return None
 
 
+def _eps_revisions(yf_ticker):
+    """당해연도(0y) EPS 컨센서스의 90일 변화율(%)과 최근 30일 상향/하향 애널리스트 수.
+    미너비니: 애널리스트 추정치가 '상향'되는 종목이 강세(어닝 서프라이즈로 이어짐). 미국만 제공."""
+    def _si(v):
+        try:
+            return None if (v is None or pd.isna(v)) else int(v)
+        except Exception:
+            return None
+
+    chg = up = down = None
+    try:
+        et = yf_ticker.eps_trend
+        if et is not None and not et.empty and "0y" in et.index:
+            cur, old = et.loc["0y", "current"], et.loc["0y", "90daysAgo"]
+            if cur is not None and old not in (None, 0) and not pd.isna(cur) and not pd.isna(old):
+                chg = round((float(cur) - float(old)) / abs(float(old)) * 100, 1)
+    except Exception:
+        pass
+    try:
+        er = yf_ticker.eps_revisions
+        if er is not None and not er.empty and "0y" in er.index:
+            up = _si(er.loc["0y", "upLast30days"]) if "upLast30days" in er.columns else None
+            down = _si(er.loc["0y", "downLast30days"]) if "downLast30days" in er.columns else None
+    except Exception:
+        pass
+    return up, down, chg
+
+
 def fetch_company_info(db: Session, ticker: str) -> bool:
-    """yfinance .info에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일) 수집."""
+    """yfinance에서 기업 기본정보(ROE·마진·목표주가·투자의견·다음 실적일·추정치 상향) 수집."""
     stock = db.query(Stock).filter(Stock.ticker == ticker).first()
     if not stock:
         return False
@@ -402,6 +430,7 @@ def fetch_company_info(db: Session, ticker: str) -> bool:
         stock.target_price = info.get("targetMeanPrice")
         stock.recommendation = info.get("recommendationKey")
         stock.next_earnings = _next_earnings_date(yf_ticker, info)
+        stock.eps_rev_up, stock.eps_rev_down, stock.eps_est_chg = _eps_revisions(yf_ticker)
         db.commit()
         return True
     except Exception as e:

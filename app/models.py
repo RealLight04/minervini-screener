@@ -23,6 +23,9 @@ class Stock(Base):
     target_price = Column(Float)      # 증권사 평균 목표주가
     recommendation = Column(String)   # 투자의견 (buy/hold/sell 등)
     next_earnings = Column(String)    # 예상 실적 발표일 (ISO date)
+    eps_rev_up = Column(Integer)      # 최근 30일 EPS 추정치 상향 애널리스트 수(당해연도)
+    eps_rev_down = Column(Integer)    # 최근 30일 EPS 추정치 하향 애널리스트 수
+    eps_est_chg = Column(Float)       # 당해연도 EPS 컨센서스 90일 변화율(%) — 상향=강세
 
     prices = relationship("DailyPrice", back_populates="stock", cascade="all, delete-orphan")
     fundamentals = relationship("Fundamental", back_populates="stock", cascade="all, delete-orphan")

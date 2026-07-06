@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}이메일 알림 — Minervini Screener{% endblock %}
+{% block content %}
+<div style="max-width:560px;">
+  <h2 class="page-title">📬 이메일 알림 구독</h2>
+  <p class="muted" style="margin-top:8px; line-height:1.6;">
+    매일 스크리닝 후 <strong style="color:var(--green);">새로 돌파한 종목</strong>과
+    <strong style="color:#f97316;">새 매도신호(50일선 이탈)</strong>를 이메일로 받아보세요.
+  </p>
+
+  {% if ok %}<div class="card" style="margin-top:16px; border-color:#22c55e55; background:#14532d22; color:#4ade80;">{{ ok }}</div>{% endif %}
+  {% if err %}<div class="card" style="margin-top:16px; border-color:#f8717155; background:#450a0a22; color:#fca5a5;">{{ err }}</div>{% endif %}
+  {% if not email_enabled %}
+  <div class="card" style="margin-top:16px; color:var(--amber);">⚠️ 발송 계정이 아직 설정되지 않아 구독이 일시 비활성입니다. (관리자 설정 후 이용 가능)</div>
+  {% endif %}
+
+  <form action="/alerts/subscribe" method="post" class="card" style="margin-top:18px; display:flex; flex-direction:column; gap:15px;">
+    <div>
+      <label class="muted" style="font-size:0.85rem; display:block; margin-bottom:6px;">이메일 주소</label>
+      <input name="email" type="email" required placeholder="you@example.com"
+        style="width:100%; background:var(--inset); border:1px solid var(--border); color:var(--text); padding:11px 13px; border-radius:10px; font-size:0.95rem;">
+    </div>
+    <div>
+      <label class="muted" style="font-size:0.85rem; display:block; margin-bottom:6px;">관심 시장</label>
+      <select name="market"
+        style="width:100%; background:var(--inset); border:1px solid var(--border); color:var(--text); padding:11px 13px; border-radius:10px; font-size:0.95rem;">
+        <option value="US">미국 (S&P 500)</option>
+        <option value="KOSPI">코스피</option>
+        <option value="KOSDAQ">코스닥</option>
+      </select>
+    </div>
+    <button type="submit" class="btn" style="background:var(--accent); color:#08111f; border:none; font-weight:700; padding:12px; font-size:0.95rem;">구독 신청</button>
+  </form>
+
+  <p class="note-sm" style="margin-top:14px; line-height:1.65;">
+    🔒 신청 후 <strong>확인 메일의 링크</strong>를 눌러야 구독이 확정됩니다(스팸 방지). 매 메일 하단의 링크로 언제든 구독취소할 수 있습니다.
+  </p>
+</div>
+{% endblock %}

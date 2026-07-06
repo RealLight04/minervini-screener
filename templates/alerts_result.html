@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}알림 — Minervini Screener{% endblock %}
+{% block content %}
+<div class="card" style="max-width:520px; margin:36px auto 0; text-align:center; padding:32px 24px;">
+  <div style="font-size:1.05rem; line-height:1.6; color:{% if ok %}#4ade80{% else %}#fca5a5{% endif %};">{{ msg }}</div>
+  <p style="margin-top:20px;"><a class="tab" href="/">← 홈으로</a></p>
+</div>
+{% endblock %}

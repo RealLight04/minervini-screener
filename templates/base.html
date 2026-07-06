@@ -73,9 +73,10 @@
     h2.page-title { font-size: 1.45rem; font-weight: 760; letter-spacing: -0.02em; }
     .section-title {
       display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
-      font-size: 1.06rem; font-weight: 720; margin: 30px 0 13px; letter-spacing: -0.01em;
+      font-size: 1.08rem; font-weight: 730; margin: 32px 0 14px; letter-spacing: -0.01em;
+      padding-left: 11px; border-left: 3px solid currentColor;
     }
-    .section-title .hint { font-weight: 400; font-size: 0.8rem; color: var(--faint); }
+    .section-title .hint { font-weight: 400; font-size: 0.82rem; color: var(--faint); }
     .muted { color: var(--muted); }
     .faint { color: var(--faint); }
 
@@ -186,6 +187,7 @@
         <a href="/">홈</a>
         <a href="/vcp">🌀 VCP</a>
         <a href="/watchlist">⭐ 관심종목</a>
+        <a href="/alerts">📬 알림</a>
       </div>
       <form class="search" action="/search" method="get">
         <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
