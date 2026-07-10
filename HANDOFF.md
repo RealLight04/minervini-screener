@@ -1,7 +1,9 @@
 # 🔁 작업 인계 런북 (Minervini Stock Screener)
 
 > 이 파일은 **새 세션에서 그대로 이어서 같은 작업을 재현**하기 위한 런북입니다.
-> 마지막 갱신: 2026-06-26. 작업 디렉토리: `/home/pc100di/stock-screener`
+> 마지막 갱신: 2026-07-10. 원래 작업 디렉토리(`/home/pc100di/stock-screener`, WSL2)는
+> **노트북 고장으로 소실됨** — 새 Windows 데스크톱에서 네이티브(비-WSL)로 재구축 완료.
+> 현재 작업 디렉토리: `<사용자 폴더>\Desktop\minervini-screener` (Windows 네이티브, 9번 참고).
 
 ---
 
@@ -10,8 +12,10 @@
 마크 미너비니 SEPA(Trend Template + 실적 + VCP) 방법론으로 **S&P 500 + 한국(코스피·코스닥)**을
 스크리닝하는 FastAPI 웹앱. **✅ 배포 완료, 이후 기능 다수 추가하며 운영 중.**
 
-- **라이브: https://minervini-screener-1gvr.onrender.com** (Render Free, push 시 자동 재배포)
-  - ⚠️ Render Free 빌드+콜드스타트로 **재배포 반영까지 약 8분** 걸림(폴링으로 확인).
+- **라이브(메인): https://minervini-screener-1gvr.onrender.com** (Render Free, push 시 자동 재배포)
+  - ⚠️ Render Free 빌드+콜드스타트로 **재배포 반영까지 약 8분**, 유휴 후 첫 응답도 **최대 ~1분** 걸림.
+- **라이브(백업, 콜드스타트 없음): https://minervini.tail6fe9f6.ts.net** — Tailscale Funnel로
+  로컬 데스크톱을 직접 공개. PC가 켜져있는 한 상시 가동, 무료, 슬립 없음. **10번 참고.**
 - GitHub: https://github.com/RealLight04/minervini-screener (public). **main 직접 커밋 → 자동 배포** 워크플로.
 - ⚠️ `minervini-screener.onrender.com`(접미사 없는 주소)는 **타인의 인도 NSE 앱**이 선점 → 우리 건 `-1gvr` 접미사.
 
@@ -180,3 +184,82 @@ python3 scripts/daily_update.py     # S&P 500 전체 수집+스크리닝, 약 15
 | `scripts/collect_dart.py` | OpenDART로 한국 종목 재무 수집 (`docs_cache/`는 라이브러리 캐시, gitignore) |
 | `screener.db` | 배포용 스냅샷 DB (커밋 포함, ~34MB) |
 | `render.yaml` | Render 청사진 |
+| `.claude/skills/run-minervini-screener/` | 에이전트용 실행 스킬(9번) — `SKILL.md` + `smoke.sh` |
+
+---
+
+## 9. 로컬 개발 — Windows 네이티브 (WSL 아님)
+
+기존 WSL2(Ubuntu, Python 3.14) 개발 환경은 노트북 고장으로 소실됨. 새 데스크톱에서는
+**WSL 없이 네이티브 Windows Python(3.11.8) venv**로 재구축 — 오히려 3번의 WSL2 함정들
+(PEP668, localhost 접속 불안정, 포트 충돌)이 전혀 없어서 더 간단함.
+
+### 실행 (에이전트/사람 공용, 원커맨드)
+
+```bash
+cd <이 저장소를 clone한 경로>   # 예: ~/Desktop/minervini-screener
+bash .claude/skills/run-minervini-screener/smoke.sh
+```
+
+멱등적(idempotent) — venv 없으면 생성, 있으면 재사용, 이전 인스턴스는 자동 정리 후 재기동.
+포트 기본 8010 (`PORT=8020 bash ...`로 변경 가능). 상세 내용·엔드포인트 표는
+`.claude/skills/run-minervini-screener/SKILL.md` 참고. `.env` 없이도 기본값으로 바로 됨
+(DART/AlphaVantage/Gmail 키는 선택 기능용, 서버 구동엔 불필요).
+
+### ⚠️ Windows 네이티브 전용 함정 (WSL2와는 다름, 실제로 겪은 것)
+
+1. **`pip install -r requirements.txt`가 `UnicodeDecodeError: 'cp949' codec ...`로 죽음**:
+   `requirements.txt`에 한글 주석이 있는데, 한국어 로케일 Windows에서 pip의 인코딩
+   자동감지가 시스템 코드페이지(cp949)로 폴백해서 발생. → **`export PYTHONUTF8=1`**
+   설정 후 pip 실행하면 해결 (매번 재현되진 않음 — 로케일에 따라 다르니 항상 켜둘 것).
+2. **Git Bash에 `pkill`이 아예 없음** (`pkill: command not found`, `2>/dev/null`에 가려서
+   조용히 실패함 — 안 죽은 걸 죽은 줄 알고 넘어가기 쉬움). 또한 이 환경의 `ps`는 인자를
+   안 보여줘서(`uvicorn main:app` 같은 커맨드라인 매칭 불가) venv 경로로 매칭해야 함:
+   ```bash
+   for winpid in $(ps aux | grep "[m]inervini-screener/venv" | awk '{print $4}'); do
+     taskkill //F //PID "$winpid"
+   done
+   ```
+   `ps aux`의 **4번째 컬럼(WINPID)**이 실제 `taskkill`에 필요한 Windows PID — 1번째 컬럼(MSYS PID)이나
+   백그라운드 실행 직후의 `$!`는 래퍼 프로세스를 가리켜서 **틀린 PID**임(그걸 죽여도 서버는 안 죽음).
+3. **Git Bash가 `curl -w`의 `/`로 시작하는 포맷 문자열을 깨뜨림**: MSYS가 경로 변환을 시도해서
+   `C:/Program Files/Git/ -> 200` 같은 깨진 출력이 나올 수 있음. `->` 뒤 HTTP 코드는 정상이니
+   무시해도 되지만, 아예 `/`로 시작 안 하게 쓰면 깔끔함.
+
+---
+
+## 10. Tailscale Funnel — 상시 공개 백업 URL (Render 콜드스타트 회피용)
+
+Render 무료는 유휴 15분 후 슬립 → 재접속 시 콜드스타트로 최대 ~1분 걸림(실측: 52초).
+**Tailscale Funnel**로 로컬 서버를 그대로 공개 인터넷에 노출하면, 이 PC가 켜져있는 한
+**콜드스타트 없이 상시 접속 가능**, 완전 무료, 추가 가입도 불필요(이미 로그인된 계정 재사용).
+
+- **라이브: https://minervini.tail6fe9f6.ts.net** (개인 Tailnet `tail6fe9f6.ts.net` 소유)
+  - 참고: 예전 노트북은 개명 전 기기명 기준 주소를 썼음(현재 오프라인, 노트북 고장).
+  - 이 데스크톱 기기명은 원래 자동생성된 이름이었는데 깔끔한 URL을 위해 `minervini`로 개명함.
+- 로컬 서버(포트 8010)가 떠있는 상태에서:
+  ```bash
+  tailscale funnel --bg 8010          # 켜기 → https://<기기명>.tail6fe9f6.ts.net 로 공개
+  tailscale funnel status             # 현재 활성 funnel 확인
+  tailscale funnel --https=443 off    # 끄기
+  ```
+- 재부팅하면 로컬 uvicorn 프로세스는 꺼지므로, PC 재시작 시 9번의 `smoke.sh`로 재기동 필요
+  (자동시작 등록은 아직 안 함 — 필요하면 작업 스케줄러/시작프로그램에 등록 고려, 8번 "남은 작업" 참고).
+
+### ⚠️ 기기명(hostname) 변경 시 함정 (실제로 겪음)
+
+- `tailscale set --hostname=<new>` 직후, **공개 DNS 전파에 몇 분의 갭**이 생김 — 이 사이엔
+  옛 이름도(내부적으로 이미 라우팅이 끊겨 TLS 핸드셰이크 실패) 새 이름도(아직 전파 전) 둘 다
+  깨져 보일 수 있음. `tailscale funnel status`엔 둘 다 "on"으로 나와도 실제로는 새 이름만 살아있음.
+- **이 PC에서 하는 DNS 확인은 신뢰할 수 없음** — Windows가 Tailscale의 자체 DNS(NRPT)로
+  `*.ts.net` 조회를 가로채서, 실제로 퍼졌는지와 무관하게 항상 성공한 것처럼 보임
+  (`Resolve-DnsName`은 가로채짐, Git Bash `nslookup`은 대체로 우회함 — 도구마다 다름, 혼란의 원인).
+  **진짜 확인 방법**: 외부 공개 리졸버로 직접 질의 + 실제 IP로 강제 접속.
+  ```bash
+  nslookup <name>.tail6fe9f6.ts.net 8.8.8.8      # 공개 전파 여부 확인
+  curl --resolve <name>.tail6fe9f6.ts.net:443:<위에서_나온_IP> https://<name>.tail6fe9f6.ts.net/api/stats
+  ```
+- **미해결/관찰 중인 이슈**: PC 브라우저에선 되는데 **휴대폰 데이터망에서 안 되는** 경우 있었음
+  (Tailscale 앱 미설치, 데이터망 사용 중에도 발생) — 통신사 자체 DNS 리졸버가 구글/클라우드플레어보다
+  전파가 느린 것으로 추정. 비행기모드 토글 또는 10~20분 대기로 보통 해결. 계속 안 되면 기기명을
+  원래대로 되돌리는 것도 고려(단, 되돌릴 때도 같은 전파 갭이 반복됨).
