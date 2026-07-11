@@ -19,21 +19,21 @@
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>티커</th><th>회사명</th><th>시장</th><th>형성일</th><th>수축</th><th>현재가</th><th>피벗(돌파선)</th><th>돌파까지</th><th>RS</th><th>거래량</th></tr>
+    <tr><th>티커</th><th>회사명</th><th class="ctr">시장</th><th class="num">형성일</th><th class="num">수축</th><th class="num">현재가</th><th class="num">피벗(돌파선)</th><th class="ctr">돌파까지</th><th class="ctr">RS</th><th class="ctr">거래량</th></tr>
   </thead>
   <tbody>
     {% for r in forming %}
-    <tr>
+    <tr data-href="/stock/{{ r.stock.ticker }}">
       <td data-label="티커"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
-      <td data-label="시장"><span class="faint">{{ market_labels.get(r.market, r.market) }}</span></td>
-      <td data-label="형성일">{% if r.days is not none %}{{ r.days }}일{% else %}-{% endif %}</td>
-      <td data-label="수축">{% if r.ev.contractions %}{{ r.ev.contractions }}회{% else %}-{% endif %}</td>
-      <td data-label="현재가">{{ fmt_price(r.ev.close, r.market) }}</td>
-      <td data-label="피벗(돌파선)"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot_price, r.market) }}</span></td>
-      <td data-label="돌파까지">{% if r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
-      <td data-label="RS">{% if r.ev.rs_rank %}<span class="badge {% if r.ev.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="거래량">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">🫧 마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="시장" class="ctr"><span class="faint">{{ market_labels.get(r.market, r.market) }}</span></td>
+      <td data-label="형성일" class="num">{% if r.days is not none %}{{ r.days }}일{% else %}-{% endif %}</td>
+      <td data-label="수축" class="num">{% if r.ev.contractions %}{{ r.ev.contractions }}회{% else %}-{% endif %}</td>
+      <td data-label="현재가" class="num">{{ fmt_price(r.ev.close, r.market) }}</td>
+      <td data-label="피벗(돌파선)" class="num"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot_price, r.market) }}</span></td>
+      <td data-label="돌파까지" class="ctr">{% if r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
+      <td data-label="RS" class="ctr">{% if r.ev.rs_rank %}<span class="badge {% if r.ev.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="거래량" class="ctr">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">🫧 마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -50,19 +50,19 @@
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>티커</th><th>회사명</th><th>돌파일</th><th>베이스기간</th><th>돌파가</th><th>현재가</th><th>돌파후</th><th>RS</th></tr>
+    <tr><th>티커</th><th>회사명</th><th class="ctr">돌파일</th><th class="num">베이스기간</th><th class="num">돌파가</th><th class="num">현재가</th><th class="num">돌파후</th><th class="num">RS</th></tr>
   </thead>
   <tbody>
     {% for r in broke %}
-    <tr>
+    <tr data-href="/stock/{{ r.stock.ticker }}">
       <td data-label="티커"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
-      <td data-label="돌파일">{{ r.ev.breakout_date }}</td>
-      <td data-label="베이스기간">{% if r.base_days is not none %}{{ r.base_days }}일{% else %}-{% endif %}</td>
-      <td data-label="돌파가">{{ fmt_price(r.ev.breakout_price, r.market) }}</td>
-      <td data-label="현재가">{{ fmt_price(r.cur_close, r.market) }}</td>
-      <td data-label="돌파후">{% if r.ret is not none %}<span style="color:{% if r.ret >= 0 %}var(--green){% else %}var(--red){% endif %}; font-weight:650;">{{ "%+.1f"|format(r.ret) }}%</span>{% else %}-{% endif %}</td>
-      <td data-label="RS">{% if r.ev.rs_rank %}{{ "%.0f"|format(r.ev.rs_rank) }}{% else %}-{% endif %}</td>
+      <td data-label="돌파일" class="ctr">{{ r.ev.breakout_date }}</td>
+      <td data-label="베이스기간" class="num">{% if r.base_days is not none %}{{ r.base_days }}일{% else %}-{% endif %}</td>
+      <td data-label="돌파가" class="num">{{ fmt_price(r.ev.breakout_price, r.market) }}</td>
+      <td data-label="현재가" class="num">{{ fmt_price(r.cur_close, r.market) }}</td>
+      <td data-label="돌파후" class="num">{% if r.ret is not none %}<span style="color:{% if r.ret >= 0 %}var(--green){% else %}var(--red){% endif %}; font-weight:650;">{{ "%+.1f"|format(r.ret) }}%</span>{% else %}-{% endif %}</td>
+      <td data-label="RS" class="num">{% if r.ev.rs_rank %}{{ "%.0f"|format(r.ev.rs_rank) }}{% else %}-{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>

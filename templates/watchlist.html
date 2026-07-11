@@ -49,7 +49,8 @@ function render() {
       empty.style.display = 'none'; wrap.style.display = 'block';
       body.innerHTML = rows.map(function (d) {
         var cur = d.currency;
-        var badge = '<span class="badge" style="background:' + d.signal_color + '22; color:' + d.signal_color + '; border:1px solid ' + d.signal_color + '55;">' + d.signal_label + '</span>';
+        var sc = d.signal_color || { light: '#52514e', dark: '#8b96a8' };
+        var badge = '<span class="badge tone-badge" style="--tone-light:' + sc.light + '; --tone-dark:' + sc.dark + ';">' + d.signal_label + '</span>';
         var gap = d.gap_to_pivot != null ? '<span style="color:var(--amber);">+' + d.gap_to_pivot + '%</span>' : '<span class="faint">-</span>';
         var pivot = d.pivot != null ? '<span style="color:var(--accent);">' + money(d.pivot, cur) + '</span>' : '-';
         return '<tr>' +

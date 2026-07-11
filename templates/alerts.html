@@ -5,11 +5,11 @@
   <h2 class="page-title">📬 이메일 알림 구독</h2>
   <p class="muted" style="margin-top:8px; line-height:1.6;">
     매일 스크리닝 후 <strong style="color:var(--green);">새로 돌파한 종목</strong>과
-    <strong style="color:#f97316;">새 매도신호(50일선 이탈)</strong>를 이메일로 받아보세요.
+    <strong style="color:var(--orange);">새 매도신호(50일선 이탈)</strong>를 이메일로 받아보세요.
   </p>
 
-  {% if ok %}<div class="card" style="margin-top:16px; border-color:#22c55e55; background:#14532d22; color:#4ade80;">{{ ok }}</div>{% endif %}
-  {% if err %}<div class="card" style="margin-top:16px; border-color:#f8717155; background:#450a0a22; color:#fca5a5;">{{ err }}</div>{% endif %}
+  {% if ok %}<div class="card" style="margin-top:16px; border-color:color-mix(in srgb, var(--green) 45%, transparent); background:var(--badge-green-bg); color:var(--green-ink);">{{ ok }}</div>{% endif %}
+  {% if err %}<div class="card" style="margin-top:16px; border-color:color-mix(in srgb, var(--red) 45%, transparent); background:var(--badge-red-bg); color:var(--red-ink);">{{ err }}</div>{% endif %}
   {% if not email_enabled %}
   <div class="card" style="margin-top:16px; color:var(--amber);">⚠️ 발송 계정이 아직 설정되지 않아 구독이 일시 비활성입니다. (관리자 설정 후 이용 가능)</div>
   {% endif %}
@@ -29,7 +29,7 @@
         <option value="KOSDAQ">코스닥</option>
       </select>
     </div>
-    <button type="submit" class="btn" style="background:var(--accent); color:#08111f; border:none; font-weight:700; padding:12px; font-size:0.95rem;">구독 신청</button>
+    <button type="submit" class="btn" style="background:var(--accent); color:var(--accent-ink); border:none; font-weight:700; padding:12px; font-size:0.95rem;">구독 신청</button>
   </form>
 
   <p class="note-sm" style="margin-top:14px; line-height:1.65;">

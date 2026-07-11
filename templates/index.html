@@ -2,14 +2,15 @@
 {% block title %}매매 신호 — Minervini Screener{% endblock %}
 
 {% macro signal_badge(sig) %}
-  <span class="badge" style="background:{{ signal_colors.get(sig, '#334155') }}22; color:{{ signal_colors.get(sig, '#94a3b8') }}; border:1px solid {{ signal_colors.get(sig, '#334155') }}55;">
+  {% set c = signal_colors.get(sig, signal_color_default) %}
+  <span class="badge tone-badge" style="--tone-light:{{ c.light }}; --tone-dark:{{ c.dark }};">
     {{ signal_labels.get(sig, sig) }}
   </span>
 {% endmacro %}
 
 {# 거래량(50일 평균 대비) 배지: ≥1.4=많음(초록), <0.85=적음(파랑), 그 외 보통.
    숫자 x = 50일 평균의 몇 배인지 (예: 0.7x = 평균의 70%로 한산). #}
-{% macro vol_badge(v) %}{% if v is none %}<span class="faint">-</span>{% elif v >= 1.4 %}<span class="badge" style="background:#14532d; color:#4ade80;" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 많음(대량)">{{ "%.1f"|format(v) }}x 많음</span>{% elif v < 0.85 %}<span class="badge" style="background:#1e3a5f; color:#7dd3fc;" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 적음(한산)">{{ "%.1f"|format(v) }}x 적음</span>{% else %}<span class="badge badge-gray" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 보통">{{ "%.1f"|format(v) }}x 보통</span>{% endif %}{% endmacro %}
+{% macro vol_badge(v) %}{% if v is none %}<span class="faint">-</span>{% elif v >= 1.4 %}<span class="badge" style="background:var(--badge-green-bg); color:var(--green-ink);" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 많음(대량)">{{ "%.1f"|format(v) }}x 많음</span>{% elif v < 0.85 %}<span class="badge" style="background:var(--badge-blue-bg); color:var(--accent);" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 적음(한산)">{{ "%.1f"|format(v) }}x 적음</span>{% else %}<span class="badge badge-gray" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 보통">{{ "%.1f"|format(v) }}x 보통</span>{% endif %}{% endmacro %}
 
 {% block content %}
 <div style="margin-bottom: 22px;">
@@ -20,7 +21,7 @@
   <p class="muted" style="font-size:0.9rem; margin-top:6px;">
     Minervini 추세 템플릿 + 실적 모멘텀 + VCP 돌파 ·
     <span style="color:var(--green);">매수 후보 {{ buy_count }}</span> ·
-    <span style="color:#f97316;">매도 경고 {{ sell_count }}</span>
+    <span style="color:var(--orange);">매도 경고 {{ sell_count }}</span>
   </p>
 </div>
 
@@ -35,14 +36,14 @@
 
 <!-- 시장 국면 신호등 -->
 {% if market and market.available %}
-<div class="card" style="background:{{ market.color }}12; border-color:{{ market.color }}40; margin-bottom:24px;">
+<div class="card tone-tint" style="--tone-light:{{ market.color.light }}; --tone-dark:{{ market.color.dark }}; margin-bottom:24px;">
   <div style="display:flex; align-items:center; gap:11px; flex-wrap:wrap;">
-    <span style="width:11px; height:11px; border-radius:50%; background:{{ market.color }};"></span>
-    <span style="font-size:1.04rem; font-weight:760; color:{{ market.color }};">시장 국면 · {{ market.label }}</span>
+    <span class="tone-text" style="width:11px; height:11px; border-radius:50%; background:currentColor;"></span>
+    <span class="tone-text" style="font-size:1.04rem; font-weight:760;">시장 국면 · {{ market.label }}</span>
   </div>
-  <p style="color:#cbd5e1; font-size:0.87rem; margin-top:9px;">{{ market.advice }}</p>
+  <p style="color:var(--muted); font-size:0.87rem; margin-top:9px;">{{ market.advice }}</p>
   {% if market.regime == "BEAR" %}
-  <p style="color:var(--red); font-size:0.83rem; margin-top:7px; font-weight:600; line-height:1.5;">🚫 약세장 게이트 작동 중 — 기술적 매수신호를 자동 보류(관심)로 전환했습니다. 시장 회복 시 복귀합니다. <span class="muted" style="font-weight:400;">(백테스트: 약세 국면 매수는 시장평균 대비 −2.5~3.5%p 열위)</span></p>
+  <p style="color:var(--red); font-size:0.83rem; margin-top:7px; font-weight:600; line-height:1.5;">🚫 약세장 게이트 작동 — 매수신호를 관심으로 자동 보류(회복 시 복귀). <span class="muted" style="font-weight:400;">(백테스트: 약세장 매수는 시장평균 대비 −2.5~3.5%p 열위)</span></p>
   {% endif %}
   <div style="display:flex; gap:18px; flex-wrap:wrap; margin-top:13px; font-size:0.82rem;">
     <span class="muted">200일선 위 <strong style="color:var(--text);">{{ market.pct_above_200 }}%</strong></span>
@@ -55,10 +56,10 @@
 
 <!-- 주도 섹터/테마 -->
 {% if themes %}
-<div class="section-title" style="color:#a78bfa;">🧭 주도 섹터/테마 <span class="hint">매수·추세가 몰린 섹터 = 지금의 주도 테마</span></div>
+<div class="section-title" style="color:var(--violet);">🧭 주도 섹터/테마 <span class="hint">매수·추세가 몰린 섹터 = 지금의 주도 테마</span></div>
 <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(155px,1fr)); gap:11px; margin-bottom:8px;">
   {% for t in themes %}
-  <div class="card" style="padding:14px 16px; {% if loop.first and t.buy > 0 %}border-color:#a78bfa88;{% endif %}">
+  <div class="card" style="padding:14px 16px; {% if loop.first and t.buy > 0 %}border-color:color-mix(in srgb, var(--violet) 53%, transparent);{% endif %}">
     <div style="font-weight:700;">{% if loop.first and t.buy > 0 %}👑 {% endif %}{{ t.sector }}</div>
     <div class="muted" style="font-size:0.8rem; margin-top:7px; line-height:1.65;">
       매수후보 <strong style="color:var(--green);">{{ t.buy }}</strong> · Stage2 <strong style="color:var(--text);">{{ t.stage2_pct }}%</strong><br>
@@ -75,24 +76,24 @@
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>돌파까지</th><th>손절가</th><th>RS</th></tr>
+    <tr><th>티커</th><th>회사명</th><th class="num">현재가</th><th class="num">피벗(매수가)</th><th class="ctr">돌파까지</th><th class="num">손절가</th><th class="num">RS</th></tr>
   </thead>
   <tbody>
     {% for r, s, gap in breakout_watch %}
-    <tr>
+    <tr data-href="/stock/{{ s.ticker }}">
       <td data-label="티커"><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
       <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="현재가">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="피벗(매수가)"><span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span></td>
-      <td data-label="돌파까지"><span class="badge {% if gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ gap }}%</span></td>
-      <td data-label="손절가"><span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span></td>
-      <td data-label="RS">{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
+      <td data-label="현재가" class="num">{{ fmt_price(r.close, cur_market) }}</td>
+      <td data-label="피벗(매수가)" class="num"><span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span></td>
+      <td data-label="돌파까지" class="ctr"><span class="badge {% if gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ gap }}%</span></td>
+      <td data-label="손절가" class="num"><span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span></td>
+      <td data-label="RS" class="num">{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
-<p class="faint" style="font-size:0.78rem; margin-top:10px;">💡 피벗을 거래량 동반해 돌파하면 <strong style="color:var(--green);">적극 매수</strong> 시점. 돌파까지 ≤3%면 관심종목에 담아 추적하세요.</p>
+<p class="faint" style="font-size:0.78rem; margin-top:10px;">💡 거래량 동반 피벗 돌파 = <strong style="color:var(--green);">적극 매수</strong> 시점. ≤3%면 관심종목에 등록하세요.</p>
 {% else %}
 <p class="faint" style="padding:12px 0;">현재 돌파 대기 종목이 없습니다. (강세 종목이 이미 연장됐거나 베이스 형성 중)</p>
 {% endif %}
@@ -103,20 +104,20 @@
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>피벗(매수가)</th><th>손절가</th><th>RS</th><th>거래량<br><span style="font-weight:400; font-size:0.66rem; color:#64748b;">50일평균 대비</span></th><th>VCP</th><th>근거</th></tr>
+    <tr><th class="ctr">신호</th><th>티커</th><th>회사명</th><th class="num">현재가</th><th class="num">피벗(매수가)</th><th class="num">손절가</th><th class="ctr">RS</th><th class="ctr">거래량<br><span style="font-weight:400; font-size:0.66rem; color:var(--faint);">50일평균 대비</span></th><th class="ctr">VCP</th><th>근거</th></tr>
   </thead>
   <tbody>
     {% for r, s in buy_list %}
-    <tr>
-      <td data-label="신호">{{ signal_badge(r.signal) }}</td>
+    <tr data-href="/stock/{{ s.ticker }}">
+      <td data-label="신호" class="ctr">{{ signal_badge(r.signal) }}</td>
       <td data-label="티커"><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
       <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="현재가">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="피벗(매수가)">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="손절가">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="RS">{% if r.rs_rank %}<span class="badge {% if r.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="거래량(50일평균 대비)">{{ vol_badge(r.vol_vs_avg) }}</td>
-      <td data-label="VCP">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="현재가" class="num">{{ fmt_price(r.close, cur_market) }}</td>
+      <td data-label="피벗(매수가)" class="num">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="손절가" class="num">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="RS" class="ctr">{% if r.rs_rank %}<span class="badge {% if r.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="거래량(50일평균 대비)" class="ctr">{{ vol_badge(r.vol_vs_avg) }}</td>
+      <td data-label="VCP" class="ctr">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
       <td data-label="근거" class="stack muted" style="font-size:0.82rem;">{{ r.signal_reason }}</td>
     </tr>
     {% endfor %}
@@ -128,22 +129,22 @@
 {% endif %}
 
 <!-- 매도 경고 -->
-<div class="section-title" style="color:#f97316;">📉 매도 경고 <span class="hint">상승추세였으나 50일선 이탈</span></div>
+<div class="section-title" style="color:var(--orange);">📉 매도 경고 <span class="hint">상승추세였으나 50일선 이탈</span></div>
 {% if sell_list %}
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th>신호</th><th>티커</th><th>회사명</th><th>현재가</th><th>50일 MA</th><th>RS</th><th>근거</th></tr>
+    <tr><th class="ctr">신호</th><th>티커</th><th>회사명</th><th class="num">현재가</th><th class="num">50일 MA</th><th class="num">RS</th><th>근거</th></tr>
   </thead>
   <tbody>
     {% for r, s in sell_list %}
-    <tr>
-      <td data-label="신호">{{ signal_badge(r.signal) }}</td>
+    <tr data-href="/stock/{{ s.ticker }}">
+      <td data-label="신호" class="ctr">{{ signal_badge(r.signal) }}</td>
       <td data-label="티커"><a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></td>
       <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="현재가">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="50일 MA">{{ fmt_price(r.ma50, cur_market) }}</td>
-      <td data-label="RS">{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
+      <td data-label="현재가" class="num">{{ fmt_price(r.close, cur_market) }}</td>
+      <td data-label="50일 MA" class="num">{{ fmt_price(r.ma50, cur_market) }}</td>
+      <td data-label="RS" class="num">{% if r.rs_rank %}{{ "%.0f"|format(r.rs_rank) }}{% else %}-{% endif %}</td>
       <td data-label="근거" class="stack muted" style="font-size:0.82rem;">{{ r.signal_reason }}</td>
     </tr>
     {% endfor %}

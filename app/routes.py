@@ -14,14 +14,16 @@ templates = Jinja2Templates(directory="templates")
 
 # 템플릿에서 신호 한국어 라벨/색상 사용
 SIGNAL_COLORS = {
-    "STRONG_BUY": "#22c55e",
-    "BUY": "#4ade80",
-    "WATCH": "#94a3b8",
-    "SELL": "#f97316",
-    "AVOID": "#64748b",
+    "STRONG_BUY": {"light": "#166534", "dark": "#22c55e"},
+    "BUY": {"light": "#15803d", "dark": "#4ade80"},
+    "WATCH": {"light": "#52514e", "dark": "#8b96a8"},
+    "SELL": {"light": "#c2410c", "dark": "#fb923c"},
+    "AVOID": {"light": "#898781", "dark": "#596177"},
 }
+SIGNAL_COLOR_DEFAULT = {"light": "#52514e", "dark": "#8b96a8"}
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
 templates.env.globals["signal_colors"] = SIGNAL_COLORS
+templates.env.globals["signal_color_default"] = SIGNAL_COLOR_DEFAULT
 
 MARKETS = ["US", "KOSPI", "KOSDAQ"]
 MARKET_LABELS = {"US": "미국 (S&P 500)", "KOSPI": "코스피", "KOSDAQ": "코스닥"}
@@ -70,21 +72,24 @@ def ad_interpret(accum, distrib) -> dict:
     매집일 = 대량거래 + 상승 마감(기관이 사들인 흔적)
     분산일 = 대량거래 + 하락 마감(기관이 판 흔적)
     """
+    GRAY = {"light": "#52514e", "dark": "#8b96a8"}
+    GREEN = {"light": "#15803d", "dark": "#4ade80"}
+    RED = {"light": "#b91c1c", "dark": "#f87171"}
     a, d = accum or 0, distrib or 0
     if a == 0 and d == 0:
-        return {"verdict": "자료 부족", "color": "#94a3b8", "accum": a, "distrib": d,
-                "note": "최근 25일 중 평균을 크게 웃도는 대량거래일이 없었습니다."}
+        return {"verdict": "자료 부족", "color": GRAY, "accum": a, "distrib": d,
+                "note": "대량거래일이 뚜렷하지 않습니다."}
     if d >= 5 and d >= a:
-        return {"verdict": "분산 우세", "color": "#f87171", "accum": a, "distrib": d,
-                "note": "대량 하락일이 많습니다 — 기관이 파는 흔적. 신규 매수는 신중하고, 보유 중이면 경계하세요."}
+        return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
+                "note": "대량 하락일이 많습니다 — 기관 매도 흔적. 신규 매수 신중, 보유 시 경계하세요."}
     if a >= d + 2:
-        return {"verdict": "매집 우세", "color": "#4ade80", "accum": a, "distrib": d,
-                "note": "대량 상승일이 우세 — 기관이 사들이는 흔적입니다(건강). 미너비니가 선호하는 패턴이에요."}
+        return {"verdict": "매집 우세", "color": GREEN, "accum": a, "distrib": d,
+                "note": "대량 상승일 우세 — 기관 매수 흔적(건강), 미너비니 선호 패턴."}
     if d >= a + 2:
-        return {"verdict": "분산 우세", "color": "#f87171", "accum": a, "distrib": d,
-                "note": "대량 하락일이 우세 — 기관 매도 압력이 있습니다. 추세 약화에 주의하세요."}
-    return {"verdict": "중립", "color": "#94a3b8", "accum": a, "distrib": d,
-            "note": "매집일과 분산일이 팽팽해 방향이 불분명합니다. 대량거래를 동반한 돌파를 기다리세요."}
+        return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
+                "note": "대량 하락일 우세 — 기관 매도 압력, 추세 약화 주의."}
+    return {"verdict": "중립", "color": GRAY, "accum": a, "distrib": d,
+            "note": "매집·분산이 팽팽합니다 — 대량거래 동반 돌파를 기다리세요."}
 
 
 def volume_verdict(r) -> dict:
@@ -98,10 +103,10 @@ def volume_verdict(r) -> dict:
     close, ma50, ma200 = r.close, r.ma50, r.ma200
     pivot = r.vcp_pivot or r.pivot_price
 
-    GOOD = ("good", "#4ade80", "🟢")
-    WATCH = ("watch", "#fbbf24", "🟡")
-    BAD = ("bad", "#f87171", "🔴")
-    NEU = ("neutral", "#94a3b8", "⚪")
+    GOOD = ("good", {"light": "#15803d", "dark": "#4ade80"}, "🟢")
+    WATCH = ("watch", {"light": "#b45309", "dark": "#fbbf24"}, "🟡")
+    BAD = ("bad", {"light": "#b91c1c", "dark": "#f87171"}, "🔴")
+    NEU = ("neutral", {"light": "#52514e", "dark": "#8b96a8"}, "⚪")
 
     def mk(t, headline, detail):
         return {"status": t[0], "color": t[1], "icon": t[2], "headline": headline, "detail": detail}
@@ -122,42 +127,38 @@ def volume_verdict(r) -> dict:
     if phase == "breakout":
         if v >= 1.4:
             return mk(GOOD, "돌파 거래량 확인 — 좋음",
-                      f"피벗 돌파에 대량거래({v:.1f}x)가 붙었습니다. 기관 매수 동반 = 신뢰도 높은 돌파.")
+                      f"피벗 돌파에 대량거래({v:.1f}x) 동반 — 신뢰도 높은 돌파.")
         if v < 1.0:
             return mk(WATCH, "거래량 없는 돌파 — 주의",
-                      f"돌파했지만 거래량이 평균 이하({v:.1f}x)입니다. 가짜 돌파·되돌림 가능, 거래 확대를 확인하세요.")
+                      f"돌파했지만 거래량이 평균 이하({v:.1f}x) — 가짜 돌파 가능성, 거래 확대 확인.")
         return mk(WATCH, "돌파 거래량 보통",
-                  f"거래량 {v:.1f}x — 평균 +40% 이상으로 더 늘면 신뢰도가 올라갑니다.")
+                  f"거래량 {v:.1f}x — 평균 +40% 이상으로 늘면 신뢰도↑.")
 
     if phase == "base":
         if r.vcp_volume_dryup or v < 0.85:
             return mk(GOOD, "거래량 마름 — 돌파 준비(좋음)",
-                      f"베이스에서 거래량이 말랐습니다({v:.1f}x). 매물 고갈 = 미너비니가 원하는 VCP 상태.")
+                      f"베이스에서 거래량 마름({v:.1f}x) — 매물 고갈, 미너비니가 원하는 VCP 상태.")
         if v >= 1.4 and d >= a:
             return mk(WATCH, "베이스 대량 분산 — 주의",
-                      f"쉬는 구간인데 대량거래({v:.1f}x)에 분산일이 많습니다. 매물 출회 주의.")
-        return mk(NEU, "베이스 형성 중",
-                  "거래량이 마르는지(dry-up) 지켜보세요 — 말라야 돌파 준비가 됩니다.")
+                      f"쉬는 구간에 대량거래({v:.1f}x)+분산일 다수 — 매물 출회 주의.")
+        return mk(NEU, "베이스 형성 중", "거래량이 마르는지(dry-up) 지켜보세요.")
 
     if phase == "downtrend":
         if d >= a + 2 or d >= 5:
             return mk(BAD, "하락 + 분산 — 경계",
-                      f"기관 매도 흔적입니다(분산 {d} vs 매집 {a}). 신규 매수 금물, 보유 시 방어.")
+                      f"기관 매도 흔적(분산 {d} vs 매집 {a}) — 신규 매수 금물, 보유 시 방어.")
         if v < 0.85:
-            return mk(WATCH, "하락하나 거래 한산",
-                      "던지는 물량은 적습니다 — 투매는 아니나 추세가 약합니다. 관망.")
-        return mk(WATCH, "추세 약화 구간",
-                  "50일선 아래입니다 — 거래량 방향(매집/분산)을 주시하세요.")
+            return mk(WATCH, "하락하나 거래 한산", "투매는 아니나 추세 약함 — 관망.")
+        return mk(WATCH, "추세 약화 구간", "50일선 아래 — 매집/분산 방향 주시.")
 
     # uptrend
     if a >= d + 2:
         return mk(GOOD, "상승 + 매집 우세 — 건강",
-                  f"상승 추세에 매집({a})이 분산({d})보다 우세합니다. 기관이 사들이는 중.")
+                  f"매집({a})이 분산({d})보다 우세 — 기관 매수 중.")
     if d >= a + 2 or d >= 5:
         return mk(BAD, "상승하나 분산 누적 — 주의",
-                  f"오르지만 대량 하락일(분산 {d})이 쌓입니다. 기관 이탈 신호일 수 있어요.")
-    return mk(NEU, "상승 추세 · 균형",
-              "매집·분산이 팽팽합니다 — 돌파 시 거래량이 확대되는지 확인하세요.")
+                  f"대량 하락일(분산 {d}) 누적 — 기관 이탈 가능성.")
+    return mk(NEU, "상승 추세 · 균형", "매집·분산이 팽팽 — 돌파 시 거래량 확대 확인.")
 
 
 def est_revision(up, down, chg) -> dict | None:
@@ -173,10 +174,10 @@ def est_revision(up, down, chg) -> dict | None:
         parts.append(f"연간EPS 추정 {'+' if chg >= 0 else ''}{chg}%")
     note = " · ".join(parts) if parts else "데이터 부족"
     if net >= 3 or (chg is not None and chg >= 3 and net >= 0):
-        return {"label": "추정치 상향", "icon": "📈", "color": "#4ade80", "note": note, "good": True}
+        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#15803d", "dark": "#4ade80"}, "note": note, "good": True}
     if net <= -3 or (chg is not None and chg <= -3):
-        return {"label": "추정치 하향", "icon": "📉", "color": "#f87171", "note": note, "good": False}
-    return {"label": "추정치 보합", "icon": "➖", "color": "#94a3b8", "note": note, "good": None}
+        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#b91c1c", "dark": "#f87171"}, "note": note, "good": False}
+    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#52514e", "dark": "#8b96a8"}, "note": note, "good": None}
 
 
 templates.env.globals["fmt_price"] = fmt_price
@@ -572,7 +573,7 @@ def quote(tickers: str = "", db: Session = Depends(get_db)):
             "currency": "$" if mkt == "US" else "₩",
             "signal": r.signal if r else None,
             "signal_label": SIGNAL_LABELS.get(r.signal, r.signal) if (r and r.signal) else "-",
-            "signal_color": SIGNAL_COLORS.get(r.signal, "#94a3b8") if (r and r.signal) else "#94a3b8",
+            "signal_color": SIGNAL_COLORS.get(r.signal, SIGNAL_COLOR_DEFAULT) if (r and r.signal) else SIGNAL_COLOR_DEFAULT,
             "close": r.close if r else None,
             "rs_rank": round(r.rs_rank) if (r and r.rs_rank is not None) else None,
             "pivot": r.pivot_price if r else None,
@@ -631,7 +632,7 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
                         "low": r2(rows[i][3]), "close": r2(rows[i][4])})
         up = (rows[i][4] or 0) >= (rows[i][1] or 0)
         vols.append({"time": d, "value": int(rows[i][5] or 0),
-                     "color": "rgba(74,222,128,0.35)" if up else "rgba(248,113,113,0.35)"})
+                     "color": "rgba(22,163,74,0.35)" if up else "rgba(220,38,38,0.35)"})
         if not pd.isna(ma50.iloc[i]):
             ma50_s.append({"time": d, "value": round(float(ma50.iloc[i]), 2)})
         if not pd.isna(ma150.iloc[i]):

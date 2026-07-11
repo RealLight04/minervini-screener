@@ -3,28 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#f9f9f7" id="themeColorMeta">
   <title>{% block title %}Minervini Screener{% endblock %}</title>
+  <script>
+    (function () {
+      var qs = new URLSearchParams(location.search).get('theme');
+      if (qs === 'dark' || qs === 'light') localStorage.setItem('theme', qs);
+      var saved = localStorage.getItem('theme');
+      var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <style>
-    :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface-2: #0f172a;
-      --inset: #0b1222;
-      --border: #2b3a52;
-      --line: #1e293b;
-      --text: #e2e8f0;
-      --muted: #94a3b8;
-      --faint: #64748b;
-      --accent: #38bdf8;
-      --green: #4ade80;
-      --red: #f87171;
-      --amber: #fbbf24;
+    :root, :root[data-theme="light"] {
+      --bg: #f9f9f7;
+      --surface: #ffffff;
+      --surface-2: #f4f4f2;
+      --inset: #f1f1ee;
+      --border: #e1e0d9;
+      --line: #ececea;
+      --text: #0b0b0b;
+      --muted: #52514e;
+      --faint: #898781;
+      --accent: #2563eb;
+      --accent-ink: #ffffff;
+      --green: #16a34a;
+      --green-ink: #15803d;
+      --red: #dc2626;
+      --red-ink: #b91c1c;
+      --amber: #b45309;
+      --violet: #7c3aed;
+      --orange: #c2410c;
+      --badge-green-bg: #e3f5e3;
+      --badge-red-bg: #fbe9e9;
+      --badge-gray-bg: #eeeeec;
+      --badge-blue-bg: #e7f0fb;
+      --badge-violet-bg: #ece9f7;
+      --header-bg: rgba(249,249,247,.85);
+      --row-hover: rgba(42,120,214,.06);
+      --chart-bg: #fcfcfb;
+      --chart-text: #52514e;
+      --chart-grid: #e1e0d9;
+      --chart-axis: #c3c2b7;
       --radius: 14px;
       --radius-sm: 9px;
       --gap: 16px;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px -12px rgba(0,0,0,.55);
+      --shadow: 0 1px 2px rgba(11,11,11,.04), 0 6px 20px -12px rgba(11,11,11,.12);
     }
+    :root[data-theme="dark"] {
+      --bg: #05070d;
+      --surface: #0d1220;
+      --surface-2: #05070d;
+      --inset: #020308;
+      --border: #1e2538;
+      --line: #131a2b;
+      --text: #e2e8f0;
+      --muted: #8b96a8;
+      --faint: #596177;
+      --accent: #38bdf8;
+      --accent-ink: #05070d;
+      --green: #4ade80;
+      --green-ink: #4ade80;
+      --red: #f87171;
+      --red-ink: #f87171;
+      --amber: #fbbf24;
+      --violet: #a78bfa;
+      --orange: #fb923c;
+      --badge-green-bg: #0f3d21;
+      --badge-red-bg: #350808;
+      --badge-gray-bg: #171d2e;
+      --badge-blue-bg: #142a45;
+      --badge-violet-bg: #2c1548;
+      --header-bg: rgba(5,7,13,.85);
+      --row-hover: rgba(56,189,248,.06);
+      --chart-bg: #0d1220;
+      --chart-text: #8b96a8;
+      --chart-grid: #05070d;
+      --chart-axis: #232c42;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 6px 24px -12px rgba(0,0,0,.7);
+    }
+    /* 서버에서 계산된 상태색(신호·시장국면 등)을 라이트/다크 모드에 맞게 전환하는 유틸 */
+    .tone-text { color: var(--tone-light); }
+    .tone-tint { background: color-mix(in srgb, var(--tone-light) 13%, var(--surface)); border-color: color-mix(in srgb, var(--tone-light) 38%, transparent); }
+    .tone-badge { background: color-mix(in srgb, var(--tone-light) 16%, var(--surface)); color: var(--tone-light); border: 1px solid color-mix(in srgb, var(--tone-light) 45%, transparent); }
+    :root[data-theme="dark"] .tone-text { color: var(--tone-dark); }
+    :root[data-theme="dark"] .tone-tint { background: color-mix(in srgb, var(--tone-dark) 13%, var(--surface)); border-color: color-mix(in srgb, var(--tone-dark) 38%, transparent); }
+    :root[data-theme="dark"] .tone-badge { background: color-mix(in srgb, var(--tone-dark) 16%, var(--surface)); color: var(--tone-dark); border-color: color-mix(in srgb, var(--tone-dark) 45%, transparent); }
+    .code33-banner { background: linear-gradient(90deg, var(--badge-green-bg), color-mix(in srgb, var(--green) 22%, var(--surface))); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-text-size-adjust: 100%; }
     body {
@@ -40,7 +105,7 @@
 
     /* ───── 헤더 ───── */
     header {
-      background: rgba(15,23,42,.85);
+      background: var(--header-bg);
       backdrop-filter: saturate(160%) blur(10px);
       border-bottom: 1px solid var(--border);
       position: sticky; top: 0; z-index: 50;
@@ -103,9 +168,9 @@
 
     /* ───── 배지 / 칩 ───── */
     .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 650; white-space: nowrap; }
-    .badge-green { background: #14532d; color: var(--green); }
-    .badge-red { background: #450a0a; color: var(--red); }
-    .badge-gray { background: #243045; color: var(--muted); }
+    .badge-green { background: var(--badge-green-bg); color: var(--green-ink); }
+    .badge-red { background: var(--badge-red-bg); color: var(--red-ink); }
+    .badge-gray { background: var(--badge-gray-bg); color: var(--muted); }
 
     /* ───── 버튼 ───── */
     .btn {
@@ -122,7 +187,14 @@
       background: var(--surface); color: var(--muted); border: 1px solid var(--border); transition: all .15s;
     }
     .tab:hover { color: var(--text); }
-    .tab.active { background: var(--accent); color: #08111f; border-color: var(--accent); }
+    .tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+    /* ───── 차트 범례 ───── */
+    .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.76rem; color: var(--muted); align-items: center; }
+    .chart-legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+    .chart-legend .ln { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: 2px; }
+    .chart-legend .ln.thick { height: 4px; }
+    .chart-legend .ln.dash { height: 0; border-top: 2px dotted currentColor; background: none; }
 
     /* ───── 테이블 ───── */
     .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius); }
@@ -135,9 +207,12 @@
     tbody td { padding: 12px 13px; border-bottom: 1px solid var(--line); font-size: 0.9rem; vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr { transition: background .12s; }
-    tbody tr:hover td { background: rgba(56,189,248,.05); }
+    tbody tr[data-href] { cursor: pointer; }
+    tbody tr:hover td { background: var(--row-hover); }
     a.ticker-link { color: var(--accent); text-decoration: none; font-weight: 650; }
     a.ticker-link:hover { text-decoration: underline; }
+    th.num, td.num { text-align: right; }
+    th.ctr, td.ctr { text-align: center; }
 
     /* 모바일: 테이블 → 카드 스택 */
     @media (max-width: 720px) {
@@ -177,6 +252,17 @@
     @media (max-width: 380px) {
       .search input { width: 120px; }
     }
+
+    /* ───── 다크모드 토글 ───── */
+    .theme-toggle {
+      background: var(--inset); border: 1px solid var(--border); color: var(--text);
+      width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 0.95rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent; transition: border-color .15s;
+    }
+    .theme-toggle:hover { border-color: var(--accent); }
+    :root[data-theme="dark"] .theme-toggle .i-light,
+    :root:not([data-theme="dark"]) .theme-toggle .i-dark { display: none; }
   </style>
 </head>
 <body>
@@ -192,11 +278,33 @@
       <form class="search" action="/search" method="get">
         <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
       </form>
+      <button type="button" class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="다크모드 전환" title="라이트/다크 모드 전환">
+        <span class="i-dark">🌙</span><span class="i-light">☀️</span>
+      </button>
     </nav>
   </header>
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  <script>
+    function toggleTheme() {
+      var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', next);
+      // 캔들 차트(lightweight-charts)는 CSS가 아니라 JS로 그려서, 새로고침으로 확실히 다시 그림
+      location.reload();
+    }
+    (function () {
+      var meta = document.getElementById('themeColorMeta');
+      var theme = document.documentElement.getAttribute('data-theme');
+      if (meta && theme === 'dark') meta.setAttribute('content', '#05070d');
+    })();
+    // 표 행 전체 클릭 시 이동 (data-href 지정된 tr만) — 링크/버튼 클릭은 그대로 두어 중복 방지
+    document.addEventListener('click', function (e) {
+      var tr = e.target.closest('tr[data-href]');
+      if (tr && !e.target.closest('a, button')) location.href = tr.dataset.href;
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

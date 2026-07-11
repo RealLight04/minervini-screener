@@ -374,14 +374,14 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
 
     # 1) 추세 자체가 약세 → 회피 (매수 대상 아님, 노이즈라 별도 강조 안 함)
     if ma200 and close < ma200:
-        return "AVOID", "현재가가 200일선 아래 — 하락/횡보 구간, 매수 회피"
+        return "AVOID", "200일선 아래 — 하락/횡보, 매수 회피"
     if ma150 and ma200 and ma150 < ma200:
-        return "AVOID", "150일선 < 200일선 (이동평균 역배열) — 추세 미형성"
+        return "AVOID", "이동평균 역배열(150일<200일) — 추세 미형성"
 
     # 2) Stage 2 상승추세는 유지하나 단기 추세 이탈 (50일선 하회)
     #    = '강세였다가 막 무너지기 시작' → 보유자에게 의미 있는 매도 경고
     if ma50 and close < ma50:
-        return "SELL", "50일선 하향 이탈 — 상승추세 약화 조짐, 보유 시 매도/축소 고려"
+        return "SELL", "50일선 이탈 — 추세 약화, 보유 시 매도/축소 고려"
 
     # 3) 추세 정상 → 매수 후보 판별
     if result.final_pass:
@@ -394,10 +394,10 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
         if pivot and close <= pivot * 1.05:
             return "STRONG_BUY", f"피벗({c(pivot)}) 갓 돌파 — 미너비니 매수 시점"
         # 추세·실적은 통과했으나 직전 고점 위로 연장(extended) → 추격 매수 부적절
-        return "BUY", "추세+실적 통과했으나 직전 고점 위로 연장 — 눌림목(50일선) 대기 권고"
+        return "BUY", "추세·실적 통과, 고점 위로 연장 — 눌림목(50일선) 대기 권고"
 
     if result.technical_pass:
-        return "WATCH", "기술적 추세 양호하나 실적 모멘텀 부족 — 관심 종목"
+        return "WATCH", "추세 양호, 실적 모멘텀 부족 — 관심 종목"
 
     return "WATCH", "Stage 2 일부 조건 미충족 — 추세 형성 대기"
 
@@ -473,34 +473,34 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
     # ─── 단계별 진입 절차 ───
     if mode == "breakout_now":
         steps = [
-            "돌파 당일 거래량이 평균 대비 크게(40% 이상) 늘었는지 확인 — 거래량 없는 돌파는 신뢰도가 낮습니다.",
-            f"현재가 {c(entry)} 부근에서 진입. 피벗에서 5% 넘게 연장됐다면 추격하지 말고 다음 기회를 기다리세요.",
-            f"진입 즉시 손절 주문 {c(stop)} (-{risk_pct}%)를 걸어둡니다 — 예외 없이.",
+            "거래량이 평균 대비 40% 이상 늘었는지 확인 (거래량 없는 돌파는 신뢰도 낮음).",
+            f"현재가 {c(entry)} 부근 진입 — 피벗 대비 +5% 넘게 연장 시 추격 금지.",
+            f"손절 {c(stop)} (-{risk_pct}%) 즉시 설정 — 예외 없음.",
         ]
     elif mode == "wait_pivot":
         steps = [
-            f"아직 피벗 아래입니다(돌파까지 +{gap_to_pivot}%). 매수를 보류하고 관심목록에 둡니다.",
-            f"피벗 {c(pivot)} 위로 거래량 동반 돌파가 확인되면 그때 {c(entry)} 부근에서 진입.",
+            f"피벗까지 +{gap_to_pivot}% — 매수 보류, 관심목록에 등록.",
+            f"피벗 {c(pivot)} 거래량 동반 돌파 확인 시 {c(entry)} 부근 진입.",
             f"진입과 동시에 손절 {c(stop)} (-{risk_pct}%) 설정.",
         ]
     else:  # pullback
         steps = [
-            "추세·실적은 통과했지만 직전 고점 위로 연장된 상태 — 지금 추격하면 손절폭이 너무 커집니다.",
-            f"50일선({c(ma50)}) 부근까지 눌릴 때 거래량이 줄며 지지받는지 확인 후 진입.",
-            f"진입 시 손절은 50일선 아래 {c(stop)} 부근(-{risk_pct}%)에 설정." if risk_pct else "진입 시 손절은 50일선 살짝 아래에 설정.",
+            "고점 위로 연장된 상태 — 지금 추격하면 손절폭 과다.",
+            f"50일선({c(ma50)}) 눌림 + 거래량 감소 지지 확인 후 진입.",
+            f"손절은 50일선 아래 {c(stop)} 부근(-{risk_pct}%)에 설정." if risk_pct else "손절은 50일선 살짝 아래에 설정.",
         ]
 
     # ─── 공통 매도/관리 규칙 ───
     sell_rules = [
-        f"손절가 {c(stop)} 이탈 시 즉시 전량 매도 — '조금만 더'는 금물(Minervini의 첫 번째 규칙).",
+        f"손절 {c(stop)} 이탈 시 즉시 전량 매도 (Minervini 제1원칙).",
     ]
     if target:
         sell_rules.append(
-            f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 {c(target)}) 도달 시 일부 익절 → 남은 물량은 본전 손절로 옮겨 '공짜 포지션' 확보."
+            f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 {c(target)}) 도달 시 일부 익절, 나머지는 본전 손절로 전환."
         )
     sell_rules += [
-        "큰 추세는 50일선을 추적 손절선으로 사용 — 50일선을 거래량 동반해 종가로 깨면 정리.",
-        "수익을 손실로 바꾸지 않는다 — 이익이 본전까지 줄면 청산.",
+        "50일선을 추적 손절선으로 사용 — 거래량 동반 종가 이탈 시 정리.",
+        "이익이 본전까지 줄면 청산(손실로 바꾸지 않는다).",
     ]
 
     return {
@@ -543,14 +543,17 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
     pct_stage2 = sum(1 for r in rows if r[2]) / total * 100
 
     if pct_200 >= 60 and pct_50 >= 50:
-        regime, label, color = "BULL", "강세장 — 적극 매수 가능", "#22c55e"
-        advice = "시장 추세가 건강합니다. 매수 신호를 활용하되 손절·사이징 규칙은 지키세요."
+        regime, label = "BULL", "강세장 — 적극 매수 가능"
+        color = {"light": "#15803d", "dark": "#22c55e"}
+        advice = "추세가 건강합니다 — 매수 신호를 활용하되 손절·사이징 규칙은 지키세요."
     elif pct_200 < 40:
-        regime, label, color = "BEAR", "약세장 — 신규 매수 자제", "#ef4444"
-        advice = "약세장에선 대부분 종목이 하락합니다(Minervini). 현금 비중을 높이고 신규 진입을 줄이세요."
+        regime, label = "BEAR", "약세장 — 신규 매수 자제"
+        color = {"light": "#b91c1c", "dark": "#ef4444"}
+        advice = "대부분 종목이 하락하는 구간(Minervini) — 현금 비중을 높이고 신규 진입을 줄이세요."
     else:
-        regime, label, color = "NEUTRAL", "중립 — 선별적 접근", "#f59e0b"
-        advice = "혼조 구간입니다. 가장 강한 소수 종목만 작은 비중으로 시험 매수하세요."
+        regime, label = "NEUTRAL", "중립 — 선별적 접근"
+        color = {"light": "#b45309", "dark": "#f59e0b"}
+        advice = "혼조 구간 — 가장 강한 소수 종목만 작은 비중으로 시험 매수하세요."
 
     return {
         "available": True,
@@ -596,7 +599,7 @@ def apply_regime_gate(db: Session, screen_date: date) -> int:
         for r in rows:
             orig = SIGNAL_LABELS.get(r.signal, r.signal)
             r.signal = "WATCH"
-            r.signal_reason = f"🚫 약세장 게이트 — 기술적으론 '{orig}' 신호지만 시장 추세 미흡으로 보류(시장 회복 시 복귀)"
+            r.signal_reason = f"🚫 약세장 게이트 — 기술적 '{orig}' 신호지만 보류(회복 시 복귀)"
             r.pivot_price = None   # 약세장에선 진입가 제시 안 함
             r.stop_loss = None
             gated += 1
