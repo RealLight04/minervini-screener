@@ -36,6 +36,11 @@ function money(v, cur) {
   return cur + Number(v).toLocaleString(undefined, { maximumFractionDigits: cur === '₩' ? 0 : 2 });
 }
 
+function tvUrl(ticker, market) {
+  if (market === 'US') return 'https://www.tradingview.com/symbols/' + ticker + '/';
+  return 'https://www.tradingview.com/symbols/KRX-' + ticker.split('.')[0] + '/';
+}
+
 function render() {
   var tickers = wlGet();
   var empty = document.getElementById('wl-empty');
@@ -55,7 +60,8 @@ function render() {
         var pivot = d.pivot != null ? '<span style="color:var(--accent);">' + money(d.pivot, cur) + '</span>' : '-';
         return '<tr>' +
           '<td data-label="신호">' + badge + '</td>' +
-          '<td data-label="티커"><a class="ticker-link" href="/stock/' + d.ticker + '">' + d.ticker + '</a></td>' +
+          '<td data-label="티커"><a class="ticker-link" href="/stock/' + d.ticker + '">' + d.ticker + '</a>' +
+            '<a class="tv-link" href="' + tvUrl(d.ticker, d.market) + '" target="_blank" rel="noopener noreferrer" title="TradingView에서 보기"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg></a></td>' +
           '<td data-label="회사명">' + (d.name || '-') + '</td>' +
           '<td data-label="현재가">' + money(d.close, cur) + '</td>' +
           '<td data-label="피벗(매수가)">' + pivot + '</td>' +

@@ -6,6 +6,7 @@
   <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;">
     <div>
       <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}
+        <a class="tv-link" href="{{ tv_url(stock.ticker, mk) }}" target="_blank" rel="noopener noreferrer" title="TradingView에서 보기" style="font-size:0.8rem;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg></a>
         <span style="font-size:0.8rem; font-weight:500; color:var(--faint);">· {{ market_labels.get(mk, mk) }}</span>
       </h2>
       <p style="color:var(--muted);">{{ stock.name }} · {{ stock.sector or '' }}</p>

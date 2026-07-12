@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app import alerts as alerts_mod
 from app.database import get_db
-from app.models import Fundamental, ScreeningResult, Stock
+from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
 from app.screener import SIGNAL_LABELS, build_trade_plan, compute_market_breadth
 
 router = APIRouter()
@@ -41,6 +41,14 @@ def fmt_amount(value, market: str = "US") -> str:
     if value is None:
         return "-"
     return f"${value:,.0f}" if market == "US" else f"₩{value:,.0f}"
+
+
+def tv_url(ticker: str, market: str = "US") -> str:
+    """TradingView 차트 링크: 한국 종목은 .KS/.KQ 접미사를 떼고 KRX- 접두사로 변환"""
+    if market == "US":
+        return f"https://www.tradingview.com/symbols/{ticker}/"
+    code = ticker.split(".")[0]
+    return f"https://www.tradingview.com/symbols/KRX-{code}/"
 
 
 REC_LABELS = {
@@ -182,6 +190,7 @@ def est_revision(up, down, chg) -> dict | None:
 
 templates.env.globals["fmt_price"] = fmt_price
 templates.env.globals["fmt_amount"] = fmt_amount
+templates.env.globals["tv_url"] = tv_url
 templates.env.globals["fmt_turnover"] = fmt_turnover
 templates.env.globals["ad_interpret"] = ad_interpret
 templates.env.globals["volume_verdict"] = volume_verdict
@@ -203,6 +212,41 @@ def _latest_screen_date(db: Session) -> date | None:
         .first()
     )
     return row[0] if row else None
+
+
+def _fetch_sparklines(db: Session, stock_ids: list[int], days: int = 30) -> dict:
+    """최근 N거래일 종가로 미니 스파크라인 SVG points 생성 (표 행용, 배치 조회).
+
+    {stock_id: {"points": "x,y x,y ...", "up": bool}} — 60x20 뷰박스 기준.
+    """
+    if not stock_ids:
+        return {}
+    cutoff = date.today() - timedelta(days=days * 2 + 15)  # 주말/휴장 여유
+    rows = (
+        db.query(DailyPrice.stock_id, DailyPrice.date, DailyPrice.close)
+        .filter(DailyPrice.stock_id.in_(stock_ids), DailyPrice.date >= cutoff)
+        .order_by(DailyPrice.stock_id, DailyPrice.date)
+        .all()
+    )
+    by_stock: dict = {}
+    for sid, _, close in rows:
+        by_stock.setdefault(sid, []).append(close)
+
+    W, H = 60, 20
+    out = {}
+    for sid, closes in by_stock.items():
+        closes = closes[-days:]
+        if len(closes) < 2:
+            continue
+        lo, hi = min(closes), max(closes)
+        span = (hi - lo) or 1
+        n = len(closes)
+        pts = [
+            f"{round(i / (n - 1) * W, 1)},{round(H - ((c - lo) / span) * H, 1)}"
+            for i, c in enumerate(closes)
+        ]
+        out[sid] = {"points": " ".join(pts), "up": closes[-1] >= closes[0]}
+    return out
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -242,6 +286,10 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     # 매도 경고: Stage 2 유지 중 50일선 이탈 종목 (RS 강한 순 상위 30개만 표시)
     sell_all = _by_signals(["SELL"])
     sell_list = sell_all[:30]
+
+    # 표에 쓸 미니 스파크라인(최근 30거래일) — 배치 조회 1회
+    sparkline_ids = [s.id for _, s in buy_list] + [s.id for _, s in sell_list]
+    sparklines = _fetch_sparklines(db, sparkline_ids)
 
     # 시장 국면(breadth) — 선택한 시장 기준
     breadth = compute_market_breadth(db, screen_date, market=market)
@@ -289,6 +337,7 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             "breakout_watch": breakout_watch,
             "themes": themes,
             "sell_list": sell_list,
+            "sparklines": sparklines,
             "screen_date": screen_date,
             "buy_count": len(buy_list),
             "sell_count": len(sell_all),
