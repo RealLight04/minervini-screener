@@ -1,28 +1,11 @@
 name: Daily data refresh
 
-# 각 시장 '마감 직후' 당일 최신화한다.
-# GitHub 스케줄은 20~60분 지연 실행되므로, 마감 시각 정각에 걸어두면
-# 실제 실행은 자연히 마감 뒤가 되어 당일 종가가 확보된다.
-#
-#  - 06:50 UTC (15:50 KST, 한국장 마감 후)        : 한국 전용 런 → 당일 오후 코스피/코스닥 최신화
-#  - 20:20 UTC (미국장 마감 후·서머타임 EDT)      : 풀 런 — 뉴욕이 EDT일 때만 실행
-#  - 21:20 UTC (미국장 마감 후·표준시 EST)        : 풀 런 — 뉴욕이 EST일 때만 실행
-#    → 서머타임 전환은 'Decide run mode' 스텝이 자동 판정(수동 변경 불필요)
-#
-# 풀 런 = 미국 수집 + 한국 재수집 + EPS 백필 + 재스크린. 한국 런 = 한국 수집 + 재스크린.
-# 갱신된 screener.db 스냅샷을 커밋·push하면 Render가 재배포, 그램은 30분 타이머로 pull.
+# 자동 수집은 로컬 PC의 Windows 작업 스케줄러가 담당(즉시 반영, 지연 없음).
+# 이 워크플로우는 자동 스케줄 없이 수동 실행(workflow_dispatch)만 남겨둔다 —
+# 로컬이 죽었을 때 Render/원격 스냅샷을 비상으로 최신화하는 용도.
 
 on:
   workflow_dispatch:         # 수동 실행 버튼 (풀 런)
-  schedule:
-    - cron: "50 6 * * 1-5"   # 한국장 마감 후 (15:50 KST) — 한국 전용 (주말 제외)
-    - cron: "20 20 * * 1-5"  # 미국장 마감 후 (EDT, 3~11월) — 풀 런
-    - cron: "20 21 * * 1-5"  # 미국장 마감 후 (EST, 11~3월) — 풀 런
-
-# 동시 실행 방지(이전 런이 끝나기 전 새 런이 겹치지 않게)
-concurrency:
-  group: daily-refresh
-  cancel-in-progress: false
 
 permissions:
   contents: write            # screener.db 커밋·push 권한
@@ -32,20 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - name: Decide run mode (kr / full / skip)
+      - name: Decide run mode
         id: mode
         run: |
-          MODE=full   # workflow_dispatch(수동) 기본 = 풀 런
-          NY=$(TZ=America/New_York date +%z)   # -0400=EDT(서머타임) / -0500=EST(표준시)
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            case "${{ github.event.schedule }}" in
-              "50 6 * * 1-5") MODE=kr ;;                                    # 한국장 마감 런
-              "20 20 * * 1-5") [ "$NY" = "-0400" ] && MODE=full || MODE=skip ;;  # EDT일 때만
-              "20 21 * * 1-5") [ "$NY" = "-0500" ] && MODE=full || MODE=skip ;;  # EST일 때만
-            esac
-          fi
+          MODE=full
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "run mode: $MODE (NY offset: $NY)"
+          echo "run mode: $MODE"
 
       - uses: actions/checkout@v4
         if: steps.mode.outputs.mode != 'skip'

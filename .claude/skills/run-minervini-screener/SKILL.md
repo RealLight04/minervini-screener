@@ -116,6 +116,24 @@ verification path. For a full data refresh (not needed to just run the app):
   200/n` because MSYS auto-converts leading-`/` arguments to Windows paths. The
   HTTP code after `->` is still correct; it's cosmetic. `smoke.sh` avoids leading
   `/` in `-w` strings to sidestep this.
+- **`scripts/collect_kr.py` / `scripts/local_refresh.py --mode kr` need
+  `finance-datareader`, which is deliberately NOT in `requirements.txt`** (kept out
+  to keep the Render deploy lean — Render only serves, never collects KR data).
+  `smoke.sh`'s `pip install -r requirements.txt` alone will NOT install it, so a
+  fresh local venv can serve pages fine but silently fail KR collection with
+  `FinanceDataReader 미설치`. Fix: `venv/Scripts/python.exe -m pip install
+  finance-datareader` once, same as GitHub Actions' `pip install -r
+  requirements.txt finance-datareader` step does.
+- **Windows Task Scheduler triggers need admin elevation to create, except plain
+  calendar triggers (`/SC DAILY`/`WEEKLY`) for the current user.** `ONSTART` and
+  `ONLOGON` triggers, and any `/RU SYSTEM` or `/RU <user> /RP <password>` task,
+  both return `ERROR: Access is denied.` from a non-elevated shell — there's no
+  way around this without either an elevated prompt or the user entering their
+  password interactively (which an agent shouldn't do). The 3 local data-refresh
+  tasks (`MinerviniRefreshKR`/`-US-EDT`/`-US-EST`, see HANDOFF.md) work unelevated
+  because they're WEEKLY triggers under the current user; the boot-time web-server
+  autostart task needs `ONSTART`/`ONLOGON` and could NOT be created this way —
+  it's still a pending manual step (see HANDOFF.md).
 
 ## Troubleshooting
 

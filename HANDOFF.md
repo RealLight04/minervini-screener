@@ -122,14 +122,18 @@ curl -s http://localhost:8001/api/stats   # {"date":"2026-06-20","total":503,...
 
 ---
 
-## 6. 데이터 자동 갱신 (✅ 가동 중) — `.github/workflows/daily-refresh.yml`
+## 6. 데이터 자동 갱신 — GitHub Actions는 이제 **수동(비상용)만** (11번이 메인)
 
-**동작**: 평일 22:00 UTC(한국 07:00, 미장 마감 후) GitHub Actions가 자동 실행.
-`daily_update.py`(미국) + `collect_kr.py`(한국)로 수집·재스크린 → `screener.db` 변경 시
-커밋·push(`[skip ci]`) → **Render가 push 감지해 자동 재배포**. 수동 실행은 Actions 탭의
-"Daily data refresh" → Run workflow, 또는 `gh workflow run daily-refresh.yml --ref main`.
+**2026-07-12 변경**: 로컬 PC가 상시 가동(10번 Tailscale Funnel)되면서, 자동 수집 주체를
+**GitHub Actions → 로컬 Windows 작업 스케줄러**로 옮김(11번). 이유: GH Actions의 cron은
+실측 지연이 20분~3시간+로 들쭉날쭉(같은 PC가 이미 24시간 켜져있으니 로컬에서 도는 게
+지연도 없고, 로컬 DB를 바로 갱신하니 커밋·push·Render 재배포·30분 대기 없이 **즉시 반영**).
 
-- 약 10분 소요. yfinance가 GitHub 러너 IP에서도 정상 수집됨(검증 완료).
+`daily-refresh.yml`은 **`schedule` 트리거를 제거하고 `workflow_dispatch`(수동 실행)만 남김** —
+로컬 PC가 죽었을 때 Render/원격 스냅샷을 비상으로 최신화하는 용도로만 존재.
+수동 실행: Actions 탭 "Daily data refresh" → Run workflow, 또는
+`gh workflow run daily-refresh.yml --ref main`.
+
 - 상태 확인: `gh run list --workflow=daily-refresh.yml`, `gh run view <id>`.
 
 ### 워크플로 단계 (2026-06-26 갱신)
@@ -263,3 +267,60 @@ Render 무료는 유휴 15분 후 슬립 → 재접속 시 콜드스타트로 �
   (Tailscale 앱 미설치, 데이터망 사용 중에도 발생) — 통신사 자체 DNS 리졸버가 구글/클라우드플레어보다
   전파가 느린 것으로 추정. 비행기모드 토글 또는 10~20분 대기로 보통 해결. 계속 안 되면 기기명을
   원래대로 되돌리는 것도 고려(단, 되돌릴 때도 같은 전파 갭이 반복됨).
+
+---
+
+## 11. 로컬 데이터 자동 갱신 — Windows 작업 스케줄러 (2026-07-12 추가, ✅ 등록 완료)
+
+**목표**: 각 시장 마감 10분 후 지연 없이 로컬 `screener.db`를 갱신(6번 참고 — GH Actions는
+이제 비상용). 새로 만든 진입점 `scripts/local_refresh.py`가 시장별 수집 스크립트를 호출.
+
+### 등록된 작업 3개 (모두 비관리자 권한으로 생성됨 — 현재 로그인 계정 소유)
+
+| 작업 이름 | 트리거 | 요일(KST 기준) | 실행 |
+|---|---|---|---|
+| `MinerviniRefreshKR` | 매일 15:40 | 월~금 | `collect_kr.py` (코스피/코스닥 마감 15:30 + 10분) |
+| `MinerviniRefreshUS-EDT` | 매일 05:10 | **화~토** | `daily_update.py` + `backfill_eps.py` + `recompute_yoy.py` |
+| `MinerviniRefreshUS-EST` | 매일 06:10 | **화~토** | 위와 동일 |
+
+- `Get-ScheduledTask -TaskName "MinerviniRefresh*"`로 확인 가능. 각각 바로가기 배치파일
+  (`C:\Users\<사용자>\Desktop\minervini-refresh-{kr,us-edt,us-est}.bat`, 저장소 밖·git 비대상)이
+  `venv\Scripts\python.exe scripts\local_refresh.py --mode ... [--season ...]`를 호출.
+- `--season edt`/`--season est`는 **자기 자신이 스킵 여부를 판단**한다 — 실행 시점의 뉴욕 UTC
+  오프셋을 확인해서 해당 시즌이 아니면 조용히 종료(0). 그래서 두 작업을 매일 걸어놔도 실제로는
+  하루에 하나만 진짜로 돈다. `.github/workflows/daily-refresh.yml`의 예전 "Decide run mode"
+  스텝과 완전히 같은 방식(로직을 그대로 로컬로 옮김).
+
+### ⚠️ 나스닥 마감 시각 → KST 변환 시 서머타임 방향에 주의 (실제로 헷갈렸던 부분)
+
+나스닥은 항상 현지시각 16:00 마감이지만, 한국은 DST가 없어서 **미국이 서머타임(EDT)일 때
+오히려 한국시각으로는 더 이르다**(05:00), 표준시(EST)일 때 더 늦다(06:00) — 직관과 반대 방향이라
+착각하기 쉬움. 그래서 `MinerviniRefreshUS-EDT`/`-EST` 요일도 **화~토**(월~금이 아님)로 설정함:
+미국 월요일 마감분이 한국시각으로는 화요일 새벽에 들어오기 때문. `MinerviniRefreshKR`만 월~금
+(코스피/코스닥은 당일 오후 마감이라 요일이 안 밀림).
+
+### ⚠️ 이 3개는 비관리자 권한으로 만들어져서 "로그인 중일 때만" 실행됨
+
+`/RU SYSTEM`이나 `/RU <계정> /RP <비번>`(로그아웃 상태에서도 실행)은 관리자 권한이 필요해서
+에이전트가 비대화형으로는 만들 수 없었음(`ERROR: Access is denied.`) — 반면 평범한
+WEEKLY/DAILY 트리거는 현재 로그인 계정 소유로 비관리자 권한에서도 그냥 만들어짐. 이 PC는
+평소 로그인 상태로 상시 켜두는 게 전제라 실사용엔 문제 없지만, **재부팅 후 아무도 로그인 안 하면
+이 3개도, 아래 웹서버 자동시작도 실행되지 않는다.**
+
+### ⏳ 남은 수동 작업: 웹서버 재부팅 자동시작 (10번에서 예고했던 것, 아직 미완료)
+
+`ONSTART`/`ONLOGON` 트리거는 위와 같은 이유로 **관리자 권한 없이는 등록 자체가 거부됨**
+(WEEKLY/DAILY와 달리 이건 항상 막힘, 계정 지정 여부 무관). 그래서 웹서버 자동시작 작업은
+아직 등록되지 않았다. 관리자 권한 PowerShell에서 아래 명령을 사용자가 직접 실행해야 함:
+```
+schtasks /create /tn "MinerviniScreenerStartup" /tr "C:\Users\<사용자>\Desktop\minervini-startup.bat" /sc onstart /delay 0001:00 /ru "$env:USERNAME" /rp * /rl highest /f
+```
+(비밀번호 입력 프롬프트가 뜸 — 에이전트가 대신 입력 불가, 사용자가 직접.) 실행 파일
+`minervini-startup.bat`는 이미 만들어져 있고 직접 테스트해서 정상 동작 확인함(저장소 밖).
+
+### ⚠️ 로컬 venv에 `finance-datareader` 없어서 KR 수집이 조용히 실패했던 실화
+
+`smoke.sh`(웹서버 구동용)는 `requirements.txt`만 설치해서 `finance-datareader`가 없다 —
+`local_refresh.py --mode kr`을 처음 실행했을 때 `FinanceDataReader 미설치`로 즉시 실패했음.
+`venv\Scripts\python.exe -m pip install finance-datareader`로 1회 설치해서 해결(SKILL.md
+Gotchas에도 기록). 이 venv를 다시 만들 일이 있으면(새 PC 등) 이 스텝을 빼먹지 말 것.
