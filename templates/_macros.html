@@ -1,0 +1,25 @@
+{# 티커 옆 TradingView 바로가기 아이콘 (새 창). size=SVG 픽셀 크기, extra_style=<a> 태그 추가 인라인 스타일. #}
+{% macro tv_link(ticker, market, size=11, extra_style='') %}
+<a class="tv-link" href="{{ tv_url(ticker, market) }}" target="_blank" rel="noopener noreferrer" title="TradingView에서 보기"{% if extra_style %} style="{{ extra_style }}"{% endif %}><svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg></a>
+{% endmacro %}
+
+{# 최근 30거래일 미니 스파크라인. sparklines는 routes.py에서 배치 조회해 각 페이지가 컨텍스트로 전달. #}
+{% macro spark(stock_id, sparklines) %}
+  {% set sp = sparklines.get(stock_id) %}
+  {% if sp %}<svg class="sparkline" width="60" height="20" viewBox="0 0 60 20" preserveAspectRatio="none"><polygon points="{{ sp.points }} 60,20 0,20" fill="{{ 'var(--green)' if sp.up else 'var(--red)' }}" opacity="0.14" stroke="none"/><polyline points="{{ sp.points }}" fill="none" stroke="{{ 'var(--green)' if sp.up else 'var(--red)' }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>{% else %}<span class="faint">-</span>{% endif %}
+{% endmacro %}
+
+{# 티커 이니셜 아바타(회사 로고 API 없이 결정론적 색상의 작은 원). 표에서 행 식별용. #}
+{% macro avatar(ticker) %}
+{% set av = ticker_avatar(ticker) %}
+<span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:{{ av.color }}; color:#fff; font-size:0.62rem; font-weight:700; flex-shrink:0; letter-spacing:-0.02em;">{{ av.initials }}</span>
+{% endmacro %}
+
+{# 빈 목록 상태 표시. msg=주 메시지, sub=부가 설명(선택). #}
+{% macro empty_state(msg, sub='') %}
+<div class="empty-state">
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M5 7l1.5 11a2 2 0 0 0 2 1.8h7a2 2 0 0 0 2-1.8L19 7"/><path d="M9 11h6"/></svg>
+  <div class="msg">{{ msg }}</div>
+  {% if sub %}<div class="sub">{{ sub }}</div>{% endif %}
+</div>
+{% endmacro %}

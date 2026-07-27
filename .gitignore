@@ -14,5 +14,5 @@ docs_cache/
 backtest_results.csv
 .omc/
 alerts.db
-server.log
-server2.log
+# 서버·재시작 로그 (재생성 가능)
+*.log

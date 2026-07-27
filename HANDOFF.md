@@ -1,7 +1,7 @@
 # 🔁 작업 인계 런북 (Minervini Stock Screener)
 
 > 이 파일은 **새 세션에서 그대로 이어서 같은 작업을 재현**하기 위한 런북입니다.
-> 마지막 갱신: 2026-07-10. 원래 작업 디렉토리(`/home/pc100di/stock-screener`, WSL2)는
+> 마지막 갱신: 2026-07-17. 원래 작업 디렉토리(`/home/pc100di/stock-screener`, WSL2)는
 > **노트북 고장으로 소실됨** — 새 Windows 데스크톱에서 네이티브(비-WSL)로 재구축 완료.
 > 현재 작업 디렉토리: `<사용자 폴더>\Desktop\minervini-screener` (Windows 네이티브, 9번 참고).
 
@@ -20,10 +20,35 @@
 - ⚠️ `minervini-screener.onrender.com`(접미사 없는 주소)는 **타인의 인도 NSE 앱**이 선점 → 우리 건 `-1gvr` 접미사.
 
 ### 최신 추가 기능 (2026-06 기준)
-- 한국 종목 지원(FinanceDataReader 수집 + OpenDART 재무), 캔들 차트(Chart.js/lightweight-charts), 관심종목.
-- 분기 매출·영업이익·마진 추이, **3분기 연속 가속 판정**, **🏆 Code 33**(매출+영업이익 동시 가속).
-- 시장 국면 신호등(breadth), 🔥 돌파 대기, **🧭 주도 섹터/테마**, 차트 **🎯 매수/손절 라인**.
-- **미국 분기 EPS 이력 백필(Alpha Vantage)** → 종목상세에 **지표별 YoY/QoQ** 표시 + **🔥 EPS N분기 연속 성장(YoY)** 뱃지. (yfinance 5분기 한계 보완 — 아래 6번 참고)
+- 한국 종목 지원(FinanceDataReader 수집 + OpenDART 재무), 캔들 차트(Chart.js/lightweight-charts).
+- (2026-07) 관심종목 기능 제거, 증권사이트 스타일로 색상/타이포 개편.
+- 분기 매출·영업이익·마진 추이, **3분기 연속 가속 판정**, **Code 33**(매출+영업이익 동시 가속).
+- 시장 국면 신호등(breadth), 돌파 대기, **주도 섹터/테마**, 차트 **매수/손절 라인**.
+- **미국 분기 EPS 이력 백필(Alpha Vantage)** → 종목상세에 **지표별 YoY/QoQ** 표시 + **EPS N분기 연속 성장(YoY)** 뱃지. (yfinance 5분기 한계 보완 — 아래 6번 참고)
+
+### 2026-07-17 대규모 디자인 재설계 (⚠️ 아직 커밋/푸시 안 됨 — 아래 참고)
+- 전체 이모지 제거, TradingView 실제 컬러(다크 `#131722`/틸그린 `#26a69a`/레드 `#ef5350`/블루 `#2962ff`) 기반 팔레트로 재설계. 카드 그림자 제거, 모서리 4px로 각지게, 탭을 TV식 밑줄 탭으로 변경.
+- RS 순위·분기실적·수익률·거래량에 **강도 기반 히트맵 칩**(`app/routes.py`의 `heat_bg`/`rs_heat`/`ret_heat`/`growth_heat`/`vol_heat`, `color-mix` 활용 — 라이트/다크 자동 대응) 적용. `▲/▼` 방향 삼각형 추가(Yahoo Finance/Bloomberg 스타일).
+- 종목상세 차트를 70/30 비대칭 레이아웃(`.chart-row`/`.chart-side`)으로 재구성 — RS 뱃지 + MA 정배열 상태바 + 핵심 수치를 차트 옆 사이드바에 배치. 캔들차트 위에 진입~손절 구간 음영 오버레이 추가.
+- 홈 화면 시장국면 도넛 게이지 → TV식 밀도있는 숫자 스트립(`.stat-strip`)으로 교체, 시장국면+주도섹터를 나란히 배치(`.dash-row`).
+- **⌘K 커맨드 팔레트** 추가 — `app/routes.py`의 `/api/search-tickers`(ILIKE 검색, 최대 20개) + `templates/base.html`의 모달/키보드 네비게이션. 기존 검색창 포커스 시 팔레트로 전환(무-JS 폴백은 기존 `/search` GET 그대로 유지).
+- 차트 로딩 스켈레톤, 빈 상태(`empty_state` 매크로) 시각 개선, 부자연스러운 한국어 문구 일부 수정.
+- **⚠️ 이 항목들은 로컬 워킹트리에만 있고 git commit/push가 안 된 상태** — `origin/main`(→ Render 자동배포) 은 예전 디자인 그대로. Tailscale Funnel(`minervini.tail6fe9f6.ts.net`)은 로컬 서버를 직접 공개하는 방식이라 최신 디자인 반영됨. 커밋/푸시 여부는 사용자 확인 후 진행 예정.
+
+### 2026-07-17 자동(오토파일럿) 리뷰 기반 보안/품질 수정
+- 아키텍트/보안/코드품질 3개 에이전트로 위 재설계분을 교차 검증 후 발견된 이슈 수정:
+  - **`/api/screen-now`(수동 재스크리닝)가 인증 없이 공개 Funnel에 노출**되어 있던 걸 발견 — `config.py`의 `ADMIN_TRIGGER_TOKEN` 헤더(`x-admin-token`) 검증으로 잠금(미설정 시 404). **`.env`에 `ADMIN_TRIGGER_TOKEN=<임의의 긴 문자열>` 추가해야 이 엔드포인트를 다시 쓸 수 있음.**
+  - `/alerts/subscribe`에 10분 재발송 쿨다운 추가(이메일 폭탄/Gmail 발송 쿼터 소진 방지).
+  - `lightweight-charts` CDN 스크립트에 SRI(`integrity`/`crossorigin`) 해시 추가(공급망 변조 방지).
+  - 커맨드 팔레트의 `innerHTML` 직접 조립을 `textContent` 기반 DOM 생성으로 교체(XSS 방지), 디바운스 타이머 정리 누락 수정.
+  - 중복 코드 정리: 히트맵 칩 인라인 스타일 9곳 → `.heat-chip` 클래스, `empty_state`/`tv_link` 매크로를 `templates/_macros.html`로 통합(기존 index.html/vcp.html 각자 정의하던 것 제거).
+  - 죽은 CSS 토큰 정리(`--font-display`, `--surface-2`, `--chart-*`, `.financial-num`).
+
+### 2026-07-18 후속: 완성도 작업 + 포트 이슈
+- 모바일 카드뷰에 히트맵 색상 테두리(border-left) 추가(5개 표), 티커 이니셜 아바타(실제 로고 API 대신 — 신규 외부 의존성/ToS 리스크 회피), VCP "형성→돌파" 서사 연결(양쪽 표에 스파크라인 추가 + "형성 N일 → 돌파" 문구).
+- "덜어내기": 표 안의 TradingView 바로가기 아이콘 제거(종목상세 페이지에만 유지 — 표에서는 행마다 잦은 클러터였음), RS 배지의 "· 상위 10%" 중복 텍스트 제거.
+- **버그 발견**: 매수 접근법의 "손익비"가 실제 계산 없이 `1 : 2.5`로 하드코딩되어 있던 걸 발견 — `tp.reward_pct / tp.risk_pct`로 실제 계산하도록 수정.
+- **⚠️ 포트 8010에 좀비 프로세스(PID는 세션마다 다름) 발견** — 이전 세션에서 뜬 걸로 추정되는 python.exe가 "Services" 세션 소유로 떠 있어서 일반 `taskkill`로 못 죽임(관리자 권한 필요). 새 코드를 반영 못 한 채 계속 8010을 점유하고 있어서, **서버를 8011 포트로 새로 띄우고 Tailscale Funnel(`minervini.tail6fe9f6.ts.net`)을 8011로 재연결**했음. `desktop-p52dkp0.tail6fe9f6.ts.net`(보조 호스트명)은 아직 8010(좀비)을 가리키고 있어 미사용 시 무시해도 되지만, 필요하면 알려주면 됨. **다음 스크리너 실행 시 8010 포트가 계속 막혀있으면, 작업관리자(관리자 권한)에서 해당 python.exe를 직접 종료하거나 재부팅 필요.**
 
 ---
 

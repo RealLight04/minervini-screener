@@ -89,6 +89,23 @@ def set_meta(key: str, value: str) -> None:
                   "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
 
 
+# ─── 확인메일 재발송 쿨다운 (이메일 폭탄/발송 쿼터 소진 방지) ───
+def recently_sent(email: str, within_seconds: int = 600) -> bool:
+    """최근 within_seconds 이내에 이 주소로 확인 메일을 보낸 적 있는지."""
+    val = get_meta(f"resend_cd:{email.strip().lower()}")
+    if not val:
+        return False
+    try:
+        last = datetime.fromisoformat(val)
+    except ValueError:
+        return False
+    return (datetime.utcnow() - last).total_seconds() < within_seconds
+
+
+def mark_sent(email: str) -> None:
+    set_meta(f"resend_cd:{email.strip().lower()}", datetime.utcnow().isoformat())
+
+
 # ─── 이메일 발송 ───
 def email_enabled() -> bool:
     return bool(settings.GMAIL_USER and settings.GMAIL_APP_PASSWORD)
@@ -116,10 +133,10 @@ def send_confirmation(email: str, token: str) -> tuple[bool, str]:
     url = f"{settings.ALERT_BASE_URL}/alerts/confirm?token={token}"
     html = f"""
     <div style="font-family:sans-serif; max-width:520px; margin:auto; color:#0f172a;">
-      <h2 style="color:#2563eb;">📈 Minervini Screener 알림 구독 확인</h2>
+      <h2 style="color:#1d4ed8;">📈 Minervini Screener 알림 구독 확인</h2>
       <p>돌파·매도신호 일일 알림을 신청하셨습니다. 아래 버튼을 눌러 <b>구독을 확정</b>해 주세요.</p>
       <p style="margin:24px 0;">
-        <a href="{url}" style="background:#2563eb; color:#fff; text-decoration:none;
+        <a href="{url}" style="background:#1d4ed8; color:#fff; text-decoration:none;
            padding:12px 22px; border-radius:8px; font-weight:700;">구독 확정하기</a>
       </p>
       <p style="color:#64748b; font-size:0.85rem;">본인이 신청하지 않았다면 이 메일을 무시하세요. 확정 전에는 어떤 알림도 오지 않습니다.</p>

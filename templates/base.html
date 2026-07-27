@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f9f9f7" id="themeColorMeta">
+  <meta name="theme-color" content="#ffffff" id="themeColorMeta">
   <title>{% block title %}Minervini Screener{% endblock %}</title>
   <script>
     (function () {
@@ -16,73 +16,64 @@
   </script>
   <style>
     :root, :root[data-theme="light"] {
-      --bg: #f9f9f7;
+      --bg: #ffffff;
       --surface: #ffffff;
-      --surface-2: #f4f4f2;
-      --inset: #f1f1ee;
-      --border: #e1e0d9;
-      --line: #ececea;
-      --text: #0b0b0b;
-      --muted: #52514e;
-      --faint: #898781;
-      --accent: #2563eb;
+      --inset: #f0f3fa;
+      --border: #e0e3eb;
+      --line: #eceef2;
+      --text: #131722;
+      --muted: #787b86;
+      --faint: #9598a1;
+      --accent: #2962ff;
       --accent-ink: #ffffff;
-      --green: #16a34a;
-      --green-ink: #15803d;
-      --red: #dc2626;
-      --red-ink: #b91c1c;
-      --amber: #b45309;
-      --violet: #7c3aed;
-      --orange: #c2410c;
-      --badge-green-bg: #e3f5e3;
-      --badge-red-bg: #fbe9e9;
-      --badge-gray-bg: #eeeeec;
-      --badge-blue-bg: #e7f0fb;
-      --badge-violet-bg: #ece9f7;
-      --header-bg: rgba(249,249,247,.85);
-      --row-hover: rgba(42,120,214,.06);
-      --chart-bg: #fcfcfb;
-      --chart-text: #52514e;
-      --chart-grid: #e1e0d9;
-      --chart-axis: #c3c2b7;
-      --radius: 8px;
-      --radius-sm: 5px;
-      --gap: 16px;
-      --shadow: 2px 2px 0 0 rgba(11,11,11,.06);
-      --dot: rgba(11,11,11,.09);
+      --green: #089981;
+      --green-ink: #089981;
+      --red: #f23645;
+      --red-ink: #f23645;
+      --amber: #ff9800;
+      --violet: #7e57c2;
+      --orange: #fb8c00;
+      --badge-green-bg: rgba(8,153,129,.10);
+      --badge-red-bg: rgba(242,54,69,.10);
+      --badge-gray-bg: #eef0f5;
+      --badge-blue-bg: rgba(41,98,255,.09);
+      --badge-violet-bg: rgba(126,87,194,.10);
+      --header-bg: rgba(255,255,255,.92);
+      --row-hover: rgba(41,98,255,.04);
+      --radius: 4px;
+      --radius-sm: 3px;
+      --gap: 14px;
+      --shadow: none;
     }
     :root[data-theme="dark"] {
-      --bg: #05070d;
-      --surface: #0d1220;
-      --surface-2: #05070d;
-      --inset: #020308;
-      --border: #1e2538;
-      --line: #131a2b;
-      --text: #e2e8f0;
-      --muted: #8b96a8;
-      --faint: #596177;
-      --accent: #38bdf8;
-      --accent-ink: #05070d;
-      --green: #4ade80;
-      --green-ink: #4ade80;
-      --red: #f87171;
-      --red-ink: #f87171;
-      --amber: #fbbf24;
-      --violet: #a78bfa;
-      --orange: #fb923c;
-      --badge-green-bg: #0f3d21;
-      --badge-red-bg: #350808;
-      --badge-gray-bg: #171d2e;
-      --badge-blue-bg: #142a45;
-      --badge-violet-bg: #2c1548;
-      --header-bg: rgba(5,7,13,.85);
-      --row-hover: rgba(56,189,248,.06);
-      --chart-bg: #0d1220;
-      --chart-text: #8b96a8;
-      --chart-grid: #05070d;
-      --chart-axis: #232c42;
-      --shadow: 2px 2px 0 0 rgba(0,0,0,.45);
-      --dot: rgba(255,255,255,.055);
+      --bg: #131722;
+      --surface: #1e222d;
+      --inset: #2a2e39;
+      --border: #2a2e39;
+      --line: #262b38;
+      --text: #d1d4dc;
+      --muted: #787b86;
+      --faint: #5d606b;
+      --accent: #2962ff;
+      --accent-ink: #ffffff;
+      --green: #26a69a;
+      --green-ink: #26a69a;
+      --red: #ef5350;
+      --red-ink: #ef5350;
+      --amber: #ffa726;
+      --violet: #9b7fd4;
+      --orange: #ffa726;
+      --badge-green-bg: rgba(38,166,154,.15);
+      --badge-red-bg: rgba(239,83,80,.15);
+      --badge-gray-bg: rgba(255,255,255,.06);
+      --badge-blue-bg: rgba(41,98,255,.16);
+      --badge-violet-bg: rgba(155,127,212,.15);
+      --header-bg: rgba(19,23,34,.95);
+      --row-hover: rgba(255,255,255,.035);
+      --radius: 4px;
+      --radius-sm: 3px;
+      --gap: 14px;
+      --shadow: none;
     }
     /* 서버에서 계산된 상태색(신호·시장국면 등)을 라이트/다크 모드에 맞게 전환하는 유틸 */
     .tone-text { color: var(--tone-light); }
@@ -93,28 +84,71 @@
     :root[data-theme="dark"] .tone-badge { background: color-mix(in srgb, var(--tone-dark) 16%, var(--surface)); color: var(--tone-dark); border-color: color-mix(in srgb, var(--tone-dark) 45%, transparent); }
     .code33-banner { background: linear-gradient(90deg, var(--badge-green-bg), color-mix(in srgb, var(--green) 22%, var(--surface))); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); }
 
-    /* ───── 도넛 게이지 ───── */
-    .gauge-row { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 14px; }
-    .gauge-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    .gauge {
-      --gauge-color: var(--accent);
-      width: 60px; height: 60px; border-radius: 50%;
-      background: conic-gradient(var(--gauge-color) calc(var(--gauge-pct, 0) * 1%), var(--border) 0);
-      display: flex; align-items: center; justify-content: center; position: relative;
+    /* ───── 통계 스트립 (TradingView식 밀도있는 숫자 리드아웃) ───── */
+    .stat-strip { display: flex; gap: 0; flex-wrap: wrap; margin-top: 12px; border-top: 1px solid var(--border); }
+    .stat-strip-item {
+      display: flex; flex-direction: column; gap: 4px;
+      padding: 10px 20px 2px 0; margin-right: 20px; border-right: 1px solid var(--border);
     }
-    .gauge::before { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--surface); }
-    .gauge span { position: relative; font-weight: 750; font-size: 0.84rem; z-index: 1; }
-    .gauge-label { font-size: 0.74rem; color: var(--muted); text-align: center; line-height: 1.4; }
-    .tone-gauge { --gauge-color: var(--tone-light); }
-    :root[data-theme="dark"] .tone-gauge { --gauge-color: var(--tone-dark); }
+    .stat-strip-item:last-child { border-right: none; margin-right: 0; }
+    .ss-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .ss-val { font-size: 1.15rem; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
     /* ───── 스파크라인 ───── */
     .sparkline { display: block; overflow: visible; }
 
+    /* ───── 커맨드 팔레트 (⌘K) ───── */
+    .cmdk-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      z-index: 100; align-items: flex-start; justify-content: center; padding-top: 12vh;
+    }
+    .cmdk-overlay.open { display: flex; }
+    .cmdk-modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      width: 92%; max-width: 480px; max-height: 60vh; display: flex; flex-direction: column;
+      box-shadow: 0 8px 30px rgba(0,0,0,.35); overflow: hidden;
+    }
+    .cmdk-input {
+      background: transparent; border: none; border-bottom: 1px solid var(--border); color: var(--text);
+      padding: 14px 16px; font-size: 0.95rem; outline: none; width: 100%; font-family: var(--font-body);
+    }
+    .cmdk-results { overflow-y: auto; padding: 6px; }
+    .cmdk-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.86rem;
+    }
+    .cmdk-item.active, .cmdk-item:hover { background: var(--row-hover); }
+    .cmdk-item .t { font-weight: 700; color: var(--accent); font-family: var(--font-mono); flex-shrink: 0; }
+    .cmdk-item .n { color: var(--muted); font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cmdk-item .m { color: var(--faint); font-size: 0.7rem; flex-shrink: 0; }
+    .cmdk-empty { padding: 20px; text-align: center; color: var(--faint); font-size: 0.85rem; }
+    .cmdk-section-label { padding: 8px 10px 4px; font-size: 0.68rem; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; }
+    .cmdk-hint {
+      display: inline-flex; align-items: center; padding: 1px 6px; border: 1px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 0.68rem; color: var(--faint); font-family: var(--font-mono);
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;
+    }
+
+    /* ───── 빈 상태 ───── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 36px 20px; border: 1px dashed var(--border); border-radius: var(--radius);
+      color: var(--faint); text-align: center;
+    }
+    .empty-state svg { opacity: .35; }
+    .empty-state .msg { font-size: 0.85rem; color: var(--muted); }
+    .empty-state .sub { font-size: 0.76rem; color: var(--faint); }
+
+    /* ───── 로딩 스켈레톤 ───── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--inset) 50%, var(--surface) 75%);
+      background-size: 200% 100%; animation: skeleton-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes skeleton-pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
     :root {
       --font-body: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard',
                    'Malgun Gothic', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-      --font-display: Georgia, 'Noto Serif KR', 'Apple SD Gothic Neo', serif;
       --font-mono: 'SF Mono', 'Cascadia Code', 'D2Coding', Consolas, 'Liberation Mono', monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -122,16 +156,15 @@
     body {
       font-family: var(--font-body);
       background-color: var(--bg);
-      background-image: radial-gradient(var(--dot) 1px, transparent 1px);
-      background-size: 22px 22px;
       color: var(--text);
       min-height: 100vh;
       line-height: 1.55;
       -webkit-font-smoothing: antialiased;
       letter-spacing: -0.003em;
+      font-variant-numeric: tabular-nums;
     }
     /* 금융 수치: 자릿수 정렬 + 터미널 느낌의 모노스페이스 */
-    .num, .financial-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .num, .stat .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
     /* ───── 헤더 ───── */
     header {
@@ -145,7 +178,7 @@
       padding: 12px 18px;
       display: flex; align-items: center; gap: 18px;
     }
-    .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; font-style: italic; color: var(--text); text-decoration: none; white-space: nowrap; letter-spacing: -0.01em; }
+    .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-body); font-size: 1.15rem; font-weight: 800; color: var(--text); text-decoration: none; white-space: nowrap; letter-spacing: -0.02em; }
     .brand span { color: var(--accent); }
     .brand-mark { color: var(--accent); flex-shrink: 0; }
     .nav-links { display: flex; gap: 16px; align-items: center; }
@@ -154,7 +187,7 @@
     .search { margin-left: auto; position: relative; }
     .search input {
       background: var(--inset); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 12px 8px 32px; border-radius: 10px; font-size: 0.88rem; width: 200px;
+      padding: 8px 36px 8px 32px; border-radius: var(--radius); font-size: 0.88rem; width: 200px;
       transition: border-color .15s, width .2s;
     }
     .search input:focus { outline: none; border-color: var(--accent); }
@@ -166,13 +199,14 @@
     .container { max-width: 1120px; margin: 0 auto; padding: 26px 18px 64px; }
 
     /* ───── 타이포 ───── */
-    h2.page-title { font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: -0.01em; }
+    h2.page-title { font-family: var(--font-body); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
     .section-title {
       display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
       font-size: 1.08rem; font-weight: 730; margin: 32px 0 14px; letter-spacing: -0.01em;
       padding-left: 11px; border-left: 3px solid currentColor;
     }
     .section-title .hint { font-weight: 400; font-size: 0.82rem; color: var(--faint); }
+    .section-title .hint::before { content: ": "; }
     .muted { color: var(--muted); }
     .faint { color: var(--faint); }
 
@@ -184,6 +218,7 @@
       border-left: 3px solid var(--accent);
     }
     .sec-title .sub { font-weight: 400; font-size: 0.8rem; color: var(--faint); }
+    .sec-title .sub::before { content: ": "; }
     .note { color: var(--muted); font-size: 0.82rem; line-height: 1.7; }
     .note-sm { color: var(--faint); font-size: 0.78rem; line-height: 1.65; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 11px; }
@@ -198,7 +233,8 @@
     }
 
     /* ───── 배지 / 칩 ───── */
-    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.74rem; font-weight: 650; white-space: nowrap; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: var(--radius-sm); font-size: 0.74rem; font-weight: 650; white-space: nowrap; }
+    .heat-chip { display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: 650; text-align: center; }
     .badge-green { background: var(--badge-green-bg); color: var(--green-ink); }
     .badge-red { background: var(--badge-red-bg); color: var(--red-ink); }
     .badge-gray { background: var(--badge-gray-bg); color: var(--muted); }
@@ -206,19 +242,32 @@
     /* ───── 버튼 ───── */
     .btn {
       background: var(--surface); border: 1px solid var(--border); color: var(--text);
-      border-radius: 10px; padding: 8px 15px; cursor: pointer; font-size: 0.86rem; font-weight: 550;
+      border-radius: var(--radius); padding: 8px 15px; cursor: pointer; font-size: 0.86rem; font-weight: 550;
       transition: border-color .15s, background .15s; -webkit-tap-highlight-color: transparent;
     }
     .btn:hover { border-color: var(--accent); }
 
-    /* ───── 탭 ───── */
-    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    /* ───── 탭 (TradingView식 플랫 언더라인) ───── */
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
     .tab {
-      text-decoration: none; padding: 8px 17px; border-radius: 10px; font-size: 0.88rem; font-weight: 600;
-      background: var(--surface); color: var(--muted); border: 1px solid var(--border); transition: all .15s;
+      text-decoration: none; padding: 9px 14px; font-size: 0.86rem; font-weight: 600;
+      color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s;
     }
     .tab:hover { color: var(--text); }
-    .tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ───── 차트 + 사이드 패널 (비대칭 70/30) ───── */
+    .chart-row { display: grid; grid-template-columns: 7fr 3fr; gap: var(--gap); align-items: stretch; }
+    .chart-side { display: flex; flex-direction: column; }
+    @media (max-width: 900px) {
+      .chart-row { grid-template-columns: 1fr; }
+    }
+
+    /* ───── 대시보드 위젯 행 (홈: 시장국면 + 주도섹터 나란히) ───── */
+    .dash-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: var(--gap); align-items: start; }
+    @media (max-width: 900px) {
+      .dash-row { grid-template-columns: 1fr; }
+    }
 
     /* ───── 차트 범례 ───── */
     .chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.76rem; color: var(--muted); align-items: center; }
@@ -233,12 +282,12 @@
     .table-wrap { border-radius: var(--radius); }
     table { width: 100%; border-collapse: collapse; }
     thead th {
-      text-align: left; padding: 11px 13px; background: var(--inset); color: var(--muted);
-      font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+      text-align: left; padding: 8px 12px; background: var(--inset); color: var(--muted);
+      font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
       white-space: nowrap; border-bottom: 1px solid var(--border);
       position: sticky; top: 58px; z-index: 5;
     }
-    tbody td { padding: 12px 13px; border-bottom: 1px solid var(--line); font-size: 0.9rem; vertical-align: middle; }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); font-size: 0.87rem; vertical-align: middle; }
     tbody tr:last-child td { border-bottom: none; }
     tbody tr { transition: background .12s; }
     tbody tr[data-href] { cursor: pointer; }
@@ -319,7 +368,7 @@
     /* ───── 다크모드 토글 ───── */
     .theme-toggle {
       background: var(--inset); border: 1px solid var(--border); color: var(--text);
-      width: 34px; height: 34px; border-radius: 10px; cursor: pointer; font-size: 0.95rem;
+      width: 34px; height: 34px; border-radius: var(--radius); cursor: pointer; font-size: 0.95rem;
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       -webkit-tap-highlight-color: transparent; transition: border-color .15s;
     }
@@ -340,12 +389,12 @@
       </a>
       <div class="nav-links">
         <a href="/">홈</a>
-        <a href="/vcp">🌀 VCP</a>
-        <a href="/watchlist">⭐ 관심종목</a>
-        <a href="/alerts">📬 알림</a>
+        <a href="/vcp" title="VCP(Volatility Contraction Pattern) — 변동성 축소 패턴 레지스트리">VCP</a>
+        <a href="/alerts">알림</a>
       </div>
       <form class="search" action="/search" method="get">
         <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
+        <span class="cmdk-hint">⌘K</span>
       </form>
       <button type="button" class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="다크모드 전환" title="라이트/다크 모드 전환">
         <span class="i-dark">🌙</span><span class="i-light">☀️</span>
@@ -355,6 +404,12 @@
   <main class="container">
     {% block content %}{% endblock %}
   </main>
+  <div class="cmdk-overlay" id="cmdkOverlay">
+    <div class="cmdk-modal">
+      <input type="text" id="cmdkInput" class="cmdk-input" placeholder="티커 또는 회사명 검색... (Esc로 닫기)" autocomplete="off">
+      <div class="cmdk-results" id="cmdkResults"></div>
+    </div>
+  </div>
   <script>
     function toggleTheme() {
       var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
@@ -366,7 +421,7 @@
     (function () {
       var meta = document.getElementById('themeColorMeta');
       var theme = document.documentElement.getAttribute('data-theme');
-      if (meta && theme === 'dark') meta.setAttribute('content', '#05070d');
+      if (meta && theme === 'dark') meta.setAttribute('content', '#131722');
     })();
     // 표 행 전체 클릭 시 이동 (data-href 지정된 tr만) — 링크/버튼 클릭은 그대로 두어 중복 방지
     document.addEventListener('click', function (e) {
@@ -412,6 +467,118 @@
       e.preventDefault();
       sortByHeader(th);
     });
+
+    // ───── 커맨드 팔레트 (⌘K / Ctrl+K) ─────
+    (function () {
+      var overlay = document.getElementById('cmdkOverlay');
+      var modalInput = document.getElementById('cmdkInput');
+      var results = document.getElementById('cmdkResults');
+      var navInput = document.querySelector('.search input');
+      if (!overlay || !modalInput || !results) return;
+
+      var items = [];
+      var activeIndex = -1;
+      var debounceTimer = null;
+
+      var QUICK_NAV = [
+        { label: '홈 — 오늘의 스크리닝', href: '/' },
+        { label: 'VCP 레지스트리', href: '/vcp' },
+        { label: '이메일 알림', href: '/alerts' }
+      ];
+
+      function openPalette() {
+        overlay.classList.add('open');
+        modalInput.value = '';
+        renderQuickNav();
+        setTimeout(function () { modalInput.focus(); }, 0);
+      }
+      function closePalette() {
+        overlay.classList.remove('open');
+        clearTimeout(debounceTimer);
+      }
+      function collectItems() {
+        items = Array.prototype.slice.call(results.querySelectorAll('.cmdk-item'));
+        activeIndex = -1;
+      }
+      function renderQuickNav() {
+        results.innerHTML = '<div class="cmdk-section-label">바로가기</div>';
+        QUICK_NAV.forEach(function (q) {
+          var el = document.createElement('div');
+          el.className = 'cmdk-item';
+          el.innerHTML = '<span class="n">' + q.label + '</span>';
+          el.addEventListener('click', function () { location.href = q.href; });
+          results.appendChild(el);
+        });
+        collectItems();
+      }
+      function renderResults(list) {
+        if (!list.length) {
+          results.innerHTML = '<div class="cmdk-empty">일치하는 종목이 없습니다.</div>';
+          items = []; activeIndex = -1;
+          return;
+        }
+        results.innerHTML = '<div class="cmdk-section-label">종목</div>';
+        list.forEach(function (s) {
+          var el = document.createElement('div');
+          el.className = 'cmdk-item';
+          var tEl = document.createElement('span'); tEl.className = 't'; tEl.textContent = s.ticker || '';
+          var nEl = document.createElement('span'); nEl.className = 'n'; nEl.textContent = s.name || '';
+          var mEl = document.createElement('span'); mEl.className = 'm'; mEl.textContent = s.market || '';
+          el.appendChild(tEl); el.appendChild(nEl); el.appendChild(mEl);
+          el.addEventListener('click', function () { location.href = '/stock/' + encodeURIComponent(s.ticker); });
+          results.appendChild(el);
+        });
+        collectItems();
+      }
+      function setActive(idx) {
+        items.forEach(function (el) { el.classList.remove('active'); });
+        if (idx >= 0 && idx < items.length) {
+          items[idx].classList.add('active');
+          items[idx].scrollIntoView({ block: 'nearest' });
+        }
+        activeIndex = idx;
+      }
+
+      var searchSeq = 0;
+      modalInput.addEventListener('input', function () {
+        var q = modalInput.value.trim();
+        clearTimeout(debounceTimer);
+        if (!q) { renderQuickNav(); return; }
+        var seq = ++searchSeq;
+        debounceTimer = setTimeout(function () {
+          fetch('/api/search-tickers?q=' + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (seq === searchSeq) renderResults(d.results || []); })
+            .catch(function () { if (seq === searchSeq) renderResults([]); });
+        }, 150);
+      });
+
+      modalInput.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(activeIndex + 1, items.length - 1)); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(activeIndex - 1, 0)); }
+        else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeIndex >= 0 && items[activeIndex]) items[activeIndex].click();
+          else if (items.length === 1) items[0].click();
+        } else if (e.key === 'Escape') { closePalette(); }
+      });
+
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) closePalette(); });
+
+      document.addEventListener('keydown', function (e) {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          openPalette();
+        }
+      });
+
+      if (navInput) {
+        navInput.addEventListener('focus', function (e) {
+          e.target.blur();
+          openPalette();
+        });
+      }
+    })();
   </script>
   {% block scripts %}{% endblock %}
 </body>

@@ -114,12 +114,17 @@ class ScreeningResult(Base):
     vcp_contractions = Column(Integer)  # 조정 횟수
     vcp_volume_dryup = Column(Boolean, default=False)  # 베이스 우측 거래량 축소(dry-up)
     vcp_pivot = Column(Float)  # VCP 피벗(돌파선) — 매수신호 여부와 무관하게 저장(레지스트리용)
+    vcp_base_low = Column(Float)   # VCP 베이스 저점 — 레지스트리 리셋 판정 입력
+    vcp_base_high = Column(Float)  # VCP 베이스 고점 — 레지스트리 정체성 앵커
+    vcp_last_contraction = Column(Float)  # 마지막 조정폭(%) — 품질점수 '타이트함' 입력
 
     # 거래량 / 유동성
     avg_volume = Column(Float)        # 50일 평균 거래량
     vol_vs_avg = Column(Float)        # 최근 거래량 / 50일 평균 (1.0 = 평균)
     accum_days = Column(Integer)      # 최근 25일 매집일수(상승+대량거래)
     distrib_days = Column(Integer)    # 최근 25일 분산일수(하락+대량거래)
+    ud_volume_ratio = Column(Float)   # 50일 상승일 거래량합 / 하락일 거래량합 (>1 매집, IBD U/D)
+    dryup_ratio = Column(Float)       # 최근10일 / 50일 평균 거래량 (<0.85 = dry-up, 낮을수록 마름)
     liquidity_pass = Column(Boolean, default=True)  # 최소 주가·거래량 충족
 
     # 최종 결과
@@ -144,14 +149,20 @@ class VCPEvent(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False, index=True)
-    first_detected = Column(Date, nullable=False)   # 이 VCP 베이스 최초 탐지일
+    first_detected = Column(Date, nullable=False)   # 이 VCP 베이스 최초 탐지일 (= '첫 형성', 불변)
     last_detected = Column(Date, nullable=False)     # 마지막으로 VCP가 유지된 날
-    status = Column(String, default="forming", index=True)  # forming / broke_out / failed
+    status = Column(String, default="forming", index=True)  # forming / breakout_watch / broke_out / failed / reset
 
     # 최신(last_detected 시점) 스냅샷
     contractions = Column(Integer)
     pivot_price = Column(Float)      # 돌파 트리거 가격
     stop_loss = Column(Float)
+    base_low = Column(Float)         # 베이스 저점(실제 조정 저점) — 리셋 판정 기준
+    base_high = Column(Float)        # 베이스 고점 — 정체성 앵커
+    base_seq = Column(Integer, default=1)    # 종목별 베이스 순번(리셋마다 +1) — 후행베이스 감점용
+    quality = Column(Integer)        # 0~100 품질점수 — 정렬·알림 임계
+    peak_quality = Column(Integer)   # 형성 중 최고 품질(랭킹 보조)
+    trend_grace = Column(Integer, default=0)  # 추세게이트 이탈 유예 카운터
     rs_rank = Column(Float)
     close = Column(Float)
     volume_dryup = Column(Boolean, default=False)
@@ -159,7 +170,9 @@ class VCPEvent(Base):
     # 결과 추적
     breakout_date = Column(Date)     # 피벗 돌파 확정일
     breakout_price = Column(Float)   # 돌파 시 종가
-    resolved_date = Column(Date)     # 실패/만료 확정일
+    resolved_date = Column(Date)     # 실패/만료/리셋 확정일
+    alert_formed_at = Column(DateTime)    # '첫 형성' 알림 발송 워터마크(exactly-once)
+    alert_breakout_at = Column(DateTime)  # '돌파' 알림 발송 워터마크(exactly-once)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     stock = relationship("Stock")

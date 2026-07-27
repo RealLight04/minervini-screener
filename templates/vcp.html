@@ -1,84 +1,85 @@
 {% extends "base.html" %}
+{% from "_macros.html" import empty_state, avatar, spark %}
 {% block title %}VCP 레지스트리 — Minervini Screener{% endblock %}
-
-{% macro tv_link(ticker, market) %}
-<a class="tv-link" href="{{ tv_url(ticker, market) }}" target="_blank" rel="noopener noreferrer" title="TradingView에서 보기"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg></a>
-{% endmacro %}
 
 {% block content %}
 <div style="margin-bottom:22px;">
   <div style="display:flex; align-items:baseline; gap:11px; flex-wrap:wrap;">
-    <h2 class="page-title">🌀 VCP 레지스트리</h2>
-    <span class="faint" style="font-size:0.9rem;">{{ screen_date }} 기준</span>
+    <h2 class="page-title">VCP 레지스트리</h2>
+    <span class="badge badge-gray" style="font-family:var(--font-mono); font-variant-numeric:tabular-nums;">데이터 기준 {{ screen_date }}</span>
   </div>
   <p class="muted" style="font-size:0.9rem; margin-top:6px;">
-    변동성 축소 패턴(VCP) 발생 종목을 <strong>형성 → 돌파/실패</strong>까지 추적합니다.
+    <strong>VCP(Volatility Contraction Pattern, 변동성 축소 패턴)</strong>는 베이스에서 조정폭이 점점 줄며 매물이 마르는 미너비니 핵심 셋업입니다.
+    발생 종목을 <strong>형성 → 돌파/실패</strong>까지 추적합니다.
     <span style="color:var(--amber);">형성 중 {{ forming|length }}</span> ·
     <span style="color:var(--green);">최근 돌파 {{ broke|length }}</span>
   </p>
 </div>
 
 <!-- 형성 중 (감시 대상) -->
-<div class="section-title" style="color:var(--amber);">🔍 형성 중 <span class="hint">베이스 완성 단계 · 피벗 돌파를 감시 (RS 강한 순)</span></div>
+<div class="section-title" style="color:var(--amber);">형성 중 <span class="hint">베이스 완성 단계 · 피벗 돌파를 감시 (RS 강한 순)</span></div>
 {% if forming %}
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">시장</th><th class="num sortable">형성일</th><th class="num sortable">수축</th><th class="num sortable">현재가</th><th class="num sortable">피벗(돌파선)</th><th class="ctr sortable">돌파까지</th><th class="ctr sortable">RS</th><th class="ctr">거래량</th></tr>
+    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="ctr">시장</th><th class="num sortable">형성일</th><th class="num sortable">수축</th><th class="num sortable">현재가</th><th class="num sortable">피벗(돌파선)</th><th class="ctr sortable">돌파까지</th><th class="ctr sortable">품질</th><th class="ctr sortable">RS</th><th class="ctr">거래량</th></tr>
   </thead>
   <tbody>
     {% for r in forming %}
-    <tr data-href="/stock/{{ r.stock.ticker }}" {% if r.gap is none or r.gap <= 1 %}class="hot-row"{% endif %}>
-      <td data-label="티커" data-sort="{{ r.stock.ticker }}"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a>{{ tv_link(r.stock.ticker, r.market) }}</td>
+    <tr data-href="/stock/{{ r.stock.ticker }}" {% if r.gap is none or r.gap <= 1 %}class="hot-row"{% endif %} style="border-left:3px solid {{ rs_heat(r.ev.rs_rank) if r.ev.rs_rank else 'transparent' }};">
+      <td data-label="티커" data-sort="{{ r.stock.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(r.stock.ticker) }}<a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></span></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
+      <td data-label="추이" class="ctr">{{ spark(r.stock.id, sparklines) }}</td>
       <td data-label="시장" class="ctr"><span class="faint">{{ market_labels.get(r.market, r.market) }}</span></td>
       <td data-label="형성일" class="num" data-sort="{{ r.days or 0 }}">{% if r.days is not none %}{{ r.days }}일{% else %}-{% endif %}</td>
       <td data-label="수축" class="num" data-sort="{{ r.ev.contractions or 0 }}">{% if r.ev.contractions %}{{ r.ev.contractions }}회{% else %}-{% endif %}</td>
       <td data-label="현재가" class="num" data-sort="{{ r.ev.close or 0 }}">{{ fmt_price(r.ev.close, r.market) }}</td>
       <td data-label="피벗(돌파선)" class="num" data-sort="{{ r.ev.pivot_price or 0 }}"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot_price, r.market) }}</span></td>
-      <td data-label="돌파까지" class="ctr" data-sort="{{ r.gap if r.gap is not none else 0 }}">{% if r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
-      <td data-label="RS" class="ctr" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}<span class="badge {% if r.ev.rs_rank >= 90 %}badge-green{% else %}badge-gray{% endif %}">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="거래량" class="ctr">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">🫧 마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="돌파까지" class="ctr" data-sort="{{ r.gap if r.gap is not none else 0 }}">{% if r.watching %}<span class="badge" style="background:transparent; border:1px solid var(--amber); color:var(--amber);" title="피벗에 도달했으나 거래량 미확인 — 거래량 동반 돌파 대기">돌파확인중</span>{% elif r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
+      <td data-label="품질" class="ctr" data-sort="{{ r.ev.quality or 0 }}">{% if r.ev.quality is not none %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.quality) }};" title="VCP 품질점수 0~100 (추세·수축 타이트함·거래량 마름·형성기간 종합)">{{ r.ev.quality }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="RS" class="ctr" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.rs_rank) }};">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="거래량" class="ctr">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
-<p class="faint" style="font-size:0.78rem; margin-top:10px;">💡 <strong>돌파까지 ≤3%</strong>이고 <strong>거래량 마름</strong>이면 임박 신호 — 관심종목에 담아 거래량 동반 돌파를 노리세요.</p>
+<p class="faint" style="font-size:0.78rem; margin-top:10px;"><strong>돌파까지 ≤3%</strong>이고 <strong>거래량 마름</strong>이면 임박 신호 — 거래량 동반 돌파를 노려보세요.</p>
 {% else %}
-<p class="faint" style="padding:12px 0;">형성 중인 VCP가 없습니다. (다음 스크리닝부터 누적됩니다)</p>
+{{ empty_state('형성 중인 VCP가 없습니다', '다음 스크리닝부터 누적됩니다') }}
 {% endif %}
 
 <!-- 최근 돌파 (셋업 결과) -->
-<div class="section-title" style="color:var(--green);">🚀 최근 돌파 <span class="hint">최근 30일 · 피벗 돌파 후 성과</span></div>
+<div class="section-title" style="color:var(--green);">최근 돌파 <span class="hint">최근 30일 · 피벗 돌파 후 성과</span></div>
 {% if broke %}
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr sortable">돌파일</th><th class="num sortable">베이스기간</th><th class="num sortable">돌파가</th><th class="num sortable">현재가</th><th class="num sortable">돌파후</th><th class="num sortable">RS</th></tr>
+    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="ctr sortable">돌파일</th><th class="sortable">형성 → 돌파</th><th class="num sortable">돌파가</th><th class="num sortable">현재가</th><th class="num sortable">돌파후</th><th class="num sortable">RS</th></tr>
   </thead>
   <tbody>
     {% for r in broke %}
-    <tr data-href="/stock/{{ r.stock.ticker }}">
-      <td data-label="티커" data-sort="{{ r.stock.ticker }}"><a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a>{{ tv_link(r.stock.ticker, r.market) }}</td>
+    <tr data-href="/stock/{{ r.stock.ticker }}" style="border-left:3px solid {{ ret_heat(r.ret) if r.ret is not none else 'transparent' }};">
+      <td data-label="티커" data-sort="{{ r.stock.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(r.stock.ticker) }}<a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></span></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
+      <td data-label="추이" class="ctr">{{ spark(r.stock.id, sparklines) }}</td>
       <td data-label="돌파일" class="ctr" data-sort="{{ r.ev.breakout_date }}">{{ r.ev.breakout_date }}</td>
-      <td data-label="베이스기간" class="num" data-sort="{{ r.base_days or 0 }}">{% if r.base_days is not none %}{{ r.base_days }}일{% else %}-{% endif %}</td>
+      <td data-label="형성 → 돌파" data-sort="{{ r.base_days or 0 }}">{% if r.base_days is not none %}<span class="faint">형성 {{ r.base_days }}일</span> → <span style="color:var(--green);">돌파</span>{% else %}-{% endif %}</td>
       <td data-label="돌파가" class="num" data-sort="{{ r.ev.breakout_price or 0 }}">{{ fmt_price(r.ev.breakout_price, r.market) }}</td>
       <td data-label="현재가" class="num" data-sort="{{ r.cur_close or 0 }}">{{ fmt_price(r.cur_close, r.market) }}</td>
-      <td data-label="돌파후" class="num" data-sort="{{ r.ret if r.ret is not none else 0 }}">{% if r.ret is not none %}<span style="color:{% if r.ret >= 0 %}var(--green){% else %}var(--red){% endif %}; font-weight:650;">{{ "%+.1f"|format(r.ret) }}%</span>{% else %}-{% endif %}</td>
-      <td data-label="RS" class="num" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}{{ "%.0f"|format(r.ev.rs_rank) }}{% else %}-{% endif %}</td>
+      <td data-label="돌파후" class="num" data-sort="{{ r.ret if r.ret is not none else 0 }}">{% if r.ret is not none %}<span class="heat-chip" style="min-width:52px; color:{% if r.ret >= 0 %}var(--green-ink){% else %}var(--red-ink){% endif %}; background:{{ ret_heat(r.ret) }};">{% if r.ret >= 0 %}▲{% else %}▼{% endif %}{{ "%.1f"|format(r.ret|abs) }}%</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="RS" class="num" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.rs_rank) }};">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
 {% else %}
-<p class="faint" style="padding:12px 0;">최근 30일 내 돌파한 VCP가 없습니다.</p>
+{{ empty_state('최근 30일 내 돌파한 VCP가 없습니다') }}
 {% endif %}
 
 <p class="faint" style="margin-top:30px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.78rem; line-height:1.6;">
-  🌀 <strong>VCP(Volatility Contraction Pattern)</strong>는 베이스에서 조정폭이 점점 줄며 매물이 마르는 미너비니 핵심 셋업입니다.
-  피벗(직전 고점)을 <strong>거래량 동반해 돌파</strong>하는 순간이 매수 시점 — 이 표는 그 형성부터 돌파까지를 자동 추적합니다.
+  <strong>VCP(Volatility Contraction Pattern)</strong>는 베이스에서 조정폭이 점점 줄며 매물이 마르는 미너비니 핵심 셋업입니다.
+  피벗(직전 고점)을 <strong>거래량과 함께 돌파</strong>하는 순간이 매수 시점입니다. 이 표는 그 형성부터 돌파까지 자동으로 추적합니다.
 </p>
 {% endblock %}

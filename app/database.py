@@ -30,7 +30,13 @@ def init_db():
     # 이게 없으면 vcp_pivot 없는 DB에서 ScreeningResult 쿼리가 'no such column'으로 깨진다.
     if db_url.startswith("sqlite"):
         migrations = {
-            "screening_results": {"vcp_pivot": "FLOAT", "accum_days": "INTEGER", "distrib_days": "INTEGER"},
+            "screening_results": {"vcp_pivot": "FLOAT", "accum_days": "INTEGER", "distrib_days": "INTEGER",
+                                   "ud_volume_ratio": "FLOAT", "dryup_ratio": "FLOAT",
+                                   "vcp_base_low": "FLOAT", "vcp_base_high": "FLOAT",
+                                   "vcp_last_contraction": "FLOAT"},
+            "vcp_events": {"base_low": "FLOAT", "base_high": "FLOAT", "base_seq": "INTEGER DEFAULT 1",
+                           "quality": "INTEGER", "peak_quality": "INTEGER", "trend_grace": "INTEGER DEFAULT 0",
+                           "alert_formed_at": "DATETIME", "alert_breakout_at": "DATETIME"},
             "stocks": {"eps_rev_up": "INTEGER", "eps_rev_down": "INTEGER", "eps_est_chg": "FLOAT"},
         }
         with engine.connect() as conn:

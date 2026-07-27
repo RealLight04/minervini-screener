@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, Request, Form
+from fastapi import APIRouter, Depends, Request, Form, Header, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -8,19 +8,20 @@ from app import alerts as alerts_mod
 from app.database import get_db
 from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
 from app.screener import SIGNAL_LABELS, build_trade_plan, compute_market_breadth
+from config import settings
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 # 템플릿에서 신호 한국어 라벨/색상 사용
 SIGNAL_COLORS = {
-    "STRONG_BUY": {"light": "#166534", "dark": "#22c55e"},
-    "BUY": {"light": "#15803d", "dark": "#4ade80"},
-    "WATCH": {"light": "#52514e", "dark": "#8b96a8"},
-    "SELL": {"light": "#c2410c", "dark": "#fb923c"},
-    "AVOID": {"light": "#898781", "dark": "#596177"},
+    "STRONG_BUY": {"light": "#089981", "dark": "#26a69a"},
+    "BUY": {"light": "#0d7d6c", "dark": "#4caf9e"},
+    "WATCH": {"light": "#787b86", "dark": "#787b86"},
+    "SELL": {"light": "#fb8c00", "dark": "#ffa726"},
+    "AVOID": {"light": "#9598a1", "dark": "#5d606b"},
 }
-SIGNAL_COLOR_DEFAULT = {"light": "#52514e", "dark": "#8b96a8"}
+SIGNAL_COLOR_DEFAULT = {"light": "#787b86", "dark": "#787b86"}
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
 templates.env.globals["signal_colors"] = SIGNAL_COLORS
 templates.env.globals["signal_color_default"] = SIGNAL_COLOR_DEFAULT
@@ -74,30 +75,124 @@ def fmt_turnover(avg_volume, close, market: str = "US") -> str:
     return f"{val:,.0f}원"
 
 
+def heat_bg(pct: float, positive: bool = True) -> str:
+    """0~100 강도 → 초록/빨강 계열 배경색(color-mix). 라이트/다크 모드에 자동 대응(--green/--red/--surface 재사용)."""
+    pct = max(0.0, min(100.0, pct))
+    color_var = "var(--green)" if positive else "var(--red)"
+    alpha = 6 + pct * 0.30
+    return f"color-mix(in srgb, {color_var} {alpha:.0f}%, var(--surface))"
+
+
+def rs_heat(rs) -> str | None:
+    """RS 순위(0~99, 클수록 강세) → 히트맵 배경색. 50 이하는 무색, 99에서 최대 강도."""
+    if rs is None:
+        return None
+    pct = max(0.0, rs - 50) / 49 * 100
+    return heat_bg(pct, positive=True)
+
+
+# 회사 로고 API 없이(신규 외부 의존성/ToS 리스크 회피) 티커별로 고정된 이니셜 아바타 색상 부여.
+_AVATAR_PALETTE = [
+    "#5b7a9e", "#7a8a5b", "#9e6b5b", "#6b5b9e",
+    "#5b9e8f", "#9e5b7a", "#8a7a5b", "#5b7a7a",
+]
+
+
+def ticker_avatar(ticker: str) -> dict:
+    """티커 → 이니셜 아바타(이니셜 1~2자 + 결정론적 배경색). 실제 로고 없이 가벼운 행 식별자."""
+    base = ticker.split(".")[0]  # 한국 티커의 .KS/.KQ 접미사 제거
+    initials = base[:2].upper() if len(base) >= 2 else base.upper()
+    idx = sum(ord(c) for c in base) % len(_AVATAR_PALETTE)
+    return {"initials": initials, "color": _AVATAR_PALETTE[idx]}
+
+
+def ret_heat(ret) -> str | None:
+    """돌파 후 수익률(%) → 히트맵 배경색. +25%/-15%에서 최대 강도."""
+    if ret is None:
+        return None
+    if ret >= 0:
+        return heat_bg(min(100.0, ret / 25 * 100), positive=True)
+    return heat_bg(min(100.0, abs(ret) / 15 * 100), positive=False)
+
+
+def growth_heat(value, good) -> str | None:
+    """분기 성장률(%) → good 임계값 대비 강도의 히트맵 배경색(임계값 도달 시 최대 강도)."""
+    if value is None or not good:
+        return None
+    if value >= 0:
+        return heat_bg(min(100.0, value / good * 100), positive=True)
+    return heat_bg(min(100.0, abs(value) / good * 100), positive=False)
+
+
+def vol_heat(v) -> str | None:
+    """거래량 배수(50일 평균 대비) → '많음' 구간(1.4x~) 강도 히트맵. 1.4x=옅게, 3.0x+=진하게."""
+    if v is None or v < 1.4:
+        return None
+    pct = min(100.0, (v - 1.4) / 1.6 * 100)
+    return heat_bg(pct, positive=True)
+
+
 def ad_interpret(accum, distrib) -> dict:
     """최근 25일 매집(accum)/분산(distrib) 일수 → 해석. 미너비니: 대량거래일의 방향이 기관 의중.
 
     매집일 = 대량거래 + 상승 마감(기관이 사들인 흔적)
     분산일 = 대량거래 + 하락 마감(기관이 판 흔적)
     """
-    GRAY = {"light": "#52514e", "dark": "#8b96a8"}
-    GREEN = {"light": "#15803d", "dark": "#4ade80"}
-    RED = {"light": "#b91c1c", "dark": "#f87171"}
+    GRAY = {"light": "#787b86", "dark": "#787b86"}
+    GREEN = {"light": "#089981", "dark": "#26a69a"}
+    RED = {"light": "#f23645", "dark": "#ef5350"}
     a, d = accum or 0, distrib or 0
     if a == 0 and d == 0:
         return {"verdict": "자료 부족", "color": GRAY, "accum": a, "distrib": d,
                 "note": "대량거래일이 뚜렷하지 않습니다."}
     if d >= 5 and d >= a:
         return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
-                "note": "대량 하락일이 많습니다 — 기관 매도 흔적. 신규 매수 신중, 보유 시 경계하세요."}
+                "note": "대량 하락일이 많습니다 → 기관 매도 흔적. 신규 매수 신중, 보유 시 경계하세요."}
     if a >= d + 2:
         return {"verdict": "매집 우세", "color": GREEN, "accum": a, "distrib": d,
-                "note": "대량 상승일 우세 — 기관 매수 흔적(건강), 미너비니 선호 패턴."}
+                "note": "대량 상승일 우세 → 기관 매수 흔적(건강), 미너비니 선호 패턴."}
     if d >= a + 2:
         return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
-                "note": "대량 하락일 우세 — 기관 매도 압력, 추세 약화 주의."}
+                "note": "대량 하락일 우세 → 기관 매도 압력, 추세 약화 주의."}
     return {"verdict": "중립", "color": GRAY, "accum": a, "distrib": d,
-            "note": "매집·분산이 팽팽합니다 — 대량거래 동반 돌파를 기다리세요."}
+            "note": "매집·분산이 팽팽합니다 → 대량거래 동반 돌파를 기다리세요."}
+
+
+def ud_interpret(ratio) -> dict | None:
+    """U/D 거래량 비율(50일 상승일 거래량합÷하락일 거래량합) 해석.
+
+    IBD·미너비니가 쓰는 표준 매집/분산 지표. 단순 일수 카운트와 달리 거래 '규모'까지
+    담아, >1이면 상승에 힘이 실린(매집) 상태, <1이면 하락에 물량이 나온(분산) 상태.
+    """
+    if ratio is None:
+        return None
+    GRAY = {"light": "#787b86", "dark": "#787b86"}
+    GREEN = {"light": "#089981", "dark": "#26a69a"}
+    RED = {"light": "#f23645", "dark": "#ef5350"}
+    if ratio >= 1.5:
+        return {"verdict": "강한 매집", "color": GREEN, "ratio": ratio,
+                "note": "상승일 거래량이 하락일의 1.5배 이상 → 기관이 적극적으로 사들이는 중(강력)."}
+    if ratio >= 1.0:
+        return {"verdict": "매집 우위", "color": GREEN, "ratio": ratio,
+                "note": "상승일 거래량이 더 많음 → 수급이 매수 쪽(건강)."}
+    if ratio >= 0.8:
+        return {"verdict": "중립", "color": GRAY, "ratio": ratio,
+                "note": "상승·하락 거래량이 비슷 → 방향성이 아직 약합니다."}
+    return {"verdict": "분산 우위", "color": RED, "ratio": ratio,
+            "note": "하락일 거래량이 더 많음 → 매물 출회(기관 매도 흔적), 신규 매수 신중."}
+
+
+def dryup_note(ratio) -> str:
+    """dry-up 비율(최근10일/50일 평균)을 말로. 낮을수록 매물 고갈."""
+    if ratio is None:
+        return ""
+    if ratio <= 0.6:
+        return f"거래량이 크게 말랐습니다({ratio:.2f}x) — 매물 거의 소진"
+    if ratio <= 0.85:
+        return f"거래량이 마르는 중({ratio:.2f}x) — 매도세 고갈"
+    if ratio <= 1.1:
+        return f"거래량 보통({ratio:.2f}x)"
+    return f"거래량이 늘고 있음({ratio:.2f}x)"
 
 
 def volume_verdict(r) -> dict:
@@ -111,10 +206,10 @@ def volume_verdict(r) -> dict:
     close, ma50, ma200 = r.close, r.ma50, r.ma200
     pivot = r.vcp_pivot or r.pivot_price
 
-    GOOD = ("good", {"light": "#15803d", "dark": "#4ade80"}, "🟢")
-    WATCH = ("watch", {"light": "#b45309", "dark": "#fbbf24"}, "🟡")
-    BAD = ("bad", {"light": "#b91c1c", "dark": "#f87171"}, "🔴")
-    NEU = ("neutral", {"light": "#52514e", "dark": "#8b96a8"}, "⚪")
+    GOOD = ("good", {"light": "#089981", "dark": "#26a69a"}, "🟢")
+    WATCH = ("watch", {"light": "#fb8c00", "dark": "#ffa726"}, "🟡")
+    BAD = ("bad", {"light": "#f23645", "dark": "#ef5350"}, "🔴")
+    NEU = ("neutral", {"light": "#787b86", "dark": "#787b86"}, "⚪")
 
     def mk(t, headline, detail):
         return {"status": t[0], "color": t[1], "icon": t[2], "headline": headline, "detail": detail}
@@ -134,39 +229,55 @@ def volume_verdict(r) -> dict:
 
     if phase == "breakout":
         if v >= 1.4:
-            return mk(GOOD, "돌파 거래량 확인 — 좋음",
-                      f"피벗 돌파에 대량거래({v:.1f}x) 동반 — 신뢰도 높은 돌파.")
+            return mk(GOOD, "돌파 거래량 확인 → 좋음",
+                      f"피벗 돌파에 대량거래({v:.1f}x) 동반 → 신뢰도 높은 돌파.")
         if v < 1.0:
-            return mk(WATCH, "거래량 없는 돌파 — 주의",
-                      f"돌파했지만 거래량이 평균 이하({v:.1f}x) — 가짜 돌파 가능성, 거래 확대 확인.")
+            return mk(WATCH, "거래량 없는 돌파 → 주의",
+                      f"돌파했지만 거래량이 평균 이하({v:.1f}x) → 가짜 돌파 가능성, 거래 확대 확인.")
         return mk(WATCH, "돌파 거래량 보통",
-                  f"거래량 {v:.1f}x — 평균 +40% 이상으로 늘면 신뢰도↑.")
+                  f"거래량 {v:.1f}x → 평균 +40% 이상으로 늘면 신뢰도↑.")
+
+    ud = r.ud_volume_ratio
+    dry = r.dryup_ratio
 
     if phase == "base":
-        if r.vcp_volume_dryup or v < 0.85:
-            return mk(GOOD, "거래량 마름 — 돌파 준비(좋음)",
-                      f"베이스에서 거래량 마름({v:.1f}x) — 매물 고갈, 미너비니가 원하는 VCP 상태.")
+        if r.vcp_volume_dryup or (dry is not None and dry < 0.85) or v < 0.85:
+            grade = f"{dry:.2f}x" if dry is not None else f"{v:.1f}x"
+            return mk(GOOD, "거래량 마름 → 돌파 준비(좋음)",
+                      f"베이스에서 거래량 마름({grade}) → 매물 고갈, 미너비니가 원하는 VCP 상태.")
+        if ud is not None and ud < 0.8:
+            return mk(WATCH, "베이스 대량 분산 → 주의",
+                      f"쉬는 구간에 하락 거래량 우세(U/D {ud}) → 매물 출회 주의.")
         if v >= 1.4 and d >= a:
-            return mk(WATCH, "베이스 대량 분산 — 주의",
-                      f"쉬는 구간에 대량거래({v:.1f}x)+분산일 다수 — 매물 출회 주의.")
+            return mk(WATCH, "베이스 대량 분산 → 주의",
+                      f"쉬는 구간에 대량거래({v:.1f}x)+분산일 다수 → 매물 출회 주의.")
         return mk(NEU, "베이스 형성 중", "거래량이 마르는지(dry-up) 지켜보세요.")
 
     if phase == "downtrend":
         if d >= a + 2 or d >= 5:
-            return mk(BAD, "하락 + 분산 — 경계",
-                      f"기관 매도 흔적(분산 {d} vs 매집 {a}) — 신규 매수 금물, 보유 시 방어.")
+            return mk(BAD, "하락 + 분산 → 경계",
+                      f"기관 매도 흔적(분산 {d} vs 매집 {a}) → 신규 매수 금물, 보유 시 방어.")
         if v < 0.85:
-            return mk(WATCH, "하락하나 거래 한산", "투매는 아니나 추세 약함 — 관망.")
-        return mk(WATCH, "추세 약화 구간", "50일선 아래 — 매집/분산 방향 주시.")
+            return mk(WATCH, "하락하나 거래 한산", "투매는 아니나 추세 약함 → 관망.")
+        return mk(WATCH, "추세 약화 구간", "50일선 아래 → 매집/분산 방향 주시.")
 
-    # uptrend
+    # uptrend — U/D 비율을 우선 사용(규모까지 반영), 없으면 매집/분산 일수로 폴백
+    if ud is not None:
+        if ud >= 1.25:
+            return mk(GOOD, "상승 + 매집 우세 → 건강",
+                      f"U/D 거래량 {ud} → 상승에 힘이 실림(기관 매수).")
+        if ud < 0.8:
+            return mk(BAD, "상승하나 분산 → 주의",
+                      f"U/D 거래량 {ud} → 하락에 물량 출회, 추세 약화 가능.")
+        return mk(NEU, "상승 추세 · 균형",
+                  f"U/D 거래량 {ud} → 방향성 뚜렷하지 않음, 돌파 시 거래량 확대 확인.")
     if a >= d + 2:
-        return mk(GOOD, "상승 + 매집 우세 — 건강",
-                  f"매집({a})이 분산({d})보다 우세 — 기관 매수 중.")
+        return mk(GOOD, "상승 + 매집 우세 → 건강",
+                  f"매집({a})이 분산({d})보다 우세 → 기관 매수 중.")
     if d >= a + 2 or d >= 5:
-        return mk(BAD, "상승하나 분산 누적 — 주의",
-                  f"대량 하락일(분산 {d}) 누적 — 기관 이탈 가능성.")
-    return mk(NEU, "상승 추세 · 균형", "매집·분산이 팽팽 — 돌파 시 거래량 확대 확인.")
+        return mk(BAD, "상승하나 분산 누적 → 주의",
+                  f"대량 하락일(분산 {d}) 누적 → 기관 이탈 가능성.")
+    return mk(NEU, "상승 추세 · 균형", "매집·분산이 팽팽 → 돌파 시 거래량 확대 확인.")
 
 
 def est_revision(up, down, chg) -> dict | None:
@@ -182,10 +293,10 @@ def est_revision(up, down, chg) -> dict | None:
         parts.append(f"연간EPS 추정 {'+' if chg >= 0 else ''}{chg}%")
     note = " · ".join(parts) if parts else "데이터 부족"
     if net >= 3 or (chg is not None and chg >= 3 and net >= 0):
-        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#15803d", "dark": "#4ade80"}, "note": note, "good": True}
+        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#089981", "dark": "#26a69a"}, "note": note, "good": True}
     if net <= -3 or (chg is not None and chg <= -3):
-        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#b91c1c", "dark": "#f87171"}, "note": note, "good": False}
-    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#52514e", "dark": "#8b96a8"}, "note": note, "good": None}
+        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#f23645", "dark": "#ef5350"}, "note": note, "good": False}
+    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#787b86", "dark": "#787b86"}, "note": note, "good": None}
 
 
 templates.env.globals["fmt_price"] = fmt_price
@@ -193,6 +304,13 @@ templates.env.globals["fmt_amount"] = fmt_amount
 templates.env.globals["tv_url"] = tv_url
 templates.env.globals["fmt_turnover"] = fmt_turnover
 templates.env.globals["ad_interpret"] = ad_interpret
+templates.env.globals["ud_interpret"] = ud_interpret
+templates.env.globals["dryup_note"] = dryup_note
+templates.env.globals["rs_heat"] = rs_heat
+templates.env.globals["ret_heat"] = ret_heat
+templates.env.globals["growth_heat"] = growth_heat
+templates.env.globals["vol_heat"] = vol_heat
+templates.env.globals["ticker_avatar"] = ticker_avatar
 templates.env.globals["volume_verdict"] = volume_verdict
 templates.env.globals["est_revision"] = est_revision
 templates.env.globals["market_labels"] = MARKET_LABELS
@@ -355,6 +473,26 @@ def search(ticker: str = "", db: Session = Depends(get_db)):
     return RedirectResponse(url=f"/stock/{ticker.strip().upper()}", status_code=302)
 
 
+@router.get("/api/search-tickers")
+def search_tickers(q: str = "", db: Session = Depends(get_db)):
+    """커맨드 팔레트(⌘K)용 실시간 티커 검색 — 티커/회사명 부분일치, 최대 20개."""
+    q = q.strip()
+    if not q:
+        return {"results": []}
+    like = f"%{q}%"
+    stocks = (
+        db.query(Stock)
+        .filter((Stock.ticker.ilike(like)) | (Stock.name.ilike(like)))
+        .order_by(Stock.ticker)
+        .limit(20)
+        .all()
+    )
+    return {"results": [
+        {"ticker": s.ticker, "name": s.name or "", "market": s.market}
+        for s in stocks
+    ]}
+
+
 @router.get("/stock/{ticker}", response_class=HTMLResponse)
 def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
     stock = db.query(Stock).filter(Stock.ticker == ticker.upper()).first()
@@ -493,17 +631,16 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/api/screen-now")
-def trigger_screen(db: Session = Depends(get_db)):
-    """수동 스크리닝 트리거 (개발/테스트용)"""
+def trigger_screen(db: Session = Depends(get_db), x_admin_token: str = Header(default="")):
+    """수동 스크리닝 트리거 (관리자 전용) — ADMIN_TRIGGER_TOKEN 헤더가 일치해야 동작.
+    미설정/불일치 시 404로 존재 자체를 감춤 (공개 Funnel에서 무단 재계산 방지)."""
+    import hmac
+    expected = settings.ADMIN_TRIGGER_TOKEN
+    if not expected or not hmac.compare_digest(x_admin_token, expected):
+        raise HTTPException(status_code=404)
     from app.screener import run_daily_screen
     passed = run_daily_screen(db)
     return {"status": "ok", "passed": passed, "date": str(date.today())}
-
-
-@router.get("/watchlist", response_class=HTMLResponse)
-def watchlist(request: Request):
-    """관심종목 페이지 (목록은 브라우저 localStorage에 저장 → JS가 채움)"""
-    return templates.TemplateResponse(request, "watchlist.html", context={})
 
 
 @router.get("/alerts", response_class=HTMLResponse)
@@ -525,10 +662,15 @@ def alerts_subscribe(email: str = Form(...), market: str = Form("US")):
     token, already = alerts_mod.add_subscriber(email, market if market in MARKETS else "US")
     if already:
         return RedirectResponse("/alerts?ok=이미 구독 중입니다", status_code=303)
+    ok_redirect = RedirectResponse("/alerts?ok=확인 메일을 보냈습니다 — 메일함에서 '구독 확정'을 눌러주세요", status_code=303)
+    if alerts_mod.recently_sent(email):
+        # 짧은 간격의 반복 요청은 재발송만 억제(이메일 폭탄 방지) — 열거 방지 위해 응답은 동일하게
+        return ok_redirect
     sent, msg = alerts_mod.send_confirmation(email, token)
     if not sent:
         return RedirectResponse(f"/alerts?err=확인메일 발송 실패 ({msg[:50]})", status_code=303)
-    return RedirectResponse("/alerts?ok=확인 메일을 보냈습니다 — 메일함에서 '구독 확정'을 눌러주세요", status_code=303)
+    alerts_mod.mark_sent(email)
+    return ok_redirect
 
 
 @router.get("/alerts/confirm", response_class=HTMLResponse)
@@ -556,12 +698,12 @@ def vcp_page(request: Request, db: Session = Depends(get_db)):
     def _days(a, b):
         return (a - b).days if (a and b) else None
 
-    # 형성 중 — RS 강한 순
+    # 형성 중(+돌파 임박 대기) — 품질 강한 순
     forming = (
         db.query(VCPEvent, Stock)
         .join(Stock, Stock.id == VCPEvent.stock_id)
-        .filter(VCPEvent.status == "forming")
-        .order_by(VCPEvent.rs_rank.desc())
+        .filter(VCPEvent.status.in_(["forming", "breakout_watch"]))
+        .order_by(VCPEvent.quality.desc().nullslast(), VCPEvent.rs_rank.desc())
         .all()
     )
     forming_rows = []
@@ -569,7 +711,8 @@ def vcp_page(request: Request, db: Session = Depends(get_db)):
         gap = (round((ev.pivot_price / ev.close - 1) * 100, 1)
                if (ev.pivot_price and ev.close and ev.close < ev.pivot_price) else None)
         forming_rows.append({"ev": ev, "stock": s, "market": s.market or "US",
-                             "days": _days(latest, ev.first_detected), "gap": gap})
+                             "days": _days(latest, ev.first_detected), "gap": gap,
+                             "watching": ev.status == "breakout_watch"})
 
     # 최근 30일 돌파 — 돌파 후 성과(현재가 대비)까지
     broke = (
@@ -591,46 +734,14 @@ def vcp_page(request: Request, db: Session = Depends(get_db)):
                            "base_days": _days(ev.breakout_date, ev.first_detected),
                            "cur_close": cur_close, "ret": ret})
 
+    # 형성중→돌파 시각적 연결: 두 표 모두 같은 스파크라인 언어로 종목의 흐름을 보여줌
+    all_stock_ids = [s.id for _, s in forming] + [s.id for _, s in broke]
+    sparklines = _fetch_sparklines(db, all_stock_ids)
+
     return templates.TemplateResponse(request, "vcp.html", context={
         "forming": forming_rows, "broke": broke_rows, "screen_date": latest,
+        "sparklines": sparklines,
     })
-
-
-@router.get("/api/quote")
-def quote(tickers: str = "", db: Session = Depends(get_db)):
-    """관심종목용 요약: 콤마구분 티커들의 신호/현재가/RS/피벗."""
-    tks = [t.strip().upper() for t in tickers.split(",") if t.strip()]
-    if not tks:
-        return []
-    stocks = db.query(Stock).filter(Stock.ticker.in_(tks)).all()
-    out = []
-    for s in stocks:
-        r = (
-            db.query(ScreeningResult)
-            .filter(ScreeningResult.stock_id == s.id)
-            .order_by(ScreeningResult.screen_date.desc())
-            .first()
-        )
-        mkt = s.market or "US"
-        gap = None
-        if r and r.pivot_price and r.close and r.close < r.pivot_price:
-            gap = round((r.pivot_price / r.close - 1) * 100, 1)
-        out.append({
-            "ticker": s.ticker,
-            "name": s.name,
-            "market": mkt,
-            "currency": "$" if mkt == "US" else "₩",
-            "signal": r.signal if r else None,
-            "signal_label": SIGNAL_LABELS.get(r.signal, r.signal) if (r and r.signal) else "-",
-            "signal_color": SIGNAL_COLORS.get(r.signal, SIGNAL_COLOR_DEFAULT) if (r and r.signal) else SIGNAL_COLOR_DEFAULT,
-            "close": r.close if r else None,
-            "rs_rank": round(r.rs_rank) if (r and r.rs_rank is not None) else None,
-            "pivot": r.pivot_price if r else None,
-            "gap_to_pivot": gap,
-        })
-    order = {t: i for i, t in enumerate(tks)}
-    out.sort(key=lambda x: order.get(x["ticker"], 999))
-    return out
 
 
 @router.get("/api/chart/{ticker}")
