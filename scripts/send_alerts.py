@@ -61,11 +61,27 @@ def _list_html(rows, kind, base):
     return f"<ul style='padding-left:18px; margin:6px 0 0;'>{items}</ul>"
 
 
-def _vcp_formations(db, latest):
+def _bear_markets(db, latest) -> set:
+    """약세장(BEAR) 판정 시장 집합 — 앱의 regime 게이트와 정합되게 알림도 보류.
+
+    형성 알림은 워터마크를 남기지 않으므로(발송 안 함) 시장이 회복되고 베이스가
+    여전히 유효하면 그때 발송된다. 돌파 알림은 breakout_date==latest만 대상이라
+    약세장 날짜가 지나면 자연 소멸(뒤늦은 스테일 알림 없음).
+    """
+    from app.screener import compute_market_breadth
+    bears = set()
+    for mk in ("US", "KOSPI", "KOSDAQ"):
+        b = compute_market_breadth(db, latest, market=mk)
+        if b.get("available") and b.get("regime") == "BEAR":
+            bears.add(mk)
+    return bears
+
+
+def _vcp_formations(db, latest, bears: set):
     """알림 대상 '새 VCP 형성' 이벤트 — alert_formed_at 워터마크로 이벤트당 정확히 1회.
 
     품질(≥VCP_QUALITY_ALERT)·후행베이스 아님(base_seq<3)·최소 형성기간(≥VCP_ALERT_MIN_BASE_DAYS)을
-    충족하고 아직 알림을 안 보낸(forming) 이벤트만. 워터마크라 US/KR 분할 런에도 중복/누락 0.
+    충족하고 아직 알림을 안 보낸(forming) 이벤트만. 약세장 시장은 보류(추적은 유지).
     """
     from app.models import VCPEvent
     rows = (db.query(VCPEvent, Stock)
@@ -77,7 +93,41 @@ def _vcp_formations(db, latest):
             .order_by(VCPEvent.quality.desc())
             .all())
     return [(ev, s) for ev, s in rows
-            if (latest - ev.first_detected).days >= settings.VCP_ALERT_MIN_BASE_DAYS]
+            if (s.market or "US") not in bears
+            and (latest - ev.first_detected).days >= settings.VCP_ALERT_MIN_BASE_DAYS]
+
+
+def _vcp_breakouts(db, latest, bears: set):
+    """알림 대상 'VCP 돌파 확정' 이벤트 — alert_breakout_at 워터마크로 이벤트당 정확히 1회.
+
+    시그널 diff(STRONG_BUY)와 별개로 레지스트리의 broke_out을 직접 본다 — 저거래량으로
+    N일 버텨 확정된 느린 돌파(held_long)는 STRONG_BUY가 아닐 수 있어 diff에서 빠지기 때문.
+    오늘 돌파(breakout_date==latest)만 대상: 약세장 등으로 건너뛴 돌파는 날짜가 지나면
+    자연 소멸해 뒤늦은 스테일 알림이 나가지 않는다.
+    """
+    from app.models import VCPEvent
+    rows = (db.query(VCPEvent, Stock)
+            .join(Stock, Stock.id == VCPEvent.stock_id)
+            .filter(VCPEvent.status == "broke_out",
+                    VCPEvent.breakout_date == latest,
+                    VCPEvent.alert_breakout_at.is_(None))
+            .order_by(VCPEvent.quality.desc())
+            .all())
+    return [(ev, s) for ev, s in rows if (s.market or "US") not in bears]
+
+
+def _vcp_bo_list_html(rows, base):
+    if not rows:
+        return "<p style='color:#64748b; margin:4px 0 0;'>해당 없음</p>"
+    items = ""
+    for ev, s in rows:
+        mk = s.market or "US"
+        rs_s = f"{int(ev.rs_rank)}" if ev.rs_rank is not None else "-"
+        items += (f"<li style='margin:0 0 7px;'>"
+                  f"<a href='{base}/stock/{s.ticker}' style='color:#2563eb; font-weight:700; text-decoration:none;'>{s.ticker}</a> "
+                  f"<span style='color:#334155;'>{s.name or ''}</span> — 돌파가 {_fmt(ev.breakout_price, mk)} "
+                  f"(피벗 {_fmt(ev.pivot_price, mk)}) · 손절 {_fmt(ev.stop_loss, mk)} · 품질 {ev.quality} · RS {rs_s}</li>")
+    return f"<ul style='padding-left:18px; margin:6px 0 0;'>{items}</ul>"
 
 
 def _vcp_list_html(rows, base):
@@ -96,9 +146,12 @@ def _vcp_list_html(rows, base):
     return f"<ul style='padding-left:18px; margin:6px 0 0;'>{items}</ul>"
 
 
-def _build_html(date_, mk, br, sl, vcp, token):
+def _build_html(date_, mk, br, sl, vcp, vbo, token):
     base = settings.ALERT_BASE_URL
     unsub = f"{base}/alerts/unsubscribe?token={token}"
+    vbo_section = (f"""
+      <h3 style="color:#0d9488; margin:20px 0 2px;">🔔 VCP 돌파 확정 ({len(vbo)})</h3>
+      {_vcp_bo_list_html(vbo, base)}""" if vbo else "")
     return f"""
     <div style="font-family:sans-serif; max-width:600px; margin:auto; color:#0f172a;">
       <h2 style="color:#2563eb; margin-bottom:2px;">📈 {MARKET_LABEL.get(mk, mk)} 매매 신호 · {date_}</h2>
@@ -106,6 +159,7 @@ def _build_html(date_, mk, br, sl, vcp, token):
 
       <h3 style="color:#16a34a; margin-bottom:2px;">🚀 새로 돌파한 종목 ({len(br)})</h3>
       {_list_html(br, "br", base)}
+      {vbo_section}
 
       <h3 style="color:#7c3aed; margin:20px 0 2px;">🌱 새 VCP 형성 · 돌파 대기 ({len(vcp)})</h3>
       {_vcp_list_html(vcp, base)}
@@ -145,8 +199,13 @@ def main():
             br_ids -= _ids(db, prev, ["STRONG_BUY"])
             sl_ids -= _ids(db, prev, ["SELL"])
         breakouts, sells = _details(db, latest, br_ids), _details(db, latest, sl_ids)
-        vcp_all = _vcp_formations(db, latest)
-        log.info(f"{latest}: 새 돌파 {len(breakouts)}, 새 VCP형성 {len(vcp_all)}, 새 매도 {len(sells)}")
+        bears = _bear_markets(db, latest)
+        if bears:
+            log.info(f"약세장 시장 {sorted(bears)} — VCP 형성/돌파 알림 보류")
+        vcp_all = _vcp_formations(db, latest, bears)
+        vbo_all = _vcp_breakouts(db, latest, bears)
+        log.info(f"{latest}: 새 돌파 {len(breakouts)}, VCP돌파 {len(vbo_all)}, "
+                 f"새 VCP형성 {len(vcp_all)}, 새 매도 {len(sells)}")
 
         # 시장별 가드: 하루에 시장별 런이 따로 돈다(한국 15:50 KST, 미국 새벽 KST).
         # 한국 런 시점엔 미국 데이터가 아직 전일이라 미국 diff가 비어 있고, 이때 날짜 전체를
@@ -158,29 +217,43 @@ def main():
             mk_subs = [s for s in subs if s["market"] == mk]
             if not mk_subs:
                 continue          # 이 시장 구독자 없음 — 발송/워터마크 표시 안 함
-            # 돌파·매도는 시장별 date-lock으로 하루 1회. VCP 형성은 워터마크로 독립 발송.
+            # 돌파·매도는 시장별 date-lock으로 하루 1회. VCP 형성/돌파는 워터마크로 독립 발송.
             locked = A.get_meta(f"last_notified_{mk}") == str(latest)
             br = [] if locked else [r for r in breakouts if (r[2] or "US") == mk]
             sl = [] if locked else [r for r in sells if (r[2] or "US") == mk]
             vcp = [(ev, s) for ev, s in vcp_all if (s.market or "US") == mk]
-            if not br and not sl and not vcp:
+            # 시그널 diff(STRONG_BUY)와 레지스트리 돌파가 같은 종목이면 한 번만(diff 우선)
+            br_tickers = {row[0] for row in br}
+            vbo = [(ev, s) for ev, s in vbo_all
+                   if (s.market or "US") == mk and s.ticker not in br_tickers]
+            if not br and not sl and not vcp and not vbo:
                 continue          # 이 시장에 새 소식 없음 — 잠그지 않고 다음 갱신을 기다림
+            sent_mk = 0
             for sub in mk_subs:
-                subject = f"[Minervini] {MARKET_LABEL.get(mk, mk)} 돌파 {len(br)}·VCP형성 {len(vcp)}·매도 {len(sl)} ({latest})"
-                ok, msg = A.send_email(sub["email"], subject, _build_html(latest, mk, br, sl, vcp, sub["token"]))
+                subject = (f"[Minervini] {MARKET_LABEL.get(mk, mk)} 돌파 {len(br) + len(vbo)}"
+                           f"·VCP형성 {len(vcp)}·매도 {len(sl)} ({latest})")
+                ok, msg = A.send_email(sub["email"], subject,
+                                       _build_html(latest, mk, br, sl, vcp, vbo, sub["token"]))
                 if ok:
                     sent += 1
+                    sent_mk += 1
                 else:
                     log.warning(f"{sub['email']} 발송 실패: {msg}")
-            # VCP 형성 워터마크: 이 시장 이벤트를 발송 완료로 표시(이벤트당 정확히 1회)
+            if not sent_mk:
+                # 전원 발송 실패(SMTP 장애 등) → 워터마크/잠금을 남기지 않아 다음 런에서 재시도
+                log.warning(f"{mk}: 발송 전원 실패 — 워터마크·잠금 보류(다음 런 재시도)")
+                continue
+            # 워터마크: 실제로 나간 이벤트만 발송 완료로 표시(이벤트당 정확히 1회)
             now = datetime.utcnow()
             for ev, _ in vcp:
                 ev.alert_formed_at = now
+            for ev, _ in vbo:
+                ev.alert_breakout_at = now
             db.commit()
             # 돌파/매도 date-lock은 실제 그 신호를 포함했을 때만 설정
             if br or sl:
                 A.set_meta(f"last_notified_{mk}", str(latest))
-            log.info(f"{mk}: 돌파 {len(br)}·VCP형성 {len(vcp)}·매도 {len(sl)} → 발송({latest})")
+            log.info(f"{mk}: 돌파 {len(br)}+VCP돌파 {len(vbo)}·VCP형성 {len(vcp)}·매도 {len(sl)} → 발송({latest})")
 
         log.info(f"발송 완료: {sent}명")
         return 0

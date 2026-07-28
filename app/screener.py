@@ -779,8 +779,18 @@ def update_vcp_registry(db: Session, screen_date: date) -> dict:
         #    피벗 위에서 N일 버티면(느린 돌파) 돌파로 확정해 무한 대기/유실을 막는다.
         if ev and ev.pivot_price and r.close and r.close >= ev.pivot_price:
             vol_ok = (r.vol_vs_avg or 0) >= breakout_vol
-            held_long = (ev.status == "breakout_watch"
-                         and (screen_date - ev.last_detected).days >= breakout_watch_days)
+            held_long = False
+            if ev.status == "breakout_watch":
+                # 달력일이 아닌 '거래일'로 센다 — 금요일 진입 후 월요일이 3달력일이어도
+                # 거래일론 1일뿐. 해당 종목의 일봉 존재일수가 곧 거래일수(휴장 자동 제외).
+                held_days = (
+                    db.query(DailyPrice)
+                    .filter(DailyPrice.stock_id == r.stock_id,
+                            DailyPrice.date > ev.last_detected,
+                            DailyPrice.date <= screen_date)
+                    .count()
+                )
+                held_long = held_days >= breakout_watch_days
             if vol_ok or held_long:
                 ev.status = "broke_out"
                 ev.breakout_date = screen_date
