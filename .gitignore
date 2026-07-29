@@ -16,3 +16,5 @@ backtest_results.csv
 alerts.db
 # 서버·재시작 로그 (재생성 가능)
 *.log
+# 연구용 생성 데이터 (재생성 가능, 대용량) — 스크립트만 커밋
+scripts/research/data/

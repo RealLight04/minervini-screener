@@ -381,5 +381,9 @@ Gotchas에도 기록). 이 venv를 다시 만들 일이 있으면(새 PC 등) �
 과적합 위험이 있다. 같은 과거 데이터로 재백테스트하면 표본이 같아 의미 없음. 대신 레지스트리
 (`vcp_events`)가 지금부터 실제 forming→broke_out/failed 결과를 자동 누적하므로, **몇 달 뒤
 (대략 2026-10 이후) 그 실제 결과에 v2 점수식을 대입해 "고점수 셋업이 실제로 더 잘 됐는지"를
-표본외로 확인**한 뒤 적용 여부를 결정한다. 검증 스크립트 초안: scratchpad의 `vcp_bull_volume.py`
-(구간 분석 로직 재사용 가능).
+표본외로 확인**한 뒤 적용 여부를 결정한다.
+
+**관련 스크립트(리포에 영구 보존):** `scripts/research/` — `pull_history.py`(장기 가격 수집),
+`vcp_volume_backtest.py`(구간 분석), `README.md`(실행법·결론·후속 검증 계획). 생성 데이터
+(`scripts/research/data/`)는 gitignore이므로 `pull_history.py`로 재생성해서 쓴다.
+(원 분석은 세션 스크래치에서 진행했고, 재현용 스크립트를 이 폴더로 옮겨 보존했다.)
