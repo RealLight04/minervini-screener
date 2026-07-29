@@ -349,3 +349,37 @@ schtasks /create /tn "MinerviniScreenerStartup" /tr "C:\Users\<사용자>\Deskto
 `local_refresh.py --mode kr`을 처음 실행했을 때 `FinanceDataReader 미설치`로 즉시 실패했음.
 `venv\Scripts\python.exe -m pip install finance-datareader`로 1회 설치해서 해결(SKILL.md
 Gotchas에도 기록). 이 venv를 다시 만들 일이 있으면(새 PC 등) 이 스텝을 빼먹지 말 것.
+
+---
+
+## ⏳ 보류 항목: VCP 품질점수 v2 (랭킹 개선) — 몇 달 뒤 표본외 검증 후 적용 결정
+
+**상태: 미적용(라이브 점수 안 건드림).** 5.5년(2021~2026) 시점복원 백테스트로 "강세장에서
+거래량을 어떻게 판단할지"를 세분화한 결과, 두 신호가 유효했다:
+- **베이스 dry-up이 가장 신뢰할 단조 신호** — 마를수록 성과↑ (dryup≤0.6 → +20일 +3.3%/초과
+  +2.96%p, dryup>1.1 늘어남 → 초과 −0.30%p).
+- **과열 매집(50일 U/D≥1.5)은 되돌림 위험↑** (초과 +0.05%p, 손절 33%).
+- 반면 돌파 '당일' 거래량은 품질 신호가 아니었음(1.4~2.0x가 최악, 조용한 돌파가 최고) →
+  이 부분은 `volume_verdict` 문구를 이미 수정해 반영(v1, 적용됨).
+
+**제안 코드(`app/screener.py` `_vcp_quality`):** dry-up을 이분법(+15)→등급제로,
+과열 매집 감점 추가.
+```python
+    # 현재:  + (15 if r.vcp_volume_dryup else 0)
+    # v2 제안:
+    dry = r.dryup_ratio
+    if dry is not None:
+        dryup_pts = 18 if dry <= 0.6 else 12 if dry <= 0.85 else 4 if dry <= 1.1 else 0
+    else:
+        dryup_pts = 15 if r.vcp_volume_dryup else 0
+    overheat = -8 if (r.ud_volume_ratio is not None and r.ud_volume_ratio >= 1.5) else 0
+    # q 식에서 (15 if vcp_volume_dryup ...) 를 dryup_pts 로 교체하고 끝에 + overheat 추가
+```
+점수 최대치가 ~95→~98로 거의 같아 `VCP_QUALITY_ALERT=70`은 그대로 유효. 적용 시 재스크리닝 1회 필요.
+
+**왜 지금 안 하나 / 검증 방법:** 이 가중치는 하나의 유니버스·과거 표본에 맞춘 휴리스틱이라
+과적합 위험이 있다. 같은 과거 데이터로 재백테스트하면 표본이 같아 의미 없음. 대신 레지스트리
+(`vcp_events`)가 지금부터 실제 forming→broke_out/failed 결과를 자동 누적하므로, **몇 달 뒤
+(대략 2026-10 이후) 그 실제 결과에 v2 점수식을 대입해 "고점수 셋업이 실제로 더 잘 됐는지"를
+표본외로 확인**한 뒤 적용 여부를 결정한다. 검증 스크립트 초안: scratchpad의 `vcp_bull_volume.py`
+(구간 분석 로직 재사용 가능).

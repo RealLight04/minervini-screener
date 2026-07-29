@@ -227,18 +227,21 @@ def volume_verdict(r) -> dict:
     else:
         phase = "uptrend"
 
-    if phase == "breakout":
-        if v >= 1.4:
-            return mk(GOOD, "돌파 거래량 확인 → 좋음",
-                      f"피벗 돌파에 대량거래({v:.1f}x) 동반 → 신뢰도 높은 돌파.")
-        if v < 1.0:
-            return mk(WATCH, "거래량 없는 돌파 → 주의",
-                      f"돌파했지만 거래량이 평균 이하({v:.1f}x) → 가짜 돌파 가능성, 거래 확대 확인.")
-        return mk(WATCH, "돌파 거래량 보통",
-                  f"거래량 {v:.1f}x → 평균 +40% 이상으로 늘면 신뢰도↑.")
-
     ud = r.ud_volume_ratio
     dry = r.dryup_ratio
+
+    if phase == "breakout":
+        # 백테스트(BULL 5.5년): 돌파 '당일' 거래량은 품질 신호가 아니었다. 마른 베이스에서의
+        # 조용한 돌파가 최고 코호트(+20일 +1.9%, 손절 23%)였고, 1.4~2.0x 대량 돌파가 최악(손절 32%).
+        # 따라서 조용한 돌파를 '가짜 돌파 의심'으로 겁주지 않고, 과열(급증·과열매집)만 경고한다.
+        if v >= 2.0 or (ud is not None and ud >= 1.5):
+            return mk(WATCH, "과열 돌파 → 되돌림 주의",
+                      f"거래량 급증({v:.1f}x) 또는 과열 매집 → 추격 자제, 눌림 후 진입 고려.")
+        if r.vcp_volume_dryup or (dry is not None and dry < 0.85):
+            return mk(GOOD, "마른 베이스에서 돌파 → 건강",
+                      f"베이스 거래량이 마른 상태에서 피벗 돌파 → 미너비니가 선호하는 셋업(당일 {v:.1f}x).")
+        return mk(NEU, "피벗 돌파",
+                  f"당일 거래량 {v:.1f}x. 돌파일 거래량보다 '베이스가 말랐는지'가 성패를 가릅니다.")
 
     if phase == "base":
         if r.vcp_volume_dryup or (dry is not None and dry < 0.85) or v < 0.85:
