@@ -36,7 +36,8 @@ def init_db():
                                    "vcp_last_contraction": "FLOAT"},
             "vcp_events": {"base_low": "FLOAT", "base_high": "FLOAT", "base_seq": "INTEGER DEFAULT 1",
                            "quality": "INTEGER", "peak_quality": "INTEGER", "trend_grace": "INTEGER DEFAULT 0",
-                           "alert_formed_at": "DATETIME", "alert_breakout_at": "DATETIME"},
+                           "alert_formed_at": "DATETIME", "alert_breakout_at": "DATETIME",
+                           "dryup_ratio": "FLOAT", "ud_volume_ratio": "FLOAT", "last_contraction": "FLOAT"},
             "stocks": {"eps_rev_up": "INTEGER", "eps_rev_down": "INTEGER", "eps_est_chg": "FLOAT"},
         }
         with engine.connect() as conn:

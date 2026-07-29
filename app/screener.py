@@ -745,6 +745,9 @@ def update_vcp_registry(db: Session, screen_date: date) -> dict:
         ev.rs_rank = r.rs_rank
         ev.close = r.close
         ev.volume_dryup = bool(r.vcp_volume_dryup)
+        ev.dryup_ratio = r.dryup_ratio
+        ev.ud_volume_ratio = r.ud_volume_ratio
+        ev.last_contraction = r.vcp_last_contraction
         ev.base_seq = base_seq
         ev.trend_grace = 0
         base_days = (screen_date - ev.first_detected).days
@@ -760,6 +763,8 @@ def update_vcp_registry(db: Session, screen_date: date) -> dict:
             base_low=r.vcp_base_low, base_high=r.vcp_base_high, base_seq=base_seq,
             trend_grace=0, rs_rank=r.rs_rank, close=r.close,
             volume_dryup=bool(r.vcp_volume_dryup),
+            dryup_ratio=r.dryup_ratio, ud_volume_ratio=r.ud_volume_ratio,
+            last_contraction=r.vcp_last_contraction,
         )
         ev.quality = _vcp_quality(r, 0, base_seq)
         ev.peak_quality = ev.quality

@@ -166,6 +166,10 @@ class VCPEvent(Base):
     rs_rank = Column(Float)
     close = Column(Float)
     volume_dryup = Column(Boolean, default=False)
+    # v2 품질점수 표본외 검증용 스냅샷 — ScreeningResult는 90일 후 정리되므로 여기 보존.
+    dryup_ratio = Column(Float)       # 최근10/50일 거래량 (dry-up 등급)
+    ud_volume_ratio = Column(Float)   # 50일 상승/하락 거래량 비율
+    last_contraction = Column(Float)  # 마지막 조정폭(%)
 
     # 결과 추적
     breakout_date = Column(Date)     # 피벗 돌파 확정일
