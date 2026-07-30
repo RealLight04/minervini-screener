@@ -332,16 +332,25 @@ WEEKLY/DAILY 트리거는 현재 로그인 계정 소유로 비관리자 권한�
 평소 로그인 상태로 상시 켜두는 게 전제라 실사용엔 문제 없지만, **재부팅 후 아무도 로그인 안 하면
 이 3개도, 아래 웹서버 자동시작도 실행되지 않는다.**
 
-### ⏳ 남은 수동 작업: 웹서버 재부팅 자동시작 (10번에서 예고했던 것, 아직 미완료)
+### ✅ 웹서버 재부팅 자동시작 — 로그인 자동시작으로 해결(관리자 불필요)
 
-`ONSTART`/`ONLOGON` 트리거는 위와 같은 이유로 **관리자 권한 없이는 등록 자체가 거부됨**
-(WEEKLY/DAILY와 달리 이건 항상 막힘, 계정 지정 여부 무관). 그래서 웹서버 자동시작 작업은
-아직 등록되지 않았다. 관리자 권한 PowerShell에서 아래 명령을 사용자가 직접 실행해야 함:
-```
-schtasks /create /tn "MinerviniScreenerStartup" /tr "C:\Users\<사용자>\Desktop\minervini-startup.bat" /sc onstart /delay 0001:00 /ru "$env:USERNAME" /rp * /rl highest /f
-```
-(비밀번호 입력 프롬프트가 뜸 — 에이전트가 대신 입력 불가, 사용자가 직접.) 실행 파일
-`minervini-startup.bat`는 이미 만들어져 있고 직접 테스트해서 정상 동작 확인함(저장소 밖).
+**해결됨(로그인 트리거).** 관리자 권한이 필요한 `ONSTART` Task Scheduler 대신, **시작프로그램
+폴더**로 우회했다 — `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\minervini-server.vbs`가
+로그인 시 `scripts/start_server.ps1`을 숨김 실행해 8011에 uvicorn을 띄운다(이미 떠 있으면
+중복 실행 안 함). Tailscale은 자동 시작 서비스라 퍼널(minervini... → 127.0.0.1:8011)이
+부팅 시 알아서 복구되므로, **재부팅 후 로그인하면 공개 URL이 자동으로 되살아난다.**
+- 런처 스크립트 `scripts/start_server.ps1`은 리포에 커밋됨. `.vbs`는 사용자 계정 전용이라
+  저장소 밖(위 Startup 경로)에 있음.
+
+**한계 / 더 강하게 하려면(선택, 관리자 필요):**
+- 로그인 트리거라 **로그인 전(잠금화면)엔 안 뜬다.** 아무도 로그인 안 한 채 재부팅되면 다음
+  로그인까지 다운. 로그인 없이 부팅 즉시 띄우려면 관리자 권한으로 ONSTART 작업 또는 서비스
+  등록이 필요하다:
+  ```
+  schtasks /create /tn "MinerviniScreenerStartup" /tr "powershell -NoProfile -WindowStyle Hidden -File C:\Users\Liam\Desktop\minervini-screener\scripts\start_server.ps1" /sc onstart /delay 0001:00 /ru "$env:USERNAME" /rp * /rl highest /f
+  ```
+- 시작프로그램은 로그인 시 1회 실행이라, 서버가 나중에 크래시하면 자동 재시작은 안 된다.
+  크래시 자동복구까지 원하면 NSSM 등으로 서비스화(관리자 필요).
 
 ### ⚠️ 로컬 venv에 `finance-datareader` 없어서 KR 수집이 조용히 실패했던 실화
 
