@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% from "_macros.html" import tv_link %}
+{% from "_macros.html" import tv_link, avatar %}
 {% block title %}{{ stock.ticker }} — Minervini Screener{% endblock %}
 {% block content %}
 {% set mk = stock.market or 'US' %}
 <div style="margin-bottom: 20px;">
   <div style="display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap;">
+    {{ avatar(stock.ticker, size=44) }}
     <div>
       <h2 style="font-size:1.5rem; font-weight:700; margin-bottom:4px;">{{ stock.ticker }}
         {{ tv_link(stock.ticker, mk, size=13, extra_style='font-size:0.8rem;') }}

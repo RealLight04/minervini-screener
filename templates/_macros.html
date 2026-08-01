@@ -9,10 +9,11 @@
   {% if sp %}<svg class="sparkline" width="60" height="20" viewBox="0 0 60 20" preserveAspectRatio="none"><polygon points="{{ sp.points }} 60,20 0,20" fill="{{ 'var(--green)' if sp.up else 'var(--red)' }}" opacity="0.14" stroke="none"/><polyline points="{{ sp.points }}" fill="none" stroke="{{ 'var(--green)' if sp.up else 'var(--red)' }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>{% else %}<span class="faint">-</span>{% endif %}
 {% endmacro %}
 
-{# 티커 이니셜 아바타(회사 로고 API 없이 결정론적 색상의 작은 원). 표에서 행 식별용. #}
-{% macro avatar(ticker) %}
+{# 티커 옆 회사 로고. 로고 CDN(parqet, yfinance 티커 그대로) 이미지를 우선 표시하고,
+   미커버·로드 실패 시 onerror로 이미지를 제거해 뒤의 결정론적 색상 이니셜 원으로 폴백. #}
+{% macro avatar(ticker, size=22) %}
 {% set av = ticker_avatar(ticker) %}
-<span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; background:{{ av.color }}; color:#fff; font-size:0.62rem; font-weight:700; flex-shrink:0; letter-spacing:-0.02em;">{{ av.initials }}</span>
+<span class="tavatar" style="background:{{ av.color }}; width:{{ size }}px; height:{{ size }}px; font-size:{{ (size * 0.42)|round(1) }}px;">{{ av.initials }}<img src="https://assets.parqet.com/logos/symbol/{{ ticker }}" alt="" loading="lazy" onerror="this.remove()"></span>
 {% endmacro %}
 
 {# 빈 목록 상태 표시. msg=주 메시지, sub=부가 설명(선택). #}

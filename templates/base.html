@@ -247,6 +247,17 @@
     .badge-red { background: var(--badge-red-bg); color: var(--red-ink); }
     .badge-gray { background: var(--badge-gray-bg); color: var(--muted); }
 
+    /* ───── 티커 로고 아바타 (로고 이미지 우선 + 실패 시 이니셜 원 폴백) ───── */
+    .tavatar {
+      position: relative; display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%; color: #fff;
+      font-size: 0.62rem; font-weight: 700; flex-shrink: 0; letter-spacing: -0.02em; overflow: hidden;
+    }
+    .tavatar img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: contain; background: #fff; padding: 2px;
+    }
+
     /* ───── 버튼 ───── */
     .btn {
       background: var(--surface); border: 1px solid var(--border); color: var(--text);
