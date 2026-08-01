@@ -25,29 +25,31 @@
   <style>
     :root, :root[data-theme="light"] {
       --bg: #ffffff;
-      --surface: #ffffff;
-      --inset: #f0f3fa;
-      --border: #e0e3eb;
-      --line: #eceef2;
-      --text: #131722;
-      --muted: #787b86;
-      --faint: #9598a1;
-      --accent: #2962ff;
+      --surface: #f8fafc;
+      --inset: #f1f5f9;
+      --border: #e5e7eb;
+      --line: #eef1f5;
+      --text: #374151;
+      --heading: #111827;
+      --muted: #6b7280;
+      --faint: #9ca3af;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
       --accent-ink: #ffffff;
-      --green: #089981;
-      --green-ink: #089981;
-      --red: #f23645;
-      --red-ink: #f23645;
+      --green: #16a34a;
+      --green-ink: #16a34a;
+      --red: #dc2626;
+      --red-ink: #dc2626;
       --amber: #ff9800;
       --violet: #7e57c2;
       --orange: #fb8c00;
-      --badge-green-bg: rgba(8,153,129,.10);
-      --badge-red-bg: rgba(242,54,69,.10);
-      --badge-gray-bg: #eef0f5;
-      --badge-blue-bg: rgba(41,98,255,.09);
+      --badge-green-bg: rgba(22,163,74,.10);
+      --badge-red-bg: rgba(220,38,38,.10);
+      --badge-gray-bg: #f1f5f9;
+      --badge-blue-bg: rgba(37,99,235,.09);
       --badge-violet-bg: rgba(126,87,194,.10);
       --header-bg: rgba(255,255,255,.92);
-      --row-hover: rgba(41,98,255,.04);
+      --row-hover: rgba(37,99,235,.04);
       --radius: 4px;
       --radius-sm: 3px;
       --gap: 14px;
@@ -60,9 +62,11 @@
       --border: #2a2e39;
       --line: #262b38;
       --text: #d1d4dc;
+      --heading: #d1d4dc;
       --muted: #787b86;
       --faint: #5d606b;
       --accent: #2962ff;
+      --accent-hover: #2962ff;
       --accent-ink: #ffffff;
       --green: #26a69a;
       --green-ink: #26a69a;
@@ -186,7 +190,7 @@
       padding: 12px 18px;
       display: flex; align-items: center; gap: 18px;
     }
-    .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-body); font-size: 1.15rem; font-weight: 800; color: var(--text); text-decoration: none; white-space: nowrap; letter-spacing: -0.02em; }
+    .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-body); font-size: 1.15rem; font-weight: 800; color: var(--heading); text-decoration: none; white-space: nowrap; letter-spacing: -0.02em; }
     .brand span { color: var(--accent); }
     .brand-mark { color: var(--accent); flex-shrink: 0; }
     .nav-links { display: flex; gap: 16px; align-items: center; }
@@ -207,11 +211,11 @@
     .container { max-width: 1120px; margin: 0 auto; padding: 26px 18px 64px; }
 
     /* ───── 타이포 ───── */
-    h2.page-title { font-family: var(--font-body); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    h2.page-title { font-family: var(--font-body); font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; color: var(--heading); }
     .section-title {
       display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
       font-size: 1.08rem; font-weight: 730; margin: 32px 0 14px; letter-spacing: -0.01em;
-      padding-left: 11px; border-left: 3px solid currentColor;
+      padding-left: 11px; border-left: 3px solid currentColor; color: var(--heading);
     }
     .section-title .hint { font-weight: 400; font-size: 0.82rem; color: var(--faint); }
     .section-title .hint::before { content: ": "; }
@@ -221,7 +225,7 @@
     /* ───── 종목 상세: 섹션 제목·설명·지표카드 (가독성 표준) ───── */
     .sec-title {
       display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;
-      font-size: 1.05rem; font-weight: 720; color: var(--text);
+      font-size: 1.05rem; font-weight: 720; color: var(--heading);
       letter-spacing: -0.01em; margin: 32px 0 14px; padding-left: 11px;
       border-left: 3px solid var(--accent);
     }
@@ -253,7 +257,7 @@
       border-radius: var(--radius); padding: 8px 15px; cursor: pointer; font-size: 0.86rem; font-weight: 550;
       transition: border-color .15s, background .15s; -webkit-tap-highlight-color: transparent;
     }
-    .btn:hover { border-color: var(--accent); }
+    .btn:hover { border-color: var(--accent-hover); }
 
     /* ───── 탭 (TradingView식 플랫 언더라인) ───── */
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 20px; }

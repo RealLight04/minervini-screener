@@ -405,8 +405,8 @@
   var C = dark
     ? { bg: '#1e222d', text: '#787b86', grid: '#262b38', axis: '#2a2e39',
         up: '#26a69a', down: '#ef5350', ma50: '#2962ff', ma150: '#ffa726', ma200: '#9b7fd4' }
-    : { bg: '#ffffff', text: '#787b86', grid: '#eceef2', axis: '#e0e3eb',
-        up: '#089981', down: '#f23645', ma50: '#2962ff', ma150: '#fb8c00', ma200: '#7e57c2' };
+    : { bg: '#ffffff', text: '#6b7280', grid: '#eef1f5', axis: '#e5e7eb',
+        up: '#16a34a', down: '#dc2626', ma50: '#2563eb', ma150: '#fb8c00', ma200: '#7e57c2' };
   fetch('/api/chart/{{ stock.ticker }}')
     .then(function (r) { return r.json(); })
     .then(function (d) {

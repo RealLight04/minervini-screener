@@ -15,11 +15,11 @@ templates = Jinja2Templates(directory="templates")
 
 # 템플릿에서 신호 한국어 라벨/색상 사용
 SIGNAL_COLORS = {
-    "STRONG_BUY": {"light": "#089981", "dark": "#26a69a"},
-    "BUY": {"light": "#0d7d6c", "dark": "#4caf9e"},
-    "WATCH": {"light": "#787b86", "dark": "#787b86"},
+    "STRONG_BUY": {"light": "#16a34a", "dark": "#26a69a"},
+    "BUY": {"light": "#15803d", "dark": "#4caf9e"},
+    "WATCH": {"light": "#6b7280", "dark": "#787b86"},
     "SELL": {"light": "#fb8c00", "dark": "#ffa726"},
-    "AVOID": {"light": "#9598a1", "dark": "#5d606b"},
+    "AVOID": {"light": "#9ca3af", "dark": "#5d606b"},
 }
 SIGNAL_COLOR_DEFAULT = {"light": "#787b86", "dark": "#787b86"}
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
