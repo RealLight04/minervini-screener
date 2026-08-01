@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Request, Form, Header, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,22 @@ templates.env.globals["signal_color_default"] = SIGNAL_COLOR_DEFAULT
 
 MARKETS = ["US", "KOSPI", "KOSDAQ"]
 MARKET_LABELS = {"US": "미국 (S&P 500)", "KOSPI": "코스피", "KOSDAQ": "코스닥"}
+
+
+# ───── PWA(설치형 앱) 루트 자원 ─────
+# 서비스워커는 루트 경로(/sw.js)에서 제공해야 스코프가 사이트 전체(/)가 된다.
+@router.get("/sw.js", include_in_schema=False)
+def service_worker():
+    return FileResponse(
+        "static/sw.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+    )
+
+
+@router.get("/manifest.webmanifest", include_in_schema=False)
+def web_manifest():
+    return FileResponse("static/manifest.webmanifest", media_type="application/manifest+json")
 
 
 def fmt_price(value, market: str = "US") -> str:
