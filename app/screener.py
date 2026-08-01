@@ -412,6 +412,21 @@ SIGNAL_LABELS = {
     "AVOID": "회피",
 }
 
+# ─── 신호 이유 문구 (개조식). 화면·DB에 나가는 문구는 여기 값만 고치면 됨. ───
+# 수정 후에는 재스크리닝해야 DB(signal_reason 스냅샷)에 반영된다.
+# 자리표시자: {base}=베이스/VCP, {pivot}=통화표기 피벗가, {gap}=피벗까지 %, {orig}=원신호 라벨
+SIGNAL_REASONS = {
+    "below_ma200":       "200일선 아래에서 하락·횡보 중, 매수 회피",
+    "ma_inverted":       "이동평균 역배열(150일선이 200일선 아래), 아직 상승 추세 아님",
+    "below_ma50":        "50일선 무너지며 추세 약해짐. 보유 중이면 매도·비중 축소 고려",
+    "breakout_wait":     "{base}에 펀더멘털까지 통과. 피벗 {pivot} 돌파 대기 (+{gap:.1f}% 남음)",
+    "just_broke_out":    "피벗 {pivot} 막 돌파. 미너비니 기준 매수 시점",
+    "extended":          "추세·실적 통과했으나 고점 위로 많이 연장됨. 50일선까지 눌림목 대기",
+    "no_earnings":       "추세는 좋으나 실적 모멘텀 부족. 관심 종목으로 관찰",
+    "stage2_incomplete": "Stage 2 조건 미충족. 추세 자리 잡을 때까지 대기",
+    "bear_gated":        "🚫 약세장이라 매수 신호 보류. 기술적으로는 '{orig}' 신호이며 시장 회복 시 다시 표시",
+}
+
 
 def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "US") -> tuple[str, str]:
     """
@@ -426,14 +441,14 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
 
     # 1) 추세 자체가 약세 → 회피 (매수 대상 아님, 노이즈라 별도 강조 안 함)
     if ma200 and close < ma200:
-        return "AVOID", "200일선 아래에서 하락·횡보 중이라 매수를 피하세요"
+        return "AVOID", SIGNAL_REASONS["below_ma200"]
     if ma150 and ma200 and ma150 < ma200:
-        return "AVOID", "이동평균이 역배열(150일선이 200일선 아래)이라 아직 상승 추세가 아닙니다"
+        return "AVOID", SIGNAL_REASONS["ma_inverted"]
 
     # 2) Stage 2 상승추세는 유지하나 단기 추세 이탈 (50일선 하회)
     #    = '강세였다가 막 무너지기 시작' → 보유자에게 의미 있는 매도 경고
     if ma50 and close < ma50:
-        return "SELL", "50일선이 무너지며 추세가 약해졌습니다. 보유 중이라면 매도나 비중 축소를 고려하세요"
+        return "SELL", SIGNAL_REASONS["below_ma50"]
 
     # 3) 추세 정상 → 매수 후보 판별
     if result.final_pass:
@@ -441,17 +456,17 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
         # 아직 피벗 아래 = 돌파 대기
         if pivot and close < pivot:
             gap = (pivot / close - 1) * 100
-            return "BUY", f"{base}에 펀더멘털까지 통과했습니다. 피벗 {c(pivot)} 돌파를 기다리세요 (+{gap:.1f}% 남음)"
+            return "BUY", SIGNAL_REASONS["breakout_wait"].format(base=base, pivot=c(pivot), gap=gap)
         # 피벗 갓 돌파(5% 이내) = 적극 매수
         if pivot and close <= pivot * 1.05:
-            return "STRONG_BUY", f"피벗 {c(pivot)}을 막 돌파했습니다. 미너비니 기준 매수 시점입니다"
+            return "STRONG_BUY", SIGNAL_REASONS["just_broke_out"].format(pivot=c(pivot))
         # 추세·실적은 통과했으나 직전 고점 위로 연장(extended) → 추격 매수 부적절
-        return "BUY", "추세와 실적은 통과했지만 고점 위로 많이 올라있습니다. 50일선까지 눌림목을 기다리세요"
+        return "BUY", SIGNAL_REASONS["extended"]
 
     if result.technical_pass:
-        return "WATCH", "추세는 좋지만 실적 모멘텀이 아직 부족합니다. 관심 종목으로 지켜보세요"
+        return "WATCH", SIGNAL_REASONS["no_earnings"]
 
-    return "WATCH", "Stage 2 조건을 아직 다 채우지 못했습니다. 추세가 자리 잡을 때까지 기다리세요"
+    return "WATCH", SIGNAL_REASONS["stage2_incomplete"]
 
 
 # 포지션 사이징 가정값 (예시용)
@@ -651,7 +666,7 @@ def apply_regime_gate(db: Session, screen_date: date) -> int:
         for r in rows:
             orig = SIGNAL_LABELS.get(r.signal, r.signal)
             r.signal = "WATCH"
-            r.signal_reason = f"🚫 약세장이라 매수 신호를 보류했습니다. 기술적으로는 '{orig}' 신호이며, 시장이 회복되면 다시 나타납니다"
+            r.signal_reason = SIGNAL_REASONS["bear_gated"].format(orig=orig)
             r.pivot_price = None   # 약세장에선 진입가 제시 안 함
             r.stop_loss = None
             gated += 1

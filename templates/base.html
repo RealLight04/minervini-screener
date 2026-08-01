@@ -199,14 +199,10 @@
     .search { margin-left: auto; position: relative; }
     .search input {
       background: var(--inset); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 36px 8px 32px; border-radius: var(--radius); font-size: 0.88rem; width: 200px;
+      padding: 8px 36px 8px 12px; border-radius: var(--radius); font-size: 0.88rem; width: 200px;
       transition: border-color .15s, width .2s;
     }
     .search input:focus { outline: none; border-color: var(--accent); }
-    .search::before {
-      content: "🔍"; position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
-      font-size: 0.8rem; opacity: .6; pointer-events: none;
-    }
 
     .container { max-width: 1120px; margin: 0 auto; padding: 26px 18px 64px; }
 
