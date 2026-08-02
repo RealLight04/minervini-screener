@@ -21,6 +21,7 @@
   </div>
   <p class="muted" style="font-size:0.9rem; margin-top:6px;">
     추세 템플릿·실적 모멘텀·VCP 돌파를 모두 통과한 종목만 골랐습니다 ·
+    <span style="color:var(--green); font-weight:700;">적극 매수 {{ strong_buy_count }}</span> ·
     <span style="color:var(--green);">매수 후보 {{ buy_count }}</span> ·
     <span style="color:var(--orange);">매도 경고 {{ sell_count }}</span>
   </p>
@@ -75,6 +76,36 @@
   </div>
   {% endif %}
 </div>
+
+<!-- 적극 매수 (STRONG_BUY): 별도 카테고리, 최상단 -->
+<div class="section-title" style="color:var(--green);">적극 매수 <span class="hint">피벗을 갓 돌파 · 미너비니 매수 시점</span></div>
+{% if strong_buy_list %}
+<div class="table-wrap">
+<table class="cards">
+  <thead>
+    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="num sortable">현재가</th><th class="num sortable">피벗(매수가)</th><th class="num sortable">손절가</th><th class="ctr sortable">RS</th><th class="ctr">거래량<br><span style="font-weight:400; font-size:0.66rem; color:var(--faint);">50일평균 대비</span></th><th class="ctr">VCP</th><th>근거</th></tr>
+  </thead>
+  <tbody>
+    {% for r, s in strong_buy_list %}
+    <tr data-href="/stock/{{ s.ticker }}" style="border-left:3px solid {{ rs_heat(r.rs_rank) if r.rs_rank else 'transparent' }};">
+      <td data-label="티커" data-sort="{{ s.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(s.ticker) }}<a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></span></td>
+      <td data-label="회사명">{{ s.name or '-' }}</td>
+      <td data-label="추이" class="ctr">{{ spark(s.id, sparklines) }}</td>
+      <td data-label="현재가" class="num" data-sort="{{ r.close or 0 }}">{{ fmt_price(r.close, cur_market) }}</td>
+      <td data-label="피벗(매수가)" class="num" data-sort="{{ r.pivot_price or 0 }}">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="손절가" class="num" data-sort="{{ r.stop_loss or 0 }}">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
+      <td data-label="RS" class="ctr" data-sort="{{ r.rs_rank or 0 }}">{% if r.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.rs_rank) }};">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="거래량(50일평균 대비)" class="ctr">{{ vol_badge(r.vol_vs_avg) }}</td>
+      <td data-label="VCP" class="ctr">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="근거" class="stack muted reason" style="font-size:0.82rem;" data-tt="{{ r.signal_reason or '' }}">{{ r.signal_reason or '-' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+{{ empty_state('현재 적극 매수 종목이 없습니다', '피벗을 갓 돌파한 종목이 나오면 여기 표시됩니다') }}
+{% endif %}
 
 <!-- 돌파 대기 -->
 <div class="section-title" style="color:var(--amber);">돌파 대기 <span class="hint">베이스 완성 · 피벗 돌파 시 매수 (가까운 순)</span></div>

@@ -408,9 +408,10 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             .all()
         )
 
-    # 매수 후보: 적극매수 우선, 그 다음 매수 (RS 순)
-    buy_list = _by_signals(["STRONG_BUY", "BUY"])
-    buy_list.sort(key=lambda rs: (rs[0].signal != "STRONG_BUY", -(rs[0].rs_rank or 0)))
+    # 적극 매수: 피벗을 갓 돌파한 최고 확신 신호 → 별도 카테고리로 최상단 표시
+    strong_buy_list = _by_signals(["STRONG_BUY"])
+    # 매수 후보: 나머지 매수 신호(BUY). 적극 매수는 위에서 따로 보여줌
+    buy_list = _by_signals(["BUY"])
 
     # 돌파 대기: 피벗 아래에서 코일링 중(매수가 확정) → 돌파 임박 순(피벗까지 가까운 순) 정렬
     breakout_watch = []
@@ -425,7 +426,8 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     sell_list = sell_all[:30]
 
     # 표에 쓸 미니 스파크라인(최근 30거래일) — 배치 조회 1회
-    sparkline_ids = [s.id for _, s in buy_list] + [s.id for _, s in sell_list]
+    sparkline_ids = ([s.id for _, s in strong_buy_list] + [s.id for _, s in buy_list]
+                     + [s.id for _, s in sell_list])
     sparklines = _fetch_sparklines(db, sparkline_ids)
 
     # 시장 국면(breadth) — 선택한 시장 기준
@@ -470,12 +472,14 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
         request,
         "index.html",
         context={
+            "strong_buy_list": strong_buy_list,
             "buy_list": buy_list,
             "breakout_watch": breakout_watch,
             "themes": themes,
             "sell_list": sell_list,
             "sparklines": sparklines,
             "screen_date": screen_date,
+            "strong_buy_count": len(strong_buy_list),
             "buy_count": len(buy_list),
             "sell_count": len(sell_all),
             "market": breadth,
