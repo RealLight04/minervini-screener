@@ -18,3 +18,5 @@ alerts.db
 *.log
 # 연구용 생성 데이터 (재생성 가능, 대용량) — 스크립트만 커밋
 scripts/research/data/
+# DB 로컬 백업 사본 (대용량). 배포·이력용 스냅샷은 screener.db 커밋으로 관리
+data/backups/
