@@ -92,10 +92,18 @@ Owner 외 전원 금지: git `add`/`commit`/`stash`/`checkout`/`restore`/`reset`
 - `DATABASE_URL`은 CWD 상대경로다. 다른 디렉터리에서 스크립트를 돌리면 빈 DB가 새로 생긴다.
 - 커밋은 항상 경로 명시. `git add -A`/`commit -a` 금지(미추적 파일과 51MB DB를 쓸어담는다).
 
-워크트리 미리보기 서버(프로덕션 DB·공개 사이트와 무관):
-```
-cd C:\Users\Liam\Desktop\minervini-build
-ENABLE_SCHEDULER=false C:\Users\Liam\Desktop\minervini-screener\venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8030
+워크트리 미리보기 서버 — 공개 사이트와 라이브 DB를 건드리지 않는다.
+데이터는 라이브 DB의 사본을 쓴다. 사본이 낡으면 화면이 프로덕션과 달라지니 필요할 때 갱신한다.
+```bash
+# 1) 미리보기 DB를 지금 데이터로 새로 뜨기 (본 체크아웃에서 실행)
+venv/Scripts/python.exe -c "import sqlite3;s=sqlite3.connect('screener.db');d=sqlite3.connect(r'C:/Users/Liam/Desktop/minervini-build/data/preview.db');s.backup(d);d.close();s.close()"
+
+# 2) 워크트리에서 8030으로 띄우기 (퍼널이 8010·8011만 노출하므로 8030은 외부에서 안 보인다)
+cd /c/Users/Liam/Desktop/minervini-build
+DATABASE_URL=sqlite:///C:/Users/Liam/Desktop/minervini-build/data/preview.db \
+ENABLE_SCHEDULER=false \
+/c/Users/Liam/Desktop/minervini-screener/venv/Scripts/python.exe \
+  -m uvicorn main:app --host 127.0.0.1 --port 8030
 ```
 
 ## 튜닝·검증 원칙

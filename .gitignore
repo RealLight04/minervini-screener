@@ -20,3 +20,5 @@ alerts.db
 scripts/research/data/
 # DB 로컬 백업 사본 (대용량). 배포·이력용 스냅샷은 screener.db 커밋으로 관리
 data/backups/
+# 워크트리 미리보기용 DB 사본 (현재 데이터로 갱신해 쓰는 임시본)
+data/*.db
