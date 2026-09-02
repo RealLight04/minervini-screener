@@ -31,6 +31,10 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 - 컬럼 추가 = **① `app/models.py`에 Column 추가 + ② `app/database.py`의 `migrations`
   dict에 추가**. SQLite는 `init_db()`가 앱 시작 시 자가치유 ALTER를 한다. 이 두 곳을
   같이 안 고치면 기존 DB에서 `no such column`으로 깨진다.
+- 예외: `app/database.py` 밖에서 직접 ALTER를 하는 스크립트가 셋 있다 —
+  `scripts/backfill_eps.py`(fundamentals), `scripts/collect_fundamentals.py`(stocks),
+  `scripts/collect_q_fundamentals.py`(fundamentals). 각자 자체 컬럼 dict를 들고 있어
+  해당 테이블의 컬럼을 바꿀 땐 거기도 함께 본다.
 - 나중에 검증할 값은 정리(prune)되기 전에 영구 테이블(`vcp_events`)에 **스냅샷**으로 남겨라
   (`ScreeningResult`는 90일 후 삭제됨).
 
@@ -56,16 +60,52 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
   `minervini.tail6fe9f6.ts.net`로 노출. 서버 프로세스는 `ENABLE_SCHEDULER=false`
   (데이터 갱신은 별도 예약작업 담당).
 - **로그인 자동시작**: 시작프로그램 폴더의 `minervini-server.vbs` → `scripts/start_server.ps1`
-  (8011, 중복 실행 방지). 재부팅+로그인 시 URL 자동 복구. 서버 코드를 바꾸면 이 런처로 재시작.
+  (8011, 중복 실행 방지). 재부팅+로그인 시 URL 자동 복구.
+- **서버 파이썬 코드를 바꿨으면 `scripts/start_server.ps1 -Restart`.** 인자 없이 호출하면
+  8011이 이미 떠 있을 때 아무것도 하지 않고 종료하므로 새 코드가 반영되지 않는다.
 - 데이터 갱신: 로컬 예약작업 3개(`MinerviniRefresh*`)가 바탕화면 `minervini-refresh-*.bat`를
   절대경로로 호출 → 그 파일들·`minervini-screener` 폴더 경로를 옮기면 깨진다.
+
+## 병렬 세션 규칙 (여러 세션을 동시에 쓸 때)
+
+모든 쓰기가 단일 자원 셋(`screener.db`, 포트 8011, git 인덱스)에 몰린다. 그래서 세션은
+기능별로 나누지 말고 **쓰기 권한**으로 나눈다. 쓰기 1명, 읽기 N명.
+
+- **Owner** (본 체크아웃 `minervini-screener`): 모든 소스 편집, 재스크리닝, 8011 재시작,
+  모든 커밋. `templates/base.html`·`app/routes.py`·`app/screener.py`·`screener.db`·
+  `HANDOFF.md`는 Owner 전용(최근 커밋 대부분이 이 파일들에 몰린다).
+- **Builder** (워크트리 `../minervini-build`, 브랜치 `build`): 자기 체크아웃 안에서만 편집,
+  미리보기는 8030. `screener.db`는 절대 스테이징하지 않는다(바이너리는 병합 불가).
+- **Reader** (아무 세션): 읽기·분석·조사·리뷰·패치 초안만. 결과는 텍스트로 Owner에 전달.
+
+Owner 외 전원 금지: git `add`/`commit`/`stash`/`checkout`/`restore`/`reset`/`clean` ·
+8010·8011 포트에 서버 기동(**8010은 공개 퍼널에 연결돼 있다**) · `bash smoke.sh`(기본 포트가
+8010이고 프로세스 종료를 포트 대신 실행경로로 매칭) · 재스크리닝·수집 스크립트
+(`local_refresh.py`, `daily_update.py`, `collect_kr.py`, `send_alerts.py`, `backfill_eps.py`) ·
+`GET /api/screen-now`(공개 웹 프로세스 안에서 배타적 DB 쓰기를 유발) · `pip install`(venv 공용).
+
+주의:
+- 본 체크아웃의 템플릿 저장은 다음 요청부터 **공개 URL에 즉시 반영**된다(Jinja auto_reload).
+  반쯤 저장된 `base.html`은 실제 방문자에게 500. UI 실험은 워크트리에서 한다.
+- 재스크리닝은 하루 한 번만, 예약 갱신(한국장 15:40 / 미국장 05:10)에서 15분 이상 떨어뜨려서.
+  같은 날 중복 실행은 `vcp_events`를 오염시킨다(유니크 제약 없음).
+- `DATABASE_URL`은 CWD 상대경로다. 다른 디렉터리에서 스크립트를 돌리면 빈 DB가 새로 생긴다.
+- 커밋은 항상 경로 명시. `git add -A`/`commit -a` 금지(미추적 파일과 51MB DB를 쓸어담는다).
+
+워크트리 미리보기 서버(프로덕션 DB·공개 사이트와 무관):
+```
+cd C:\Users\Liam\Desktop\minervini-build
+ENABLE_SCHEDULER=false C:\Users\Liam\Desktop\minervini-screener\venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8030
+```
 
 ## 튜닝·검증 원칙
 
 - 매직넘버는 `config.py` 상수로(예: `VCP_*`). 값은 초기 휴리스틱임을 주석으로 명시.
 - **휴리스틱은 과적합을 경계.** 같은 과거 데이터 재백테스트는 검증이 아니다. 새 가중치는
   레지스트리(`vcp_events`)에 쌓이는 **실제 결과로 표본외(out-of-sample) 검증** 후 적용.
-- 연구·백테스트 스크립트는 `scripts/research/`에(리포 보존), 생성 데이터(`data/`)는 gitignore.
+- 연구·백테스트 스크립트는 `scripts/research/`에(리포 보존). 생성 데이터 중 gitignore된 것은
+  `scripts/research/data/`와 `data/backups/`뿐이다(루트 `data/`는 무시 대상이 아니니 새 경로를
+  쓸 땐 먼저 `git check-ignore`로 확인).
 
 ## Git 원칙
 
