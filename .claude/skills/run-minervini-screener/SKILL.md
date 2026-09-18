@@ -68,8 +68,11 @@ HTTP 200
 
 ### Stop
 
+Matches by port, not by venv path — so this only stops what's actually on that
+port, never the live production server on 8011 (see Gotchas):
+
 ```bash
-for winpid in $(ps aux | grep "[m]inervini-screener/venv" | awk '{print $4}'); do taskkill //F //PID "$winpid"; done
+netstat -ano | awk '$2 ~ /:8010$/ && $4=="LISTENING" {print $5}' | xargs -I{} taskkill //F //PID {}
 ```
 
 ## Run (human path)
@@ -88,19 +91,35 @@ verification path. For a full data refresh (not needed to just run the app):
 
 ## Gotchas
 
+- **`smoke.sh`'s old "stop previous instance" step used to kill the LIVE public
+  site, silently, every single run.** It matched any process using this project's
+  venv path — which also matches the real production server (`scripts/start_server.ps1`
+  runs uvicorn from this same venv, on port 8011, autostarted at login). Default
+  `PORT=8010` looks like a different, harmless port, but the venv-path match doesn't
+  check the port at all — it killed 8011 first, then launched the test instance on
+  8010, leaving the public URL down until someone manually ran
+  `start_server.ps1 -Restart`. CLAUDE.md's parallel-session rules already named this
+  exact risk (`8010·8011 포트에 서버 기동` / `bash smoke.sh` in the Owner-only list) —
+  this file just didn't carry that warning where an agent would actually see it.
+  **Fixed**: the stop step now matches by the port it's about to (re)use (via
+  `netstat -ano`), not by venv path — it only ever touches a stale instance already
+  on that exact port. Running with the default port now leaves 8011 (and whatever's
+  on it) completely alone. This only becomes dangerous again if you explicitly
+  `PORT=8011 bash smoke.sh` — that deliberately targets the live server, which is
+  the Owner-only "재시작" action CLAUDE.md already covers, not an accident.
 - **`pkill` does not exist in Git Bash on Windows.** The repo's own `HANDOFF.md`
   documents a `pkill -f "[u]vicorn main:app"` trick from a WSL2/Linux session —
   it silently no-ops here (`pkill: command not found`, swallowed by `2>/dev/null`),
-  so the "stop" step looked like it worked but didn't. Use the `ps aux | grep ... |
-  awk '{print $4}'` → `taskkill //F //PID` pattern in `smoke.sh` instead.
+  so the "stop" step looked like it worked but didn't. Use the `netstat -ano` →
+  `taskkill //F //PID` pattern in `smoke.sh` instead.
 - **`ps` here doesn't show command-line args, only the exe path** — so you can't
-  grep for `"uvicorn main:app"` either; match on the venv's path instead
-  (`minervini-screener/venv`), with the bracket self-exclusion trick (`[m]inervini...`)
-  so the grep process doesn't match its own argv.
+  grep for `"uvicorn main:app"`, and matching on the venv path alone (what this repo
+  used to do) is too broad (see above). `netstat -ano`'s PID column, filtered to the
+  exact port, is the precise match.
 - **Bash's `$!` after backgrounding is the wrong PID to kill.** It resolves to an
   MSYS wrapper process, not the actual `python.exe` — `taskkill`ing it leaves the
-  real server running. Look up the real process via `ps aux | grep venv` and use
-  the **4th column (WINPID)**, not `$!` and not the 1st column (MSYS PID).
+  real server running. `netstat -ano`'s PID column is the real Windows PID
+  `taskkill` needs, same fix as the WINPID lookup this replaced.
 - **`pip install -r requirements.txt` can crash with
   `UnicodeDecodeError: 'cp949' codec can't decode byte ...`** — `requirements.txt`
   has Korean comments, and on a non-UTF8-locale Windows, pip's encoding
