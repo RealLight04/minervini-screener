@@ -20,7 +20,7 @@
 <!-- 매매 신호 배너 -->
 {% set sig = result.signal or 'WATCH' %}
 {% set sc = signal_colors.get(sig, signal_color_default) %}
-<div class="tone-tint" style="--tone-light:{{ sc.light }}; --tone-dark:{{ sc.dark }}; border-radius:4px; padding:18px 20px; margin-bottom:24px;">
+<div class="tone-tint" style="--tone-light:{{ sc.light }}; --tone-dark:{{ sc.dark }}; border-radius:var(--radius-sm); padding:18px 20px; margin-bottom:24px;">
   <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
     <span class="tone-text" style="font-size:1.3rem; font-weight:800;">{{ signal_labels.get(sig, sig) }}</span>
     {% if result.pivot_price %}
@@ -34,7 +34,7 @@
 
 {% if code33 %}
 <!-- Code 33: 매출+영업이익 동시 3분기 가속 -->
-<div class="code33-banner" style="border-radius:4px; padding:14px 18px; margin-bottom:24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+<div class="code33-banner" style="border-radius:var(--radius-sm); padding:14px 18px; margin-bottom:24px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
   <div>
     <div style="font-weight:800; color:var(--green-ink); font-size:1.05rem;">Code 33 — 전방위 실적 가속</div>
     <div style="color:var(--text); font-size:0.84rem; margin-top:2px;">매출과 영업이익이 <strong>동시에 3분기 연속 가속</strong> 중 — 미너비니가 가장 선호하는 최상급 실적 모멘텀입니다.</div>
@@ -99,7 +99,7 @@
 {% if trade_plan %}
 {% set tp = trade_plan %}
 <!-- 매수 접근법 (Minervini 플레이북) -->
-<div style="background:var(--badge-blue-bg); border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius:4px; padding:20px; margin-bottom:24px;">
+<div style="background:var(--badge-blue-bg); border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); border-radius:var(--radius-sm); padding:20px; margin-bottom:24px;">
   <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
     <h3 style="font-size:1.05rem; font-weight:700; color:var(--accent);">매수 접근법</h3>
   </div>
@@ -107,22 +107,22 @@
 
   <!-- 핵심 숫자 -->
   <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; margin-bottom:18px;">
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
       <div style="color:var(--muted); font-size:0.72rem; margin-bottom:4px;">{% if tp.mode == 'wait_pivot' %}돌파 매수가{% elif tp.mode == 'pullback' %}목표 진입(눌림){% else %}진입가{% endif %}</div>
       <div style="font-size:1.05rem; font-weight:700; color:var(--accent);">{{ fmt_price(tp.entry, mk) }}</div>
     </div>
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
       <div style="color:var(--muted); font-size:0.72rem; margin-bottom:4px;">손절가</div>
       <div style="font-size:1.05rem; font-weight:700; color:var(--red);">{{ fmt_price(tp.stop, mk) }}{% if tp.risk_pct %} <span style="font-size:0.75rem;">(-{{ tp.risk_pct }}%)</span>{% endif %}</div>
     </div>
     {% if tp.target %}
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
       <div style="color:var(--muted); font-size:0.72rem; margin-bottom:4px;">1차 익절 목표</div>
       <div style="font-size:1.05rem; font-weight:700; color:var(--green);">{{ fmt_price(tp.target, mk) }} <span style="font-size:0.75rem;">(+{{ tp.reward_pct }}%)</span></div>
     </div>
     {% endif %}
     {% if tp.target and tp.risk_pct %}
-    <div style="background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:12px;">
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px;">
       <div style="color:var(--muted); font-size:0.72rem; margin-bottom:4px;">손익비</div>
       <div style="font-size:1.05rem; font-weight:700;">≈ 1 : {{ "%.1f"|format(tp.reward_pct / tp.risk_pct) }}</div>
     </div>
@@ -140,7 +140,7 @@
   <!-- 포지션 사이징 -->
   {% if tp.sizing %}
   {% set sz = tp.sizing %}
-  <div style="background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:14px; margin-bottom:16px;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; margin-bottom:16px;">
     <div style="color:var(--muted); font-size:0.8rem; font-weight:600; margin-bottom:6px;">포지션 크기 (예시: {{ fmt_amount(sz.account, mk) }} 계좌)</div>
     <p style="color:var(--text); font-size:0.86rem; line-height:1.75; margin:0;">
       계좌의 <strong>{{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})</strong>만 잃도록 제한하면,
@@ -227,15 +227,15 @@
 </div>
 
 <!-- 펀더멘털: 분기 실적 추이 -->
-{% macro accel_badge(on, label) %}{% if on %}<span style="background:var(--badge-green-bg); color:var(--green-ink); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-left:6px;">{{ label }}</span>{% endif %}{% endmacro %}
+{% macro accel_badge(on, label) %}{% if on %}<span style="background:var(--badge-green-bg); color:var(--green-ink); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-left:6px;">{{ label }}</span>{% endif %}{% endmacro %}
 <div class="sec-title">실적 추이 <span class="sub">분기별 성장률 · 어닝 서프라이즈</span></div>
 {% macro qoq_cell(v, good, label) %}<td data-label="{{ label }}" style="padding:8px; text-align:right;">{% if v is not none %}<span class="heat-chip" style="min-width:56px; background:{{ growth_heat(v, good) }};">{% if v >= 0 %}▲{% else %}▼{% endif %}{{ "%.1f"|format(v|abs) }}%</span>{% else %}<span class="faint">-</span>{% endif %}</td>{% endmacro %}
 {% if accel %}
 <div style="margin-bottom:12px;">
-  {% if eps_streak and eps_streak >= 3 %}<span style="background:var(--badge-blue-bg); color:var(--accent); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px; font-weight:700;">EPS {{ eps_streak }}분기 연속 성장(YoY)</span>{% elif eps_streak and eps_streak == 2 %}<span style="background:var(--badge-gray-bg); color:var(--muted); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px;">EPS 2분기 연속 성장(YoY)</span>{% endif %}
+  {% if eps_streak and eps_streak >= 3 %}<span style="background:var(--badge-blue-bg); color:var(--accent); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px; font-weight:700;">EPS {{ eps_streak }}분기 연속 성장(YoY)</span>{% elif eps_streak and eps_streak == 2 %}<span style="background:var(--badge-gray-bg); color:var(--muted); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px;">EPS 2분기 연속 성장(YoY)</span>{% endif %}
   {{ accel_badge(accel.revenue, "매출 3분기 가속") }}{{ accel_badge(accel.operating, "영업이익 3분기 가속") }}{{ accel_badge(accel.margin, "마진 3분기 확대") }}{{ accel_badge(accel.eps, "EPS 3분기 가속") }}
-  {% if beat_streak and beat_streak >= 2 %}<span style="background:var(--badge-violet-bg); color:var(--violet); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px; font-weight:700;">어닝 {{ beat_streak }}분기 연속 서프라이즈</span>{% elif eps_surprise_latest is not none and eps_surprise_latest > 0 %}<span style="background:var(--badge-violet-bg); color:var(--violet); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px;">최근 어닝 서프라이즈 {{ "%+.1f"|format(eps_surprise_latest) }}%</span>{% elif eps_surprise_latest is not none and eps_surprise_latest < 0 %}<span style="background:var(--badge-red-bg); color:var(--red-ink); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px;">최근 어닝 미스 {{ "%+.1f"|format(eps_surprise_latest) }}%</span>{% endif %}
-  {% set erb = est_revision(stock.eps_rev_up, stock.eps_rev_down, stock.eps_est_chg) %}{% if erb and erb.good %}<span style="background:var(--badge-green-bg); color:var(--green-ink); font-size:0.72rem; padding:2px 8px; border-radius:4px; margin-right:2px; font-weight:700;">추정치 상향</span>{% endif %}
+  {% if beat_streak and beat_streak >= 2 %}<span style="background:var(--badge-violet-bg); color:var(--violet); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px; font-weight:700;">어닝 {{ beat_streak }}분기 연속 서프라이즈</span>{% elif eps_surprise_latest is not none and eps_surprise_latest > 0 %}<span style="background:var(--badge-violet-bg); color:var(--violet); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px;">최근 어닝 서프라이즈 {{ "%+.1f"|format(eps_surprise_latest) }}%</span>{% elif eps_surprise_latest is not none and eps_surprise_latest < 0 %}<span style="background:var(--badge-red-bg); color:var(--red-ink); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px;">최근 어닝 미스 {{ "%+.1f"|format(eps_surprise_latest) }}%</span>{% endif %}
+  {% set erb = est_revision(stock.eps_rev_up, stock.eps_rev_down, stock.eps_est_chg) %}{% if erb and erb.good %}<span style="background:var(--badge-green-bg); color:var(--green-ink); font-size:0.72rem; padding:2px 8px; border-radius:var(--radius-sm); margin-right:2px; font-weight:700;">추정치 상향</span>{% endif %}
   {% if not (accel.revenue or accel.operating or accel.eps or accel.margin) and not (eps_streak and eps_streak >= 2) and not (beat_streak and beat_streak >= 2) and not (erb and erb.good) %}<span style="color:var(--faint); font-size:0.74rem;">최근 3분기 연속 가속/확대 항목 없음</span>{% endif %}
 </div>
 {% endif %}
@@ -304,7 +304,7 @@
 <div class="card" style="margin-bottom:24px;">
   <!-- 거래량 종합 판정 (국면 + 거래량 조합) -->
   {% set vv = volume_verdict(result) %}
-  <div class="tone-tint" style="--tone-light:{{ vv.color.light }}; --tone-dark:{{ vv.color.dark }}; border-radius:4px; padding:13px 15px; margin-bottom:14px;">
+  <div class="tone-tint" style="--tone-light:{{ vv.color.light }}; --tone-dark:{{ vv.color.dark }}; border-radius:var(--radius-sm); padding:13px 15px; margin-bottom:14px;">
     <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap;">
       <span class="tone-text" style="font-weight:750; font-size:0.98rem;">거래량 종합 · {{ vv.headline }}</span>
     </div>
@@ -402,12 +402,8 @@
     el.textContent = '차트 데이터를 불러올 수 없습니다.';
   }
   if (!window.LightweightCharts) { showChartError(); return; }
-  var dark = document.documentElement.getAttribute('data-theme') === 'dark';
-  var C = dark
-    ? { bg: '#1e222d', text: '#787b86', grid: '#262b38', axis: '#2a2e39',
-        up: '#26a69a', down: '#ef5350', ma50: '#2962ff', ma150: '#ffa726', ma200: '#9b7fd4' }
-    : { bg: '#ffffff', text: '#6b7280', grid: '#eef1f5', axis: '#e5e7eb',
-        up: '#16a34a', down: '#dc2626', ma50: '#2563eb', ma150: '#fb8c00', ma200: '#7e57c2' };
+  var C = { bg: '#1b1c1d', text: '#9ca3af', grid: '#292a2c', axis: '#32363d',
+        up: '#25a750', down: '#f4483c', ma50: '#8b8ff5', ma150: '#f5a524', ma200: '#ca3f64' };
   fetch('/api/chart/{{ stock.ticker }}')
     .then(function (r) { return r.json(); })
     .then(function (d) {

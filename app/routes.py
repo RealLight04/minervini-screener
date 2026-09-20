@@ -15,13 +15,13 @@ templates = Jinja2Templates(directory="templates")
 
 # 템플릿에서 신호 한국어 라벨/색상 사용
 SIGNAL_COLORS = {
-    "STRONG_BUY": {"light": "#16a34a", "dark": "#26a69a"},
-    "BUY": {"light": "#15803d", "dark": "#4caf9e"},
-    "WATCH": {"light": "#6b7280", "dark": "#787b86"},
-    "SELL": {"light": "#fb8c00", "dark": "#ffa726"},
-    "AVOID": {"light": "#9ca3af", "dark": "#5d606b"},
+    "STRONG_BUY": {"light": "#0c8055", "dark": "#2fdc84"},
+    "BUY": {"light": "#1a7d5c", "dark": "#25a750"},
+    "WATCH": {"light": "#78716c", "dark": "#9ca3af"},
+    "SELL": {"light": "#8a5c00", "dark": "#f5a524"},
+    "AVOID": {"light": "#a39c92", "dark": "#6b7280"},
 }
-SIGNAL_COLOR_DEFAULT = {"light": "#787b86", "dark": "#787b86"}
+SIGNAL_COLOR_DEFAULT = {"light": "#78716c", "dark": "#9ca3af"}
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
 templates.env.globals["signal_colors"] = SIGNAL_COLORS
 templates.env.globals["signal_color_default"] = SIGNAL_COLOR_DEFAULT
@@ -154,9 +154,9 @@ def ad_interpret(accum, distrib) -> dict:
     매집일 = 대량거래 + 상승 마감(기관이 사들인 흔적)
     분산일 = 대량거래 + 하락 마감(기관이 판 흔적)
     """
-    GRAY = {"light": "#787b86", "dark": "#787b86"}
-    GREEN = {"light": "#089981", "dark": "#26a69a"}
-    RED = {"light": "#f23645", "dark": "#ef5350"}
+    GRAY = {"light": "#78716c", "dark": "#9ca3af"}
+    GREEN = {"light": "#0a7048", "dark": "#25a750"}
+    RED = {"light": "#c81e0a", "dark": "#f4483c"}
     a, d = accum or 0, distrib or 0
     if a == 0 and d == 0:
         return {"verdict": "자료 부족", "color": GRAY, "accum": a, "distrib": d,
@@ -182,9 +182,9 @@ def ud_interpret(ratio) -> dict | None:
     """
     if ratio is None:
         return None
-    GRAY = {"light": "#787b86", "dark": "#787b86"}
-    GREEN = {"light": "#089981", "dark": "#26a69a"}
-    RED = {"light": "#f23645", "dark": "#ef5350"}
+    GRAY = {"light": "#78716c", "dark": "#9ca3af"}
+    GREEN = {"light": "#0a7048", "dark": "#25a750"}
+    RED = {"light": "#c81e0a", "dark": "#f4483c"}
     if ratio >= 1.5:
         return {"verdict": "강한 매집", "color": GREEN, "ratio": ratio,
                 "note": "상승일 거래량이 하락일의 1.5배 이상 → 기관이 적극적으로 사들이는 중(강력)."}
@@ -222,10 +222,10 @@ def volume_verdict(r) -> dict:
     close, ma50, ma200 = r.close, r.ma50, r.ma200
     pivot = r.vcp_pivot or r.pivot_price
 
-    GOOD = ("good", {"light": "#089981", "dark": "#26a69a"}, "🟢")
-    WATCH = ("watch", {"light": "#fb8c00", "dark": "#ffa726"}, "🟡")
-    BAD = ("bad", {"light": "#f23645", "dark": "#ef5350"}, "🔴")
-    NEU = ("neutral", {"light": "#787b86", "dark": "#787b86"}, "⚪")
+    GOOD = ("good", {"light": "#0a7048", "dark": "#25a750"}, "🟢")
+    WATCH = ("watch", {"light": "#8a5c00", "dark": "#f5a524"}, "🟡")
+    BAD = ("bad", {"light": "#c81e0a", "dark": "#f4483c"}, "🔴")
+    NEU = ("neutral", {"light": "#78716c", "dark": "#9ca3af"}, "⚪")
 
     def mk(t, headline, detail):
         return {"status": t[0], "color": t[1], "icon": t[2], "headline": headline, "detail": detail}
@@ -312,10 +312,10 @@ def est_revision(up, down, chg) -> dict | None:
         parts.append(f"연간EPS 추정 {'+' if chg >= 0 else ''}{chg}%")
     note = " · ".join(parts) if parts else "데이터 부족"
     if net >= 3 or (chg is not None and chg >= 3 and net >= 0):
-        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#089981", "dark": "#26a69a"}, "note": note, "good": True}
+        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#0a7048", "dark": "#25a750"}, "note": note, "good": True}
     if net <= -3 or (chg is not None and chg <= -3):
-        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#f23645", "dark": "#ef5350"}, "note": note, "good": False}
-    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#787b86", "dark": "#787b86"}, "note": note, "good": None}
+        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#c81e0a", "dark": "#f4483c"}, "note": note, "good": False}
+    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#78716c", "dark": "#9ca3af"}, "note": note, "good": None}
 
 
 templates.env.globals["fmt_price"] = fmt_price

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#ffffff" id="themeColorMeta">
+  <meta name="theme-color" content="#0b0c0c">
   <title>{% block title %}Minervini Screener{% endblock %}</title>
   <!-- PWA(홈 화면 설치형 앱) -->
   <link rel="manifest" href="/manifest.webmanifest">
@@ -13,87 +13,49 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="미너비니">
-  <script>
-    (function () {
-      var qs = new URLSearchParams(location.search).get('theme');
-      if (qs === 'dark' || qs === 'light') localStorage.setItem('theme', qs);
-      var saved = localStorage.getItem('theme');
-      var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" as="style" crossorigin
+        href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
   <style>
-    :root, :root[data-theme="light"] {
-      --bg: #ffffff;
-      --surface: #f8fafc;
-      --inset: #f1f5f9;
-      --border: #e5e7eb;
-      --line: #eef1f5;
-      --text: #374151;
-      --heading: #111827;
-      --muted: #6b7280;
-      --faint: #9ca3af;
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --accent-ink: #ffffff;
-      --green: #16a34a;
-      --green-ink: #16a34a;
-      --red: #dc2626;
-      --red-ink: #dc2626;
-      --amber: #ff9800;
-      --violet: #7e57c2;
-      --orange: #fb8c00;
-      --badge-green-bg: rgba(22,163,74,.10);
-      --badge-red-bg: rgba(220,38,38,.10);
-      --badge-gray-bg: #f1f5f9;
-      --badge-blue-bg: rgba(37,99,235,.09);
-      --badge-violet-bg: rgba(126,87,194,.10);
-      --header-bg: rgba(255,255,255,.92);
-      --row-hover: rgba(37,99,235,.04);
-      --radius: 4px;
-      --radius-sm: 3px;
-      --gap: 14px;
-      --shadow: none;
-    }
-    :root[data-theme="dark"] {
-      --bg: #131722;
-      --surface: #1e222d;
-      --inset: #2a2e39;
-      --border: #2a2e39;
-      --line: #262b38;
-      --text: #d1d4dc;
-      --heading: #d1d4dc;
-      --muted: #787b86;
-      --faint: #5d606b;
-      --accent: #2962ff;
-      --accent-hover: #2962ff;
-      --accent-ink: #ffffff;
-      --green: #26a69a;
-      --green-ink: #26a69a;
-      --red: #ef5350;
-      --red-ink: #ef5350;
-      --amber: #ffa726;
-      --violet: #9b7fd4;
-      --orange: #ffa726;
-      --badge-green-bg: rgba(38,166,154,.15);
-      --badge-red-bg: rgba(239,83,80,.15);
+    :root {
+      --bg: #0b0c0c;
+      --surface: #1b1c1d;
+      --inset: #242526;
+      --border: #32363d;
+      --line: #292a2c;
+      --text: #efe9e9;
+      --heading: #ffffff;
+      --muted: #9ca3af;
+      --faint: #6b7280;
+      --accent: #8b8ff5;
+      --accent-hover: #a5a9f8;
+      --accent-ink: #14130d;
+      --accent-fill: #8b8ff5;
+      --accent-fill-hover: #a5a9f8;
+      --green: #25a750;
+      --green-ink: #25a750;
+      --red: #f4483c;
+      --red-ink: #f4483c;
+      --amber: #f5a524;
+      --violet: #ca3f64;
+      --orange: #f5a524;
+      --badge-green-bg: rgba(37,167,80,.16);
+      --badge-red-bg: rgba(244,72,60,.16);
       --badge-gray-bg: rgba(255,255,255,.06);
-      --badge-blue-bg: rgba(41,98,255,.16);
-      --badge-violet-bg: rgba(155,127,212,.15);
-      --header-bg: rgba(19,23,34,.95);
+      --badge-blue-bg: rgba(139,143,245,.16);
+      --badge-violet-bg: rgba(202,63,100,.16);
+      --header-bg: rgba(11,12,12,.95);
       --row-hover: rgba(255,255,255,.035);
-      --radius: 4px;
-      --radius-sm: 3px;
+      --radius: 10px;
+      --radius-sm: 6px;
       --gap: 14px;
       --shadow: none;
     }
-    /* 서버에서 계산된 상태색(신호·시장국면 등)을 라이트/다크 모드에 맞게 전환하는 유틸 */
-    .tone-text { color: var(--tone-light); }
-    .tone-tint { background: color-mix(in srgb, var(--tone-light) 13%, var(--surface)); border-color: color-mix(in srgb, var(--tone-light) 38%, transparent); }
-    .tone-badge { background: color-mix(in srgb, var(--tone-light) 16%, var(--surface)); color: var(--tone-light); border: 1px solid color-mix(in srgb, var(--tone-light) 45%, transparent); }
-    :root[data-theme="dark"] .tone-text { color: var(--tone-dark); }
-    :root[data-theme="dark"] .tone-tint { background: color-mix(in srgb, var(--tone-dark) 13%, var(--surface)); border-color: color-mix(in srgb, var(--tone-dark) 38%, transparent); }
-    :root[data-theme="dark"] .tone-badge { background: color-mix(in srgb, var(--tone-dark) 16%, var(--surface)); color: var(--tone-dark); border-color: color-mix(in srgb, var(--tone-dark) 45%, transparent); }
+
+    /* 서버에서 계산된 상태색(신호·시장국면 등) — 다크 전용이므로 dark 값만 쓴다 */
+    .tone-text { color: var(--tone-dark); }
+    .tone-tint { background: color-mix(in srgb, var(--tone-dark) 13%, var(--surface)); border-color: color-mix(in srgb, var(--tone-dark) 38%, transparent); }
+    .tone-badge { background: color-mix(in srgb, var(--tone-dark) 16%, var(--surface)); color: var(--tone-dark); border: 1px solid color-mix(in srgb, var(--tone-dark) 45%, transparent); }
     .code33-banner { background: linear-gradient(90deg, var(--badge-green-bg), color-mix(in srgb, var(--green) 22%, var(--surface))); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); }
 
     /* ───── 통계 스트립 (TradingView식 밀도있는 숫자 리드아웃) ───── */
@@ -159,7 +121,7 @@
     @keyframes skeleton-pulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
     :root {
-      --font-body: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Pretendard',
+      --font-body: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
                    'Malgun Gothic', 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
       --font-mono: 'SF Mono', 'Cascadia Code', 'D2Coding', Consolas, 'Liberation Mono', monospace;
     }
@@ -265,6 +227,8 @@
       transition: border-color .15s, background .15s; -webkit-tap-highlight-color: transparent;
     }
     .btn:hover { border-color: var(--accent-hover); }
+    .btn-fill { background: var(--accent-fill); color: var(--accent-ink); border: none; }
+    .btn-fill:hover { background: var(--accent-fill-hover); border-color: transparent; }
 
     /* ───── 탭 (TradingView식 플랫 언더라인) ───── */
     .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
@@ -384,16 +348,6 @@
       .section-title { margin: 26px 0 12px; }
     }
 
-    /* ───── 다크모드 토글 ───── */
-    .theme-toggle {
-      background: var(--inset); border: 1px solid var(--border); color: var(--text);
-      width: 34px; height: 34px; border-radius: var(--radius); cursor: pointer; font-size: 0.95rem;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-      -webkit-tap-highlight-color: transparent; transition: border-color .15s;
-    }
-    .theme-toggle:hover { border-color: var(--accent); }
-    :root[data-theme="dark"] .theme-toggle .i-light,
-    :root:not([data-theme="dark"]) .theme-toggle .i-dark { display: none; }
   </style>
 </head>
 <body>
@@ -415,9 +369,6 @@
         <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
         <span class="cmdk-hint">⌘K</span>
       </form>
-      <button type="button" class="theme-toggle" id="themeToggle" onclick="toggleTheme()" aria-label="다크모드 전환" title="라이트/다크 모드 전환">
-        <span class="i-dark">🌙</span><span class="i-light">☀️</span>
-      </button>
     </nav>
   </header>
   <main class="container">
@@ -430,18 +381,6 @@
     </div>
   </div>
   <script>
-    function toggleTheme() {
-      var cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      var next = cur === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('theme', next);
-      // 캔들 차트(lightweight-charts)는 CSS가 아니라 JS로 그려서, 새로고침으로 확실히 다시 그림
-      location.reload();
-    }
-    (function () {
-      var meta = document.getElementById('themeColorMeta');
-      var theme = document.documentElement.getAttribute('data-theme');
-      if (meta && theme === 'dark') meta.setAttribute('content', '#131722');
-    })();
     // 표 행 전체 클릭 시 이동 (data-href 지정된 tr만) — 링크/버튼 클릭은 그대로 두어 중복 방지
     document.addEventListener('click', function (e) {
       var tr = e.target.closest('tr[data-href]');

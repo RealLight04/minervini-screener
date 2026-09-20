@@ -611,15 +611,15 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
 
     if pct_200 >= 60 and pct_50 >= 50:
         regime, label = "BULL", "강세장 — 적극 매수 가능"
-        color = {"light": "#089981", "dark": "#26a69a"}
+        color = {"light": "#0a7048", "dark": "#25a750"}
         advice = "추세가 건강합니다 — 매수 신호를 활용하되 손절·사이징 규칙은 지키세요."
     elif pct_200 < 40:
         regime, label = "BEAR", "약세장 — 신규 매수 자제"
-        color = {"light": "#f23645", "dark": "#ef5350"}
+        color = {"light": "#c81e0a", "dark": "#f4483c"}
         advice = "대부분 종목이 하락하는 구간(Minervini) — 현금 비중을 높이고 신규 진입을 줄이세요."
     else:
         regime, label = "NEUTRAL", "중립 — 선별적 접근"
-        color = {"light": "#fb8c00", "dark": "#ffa726"}
+        color = {"light": "#8a5c00", "dark": "#f5a524"}
         advice = "혼조 구간 — 가장 강한 소수 종목만 작은 비중으로 시험 매수하세요."
 
     return {

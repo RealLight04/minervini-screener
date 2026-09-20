@@ -11,8 +11,8 @@ from PIL import Image, ImageDraw
 OUT = os.path.join(os.path.dirname(__file__), "..", "static", "icons")
 os.makedirs(OUT, exist_ok=True)
 
-BG = (19, 23, 34)      # #131722  앱 다크 배경 토큰(--bg dark)
-GLYPH = (41, 98, 255)  # #2962ff  브랜드 액센트 토큰(--accent)
+BG = (11, 12, 12)       # #0b0c0c  앱 다크 배경 토큰(--bg)
+GLYPH = (139, 143, 245) # #8b8ff5  브랜드 액센트 토큰(--accent, 인디고)
 SS = 4                 # 슈퍼샘플 배율(부드러운 안티에일리어싱)
 
 VB_W, VB_H = 28, 20    # base.html .brand-mark 뷰박스
