@@ -1,11 +1,11 @@
 """
 Minervini Trend Template 스크리닝 핵심 로직
 
-Stage 2 기술적 조건:
-  1. 현재가 > 150일 MA
-  2. 현재가 > 200일 MA
-  3. 150일 MA > 200일 MA
-  4. 200일 MA가 1개월 이상 상승 중
+Stage 2 기술적 조건 (미너비니 트렌드 템플릿 8개. 1번은 코드에서 두 플래그로 나눠 저장):
+  1. 현재가 > 150일 MA 그리고 > 200일 MA
+  2. 150일 MA > 200일 MA
+  3. 200일 MA가 1개월 이상 상승 중
+  4. 50일 MA > 150일 MA 그리고 > 200일 MA
   5. 현재가 > 50일 MA
   6. 현재가 >= 52주 저가의 130% (저가 대비 30% 이상)
   7. 현재가 >= 52주 고가의 75% (고가 대비 25% 이내)
@@ -16,6 +16,7 @@ from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
@@ -114,11 +115,25 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     series = _get_price_series(db, stock.id, days=370)  # 200일MA + 1개월 여유 확보
 
     result = ScreeningResult(stock_id=stock.id, screen_date=screen_date)
+    if len(series):
+        result.price_date = series.index[-1]
 
     if len(series) < 200:
         result.technical_pass = False
         result.fundamental_pass = False
         result.final_pass = False
+        return result
+
+    # 가격 단위가 섞인 종목(분할 미반영·출처 혼합)은 이동평균이 틀어져 신호를 믿을 수 없다 → 보류
+    recent = series.tail(settings.PRICE_JUMP_LOOKBACK + 1)
+    jump = float(recent.pct_change().abs().max()) if len(recent) > 1 else 0.0
+    if jump > settings.PRICE_JUMP_LIMIT:
+        result.close = round(float(series.iloc[-1]), 4)
+        result.technical_pass = False
+        result.fundamental_pass = False
+        result.final_pass = False
+        result.signal = "DATA"
+        result.signal_reason = SIGNAL_REASONS["data_suspect"].format(jump=jump * 100)
         return result
 
     close = series.iloc[-1]
@@ -145,6 +160,7 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     result.cond_price_above_ma150 = bool(close > ma150)
     result.cond_price_above_ma200 = bool(close > ma200)
     result.cond_ma150_above_ma200 = bool(ma150 > ma200)
+    result.cond_ma50_above_ma150_200 = bool(ma50 > ma150 and ma50 > ma200)
     result.cond_ma200_uptrend = bool(ma200_month_ago is not None and ma200 > ma200_month_ago)
     result.cond_price_above_ma50 = bool(close > ma50)
     result.cond_above_52w_low_30pct = bool(close >= week52_low * 1.30)
@@ -155,6 +171,7 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
         result.cond_price_above_ma150,
         result.cond_price_above_ma200,
         result.cond_ma150_above_ma200,
+        result.cond_ma50_above_ma150_200,
         result.cond_ma200_uptrend,
         result.cond_price_above_ma50,
         result.cond_above_52w_low_30pct,
@@ -242,14 +259,15 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     result.signal = signal
     result.signal_reason = reason
     if signal in ("STRONG_BUY", "BUY"):
+        keep = 1 - settings.STOP_LOSS_PCT / 100
         if pivot and close <= pivot * 1.05:
-            # 유효한 돌파 매수가: 피벗 + 손절 -8% (Minervini 7~8%)
+            # 진입가 = 피벗 아래면 피벗(돌파 시 매수), 피벗 위면 현재가(갓 돌파) → 진입가 -8%
             result.pivot_price = round(pivot, 2)
-            result.stop_loss = round(pivot * 0.92, 2)
+            result.stop_loss = round(max(close, pivot) * keep, 2)
         else:
-            # 연장(피벗서 5%+ 위) → 매수가 없음, 50일선을 추적 손절선으로
+            # 연장 → 진입가는 50일선 눌림목. build_trade_plan과 같은 값을 쓴다(목록·상세 일치)
             result.pivot_price = None
-            result.stop_loss = round(ma50, 2) if ma50 else None
+            result.stop_loss = round(ma50 * keep, 2) if ma50 else None
 
     return result
 
@@ -410,6 +428,7 @@ SIGNAL_LABELS = {
     "WATCH": "관심",
     "SELL": "매도",
     "AVOID": "회피",
+    "DATA": "데이터 점검",
 }
 
 # ─── 신호 이유 문구 (개조식). 화면·DB에 나가는 문구는 여기 값만 고치면 됨. ───
@@ -421,7 +440,11 @@ SIGNAL_REASONS = {
     "below_ma50":        "50일선 무너지며 추세 약해짐. 보유 중이면 매도·비중 축소 고려",
     "breakout_wait":     "{base}에 펀더멘털까지 통과. 피벗 {pivot} 돌파 대기 (+{gap:.1f}% 남음)",
     "just_broke_out":    "피벗 {pivot} 막 돌파. 미너비니 기준 매수 시점",
-    "extended":          "추세·실적 통과했으나 고점 위로 많이 연장됨. 50일선까지 눌림목 대기",
+    "extended":          "추세·실적 통과했으나 고점 부근에서 베이스 없이 연장됨. 50일선까지 눌림목 대기",
+    "extended_pivot":    "추세·실적 통과했으나 피벗 {pivot} 위로 {gap:.1f}% 올라 매수 구간 지남. 50일선까지 눌림목 대기",
+    "no_base":           "추세·실적 통과. 52주 고점 대비 -{gap:.0f}% 구간, 매수할 베이스(피벗) 아직 없음. 베이스 형성 대기",
+    "data_suspect":      "최근 하루 {jump:.0f}% 가격 변동, 분할 미반영·데이터 오류 의심. 확인 전까지 신호 보류",
+    "price_stopped":     "가격 갱신 중단(마지막 종가 {last}). 상장폐지·수집 실패 확인 전까지 신호 보류",
     "no_earnings":       "추세는 좋으나 실적 모멘텀 부족. 관심 종목으로 관찰",
     "stage2_incomplete": "Stage 2 조건 미충족. 추세 자리 잡을 때까지 대기",
     "bear_gated":        "🚫 약세장이라 매수 신호 보류. 기술적으로는 '{orig}' 신호이며 시장 회복 시 다시 표시",
@@ -460,7 +483,14 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
         # 피벗 갓 돌파(5% 이내) = 적극 매수
         if pivot and close <= pivot * 1.05:
             return "STRONG_BUY", SIGNAL_REASONS["just_broke_out"].format(pivot=c(pivot))
-        # 추세·실적은 통과했으나 직전 고점 위로 연장(extended) → 추격 매수 부적절
+        # 피벗 위로 5% 넘게 오름 = 매수 구간 지나 연장 → 눌림목 대기
+        if pivot:
+            return "BUY", SIGNAL_REASONS["extended_pivot"].format(pivot=c(pivot), gap=(close / pivot - 1) * 100)
+        # 피벗이 없는 이유는 둘이다. 고점 부근에서 베이스 없이 오른 '연장'이면 눌림목 매수 후보,
+        # 고점 한참 아래(V자 반등·깊은 베이스)면 살 자리가 아직 없으므로 관심으로 둔다.
+        h52 = result.week52_high
+        if h52 and close < h52 * settings.EXTENDED_NEAR_HIGH:
+            return "WATCH", SIGNAL_REASONS["no_base"].format(gap=(1 - close / h52) * 100)
         return "BUY", SIGNAL_REASONS["extended"]
 
     if result.technical_pass:
@@ -500,18 +530,16 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
     # ─── 상황(모드) 판별 ───
     if result.signal == "STRONG_BUY" and pivot:
         mode = "breakout_now"
-        headline = "지금이 매수 시점 — 피벗을 갓 돌파했습니다"
+        headline = "매수 시점. 피벗을 갓 돌파"
         entry = close                       # 피벗 막 돌파 → 현재가 부근 진입
     elif pivot and close < pivot:
         mode = "wait_pivot"
-        headline = f"매수 대기 — 피벗 {c(pivot)} 돌파를 확인하고 진입하세요"
+        headline = f"매수 대기. 피벗 {c(pivot)} 돌파 확인 후 진입"
         entry = pivot                       # 아직 피벗 아래 → 돌파 시 진입
     else:
         mode = "pullback"
-        headline = "추격 금지 — 50일선 눌림목을 기다려 진입하세요"
-        entry = ma50                        # 연장 구간 → 눌림목(50일선) 대기
-        if ma50:
-            stop = round(ma50 * 0.92, 2)    # 50일선 -8%
+        headline = "추격 금지. 50일선 눌림목에서 진입"
+        entry = ma50                        # 연장 구간 → 눌림목(50일선) 대기, 손절은 저장값(50일선 -8%)
 
     risk_pct = None
     if entry and stop and entry > stop:
@@ -540,19 +568,19 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
     # ─── 단계별 진입 절차 ───
     if mode == "breakout_now":
         steps = [
-            "거래량이 평균 대비 40% 이상 늘었는지 확인 (거래량 없는 돌파는 신뢰도 낮음).",
-            f"현재가 {c(entry)} 부근 진입 — 피벗 대비 +5% 이상 연장되면 추격 금지.",
-            f"손절 {c(stop)} (-{risk_pct}%) 즉시 설정 — 예외 없음.",
+            "돌파 전 베이스 거래량이 말라 있었는지 확인 (백테스트상 돌파 당일 거래량보다 베이스 마름이 성패를 가름).",
+            f"현재가 {c(entry)} 부근 진입. 피벗 대비 +5% 넘게 연장되면 추격 금지.",
+            f"손절 {c(stop)} (-{risk_pct}%) 즉시 설정. 예외 없음.",
         ]
     elif mode == "wait_pivot":
         steps = [
-            f"피벗까지 +{gap_to_pivot}% — 아직 매수 보류, 돌파 여부를 지켜보세요.",
-            f"피벗 {c(pivot)}을 거래량 동반해 돌파하면 {c(entry)} 부근에서 진입.",
+            f"피벗까지 +{gap_to_pivot}%. 아직 매수 보류, 돌파 여부 관찰.",
+            f"종가가 피벗 {c(pivot)}을 넘으면 {c(entry)} 부근에서 진입 (당일 거래량 급증은 필수 아님).",
             f"진입과 동시에 손절 {c(stop)} (-{risk_pct}%) 설정.",
         ]
     else:  # pullback
         steps = [
-            "고점 위로 연장된 상태 — 지금 추격하면 손절폭 과다.",
+            "매수 구간을 지나 연장된 상태. 지금 추격하면 손절폭 과다.",
             f"50일선({c(ma50)}) 눌림에서 거래량이 줄며 지지되는지 확인한 후 진입.",
             f"손절은 50일선 아래 {c(stop)} 부근(-{risk_pct}%)에 설정." if risk_pct else "손절은 50일선 살짝 아래에 설정.",
         ]
@@ -566,7 +594,7 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
             f"+{round(risk_pct * _PROFIT_R_MULTIPLE, 1)}% (목표 {c(target)}) 도달 시 일부 익절, 나머지는 본전 손절로 전환."
         )
     sell_rules += [
-        "50일선을 추적 손절선으로 사용 — 거래량을 동반하며 종가가 이탈하면 정리.",
+        "50일선을 추적 손절선으로 사용. 종가가 50일선 아래로 마감하면 정리 검토.",
         "이익이 본전까지 줄면 청산 (손실 전환 방지).",
     ]
 
@@ -611,16 +639,16 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
 
     if pct_200 >= 60 and pct_50 >= 50:
         regime, label = "BULL", "강세장 — 적극 매수 가능"
-        color = {"light": "#0a7048", "dark": "#25a750"}
-        advice = "추세가 건강합니다 — 매수 신호를 활용하되 손절·사이징 규칙은 지키세요."
+        color = {"light": "#0a7048", "dark": "#3fb46a"}
+        advice = "추세 건강. 매수 신호를 쓰되 손절·비중 규칙은 그대로"
     elif pct_200 < 40:
         regime, label = "BEAR", "약세장 — 신규 매수 자제"
-        color = {"light": "#c81e0a", "dark": "#f4483c"}
-        advice = "대부분 종목이 하락하는 구간(Minervini) — 현금 비중을 높이고 신규 진입을 줄이세요."
+        color = {"light": "#c81e0a", "dark": "#e5483d"}
+        advice = "대부분 종목이 하락하는 구간. 현금 비중 확대, 신규 진입 축소"
     else:
         regime, label = "NEUTRAL", "중립 — 선별적 접근"
-        color = {"light": "#8a5c00", "dark": "#f5a524"}
-        advice = "혼조 구간 — 가장 강한 소수 종목만 작은 비중으로 시험 매수하세요."
+        color = {"light": "#8a5c00", "dark": "#4f95e6"}
+        advice = "혼조 구간. 가장 강한 소수 종목만 작은 비중으로 시험 매수"
 
     return {
         "available": True,
@@ -639,8 +667,11 @@ def apply_regime_gate(db: Session, screen_date: date) -> int:
     """시장 국면 게이트 — 약세장(BEAR)인 시장의 매수신호를 보류(WATCH)로 강등.
 
     Minervini: 약세장에선 대부분 종목이 시장을 따라 하락한다. 백테스트(시점복원,
-    2020~2026)에서도 지수<200MA 국면의 트렌드 신호는 시장평균 대비 1·3·6개월
+    2020~2026)에서 지수<200MA 국면의 트렌드 신호는 시장평균 대비 1·3·6개월
     각 -2.2/-2.5/-3.5%p로 열위였다 → 기술적으론 매수신호여도 시장이 약하면 보류.
+    단, 여기서 쓰는 판정은 지수가 아니라 compute_market_breadth의 '200일선 위 종목 비율
+    < 40%'라 백테스트한 규칙과 다르다(미검증 대리지표). 50일선 비율은 약세 판정에 안 쓰므로
+    급락 초기엔 늦게 켜진다(2026-07 코스피: 50일선 위 15%에도 중립, 한 달 뒤 약세 전환).
 
     원래 신호는 signal_reason에 남겨 투명하게 표시(🚫 표식). 종목 자체의 기술
     조건은 그대로라, 시장이 회복되면 다음 스크리닝에서 다시 매수신호로 복귀한다.
@@ -719,7 +750,7 @@ def _vcp_quality(r: ScreeningResult, base_days: int, base_seq: int) -> int:
     return int(round(max(0.0, min(100.0, q))))
 
 
-def update_vcp_registry(db: Session, screen_date: date) -> dict:
+def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | None = None) -> dict:
     """오늘 스크리닝 결과로 VCP 레지스트리(vcp_events)를 갱신.
 
     한 VCP 베이스를 한 행에 '최초발생일(=첫 형성)~최근일'로 누적하고 상태를 확정한다:
@@ -744,7 +775,10 @@ def update_vcp_registry(db: Session, screen_date: date) -> dict:
         for e in db.query(VCPEvent).filter(VCPEvent.status.in_(["forming", "breakout_watch"])).all()
     }
     stats = {"new": 0, "updated": 0, "broke_out": 0, "watch": 0, "reset": 0, "failed": 0}
-    seen = set()
+    # 가격이 안 늘어난 시장·데이터 이상 종목은 이벤트를 건드리지 않는다(멈춘 값으로 날짜만 늘면
+    # grace·stale 판정과 품질점수가 오염된다). seen에 넣어 아래 '빠진 종목' 실패 처리에서도 제외.
+    skip = set(skip_stock_ids or ())
+    seen = set(skip)
 
     def _snapshot(ev, r, base_seq):
         ev.last_detected = screen_date
@@ -787,6 +821,8 @@ def update_vcp_registry(db: Session, screen_date: date) -> dict:
 
     for r in results:
         seen.add(r.stock_id)
+        if r.stock_id in skip or r.signal == "DATA":
+            continue
         ev = open_events.get(r.stock_id)
         trend = _trend_ok(r)
         # 등록 자격: 추세 게이트 + 진짜 VCP + 베이스가 150일선 위(급락 중 얕은 되돌림 배제)
@@ -921,6 +957,43 @@ def prune_old_history(db: Session, keep_price_days: int = 450, keep_screen_days:
         )
 
 
+def _fresh_markets(db: Session, stocks: list) -> set:
+    """직전 스크리닝 이후 새 종가가 들어온 시장 집합.
+
+    직전 결과의 price_date(계산에 쓴 마지막 종가일)보다 지금 DB의 최신 종가일이 뒤면 fresh.
+    price_date가 없던 옛 결과는 종목별 최신 종가가 직전 결과 종가와 달라졌는지로 판단한다.
+    """
+    by_mk: dict[str, list[int]] = {}
+    for s in stocks:
+        by_mk.setdefault(s.market or "US", []).append(s.id)
+    prev = db.query(func.max(ScreeningResult.screen_date)).scalar()
+    if prev is None:
+        return set(by_mk)
+
+    fresh = set()
+    for mk, ids in by_mk.items():
+        cur_max = db.query(func.max(DailyPrice.date)).filter(DailyPrice.stock_id.in_(ids)).scalar()
+        rows = (db.query(ScreeningResult.stock_id, ScreeningResult.price_date, ScreeningResult.close)
+                .filter(ScreeningResult.screen_date == prev, ScreeningResult.stock_id.in_(ids)).all())
+        basis = max((pd_ for _, pd_, _ in rows if pd_), default=None)
+        if basis is not None:
+            if cur_max and cur_max > basis:
+                fresh.add(mk)
+            continue
+        prev_close = {sid: c for sid, _, c in rows if c}
+        if not prev_close:
+            fresh.add(mk)
+            continue
+        latest = db.query(DailyPrice.stock_id, func.max(DailyPrice.date).label("d")) \
+            .filter(DailyPrice.stock_id.in_(list(prev_close))).group_by(DailyPrice.stock_id).subquery()
+        closes = db.query(DailyPrice.stock_id, DailyPrice.close).join(
+            latest, and_(DailyPrice.stock_id == latest.c.stock_id, DailyPrice.date == latest.c.d)).all()
+        changed = sum(1 for sid, c in closes if c is not None and abs(round(c, 4) - prev_close[sid]) > 1e-6)
+        if closes and changed / len(closes) > 0.2:
+            fresh.add(mk)
+    return fresh
+
+
 def run_daily_screen(db: Session) -> int:
     """전체 종목 스크리닝 실행 (일일 배치)"""
     _migrate_schema()   # vcp_events 테이블·vcp_pivot 컬럼 보장(기존 DB용)
@@ -931,6 +1004,15 @@ def run_daily_screen(db: Session) -> int:
         logger.warning("스크리닝할 종목이 없습니다.")
         return 0
 
+    # 가격이 멈춘 채 날짜만 바꿔 신호를 내지 않는다(2026-08 한 달 정지 재발 방지).
+    fresh = _fresh_markets(db, stocks)
+    if not fresh:
+        logger.warning("직전 스크리닝 이후 새 종가가 들어온 시장이 없음 — 스크리닝 건너뜀(수집 실패·휴장 확인)")
+        return 0
+    stale = {s.market or "US" for s in stocks} - fresh
+    if stale:
+        logger.warning(f"새 종가 없는 시장 {sorted(stale)} — 결과는 다시 계산하되 VCP 레지스트리는 갱신 안 함")
+
     logger.info(f"스크리닝 시작: {len(stocks)}개 종목, 기준일 {screen_date}")
 
     # RS 점수는 시장별로 따로 계산 (미국 vs 한국 혼합 방지)
@@ -939,6 +1021,13 @@ def run_daily_screen(db: Session) -> int:
     for mk in markets:
         ids = {s.id for s in stocks if (s.market or "US") == mk}
         rs_scores.update(_calc_rs_scores(db, screen_date, stock_ids=ids))
+
+    # 종목별로 가격이 자기 시장 최신일보다 오래 멈춘 경우(상장폐지·수집 실패 누적) 신호 보류
+    market_latest = dict(
+        db.query(Stock.market, func.max(DailyPrice.date))
+        .join(DailyPrice, DailyPrice.stock_id == Stock.id)
+        .filter(Stock.is_active == True).group_by(Stock.market).all()
+    )
 
     passed = 0
     for stock in stocks:
@@ -950,6 +1039,12 @@ def run_daily_screen(db: Session) -> int:
 
         rs_rank = rs_scores.get(stock.id, 0.0)
         result = screen_stock(db, stock, screen_date, rs_rank)
+        mk_latest = market_latest.get(stock.market)
+        if result.price_date and mk_latest and (mk_latest - result.price_date).days > settings.PRICE_STALE_DAYS:
+            result.technical_pass = result.fundamental_pass = result.final_pass = False
+            result.signal = "DATA"
+            result.signal_reason = SIGNAL_REASONS["price_stopped"].format(last=result.price_date)
+            result.pivot_price = result.stop_loss = None
         db.add(result)
 
         if result.final_pass:
@@ -961,8 +1056,9 @@ def run_daily_screen(db: Session) -> int:
     # 시장 국면 게이트 — 약세장 시장의 매수신호 보류(WATCH)
     apply_regime_gate(db, screen_date)
 
-    # VCP 레지스트리 갱신 (발생·돌파·실패 이력 누적)
-    update_vcp_registry(db, screen_date)
+    # VCP 레지스트리 갱신 (발생·돌파·실패 이력 누적) — 새 종가 없는 시장은 제외
+    update_vcp_registry(db, screen_date,
+                        skip_stock_ids={s.id for s in stocks if (s.market or "US") in stale})
 
     # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
     prune_old_history(db)

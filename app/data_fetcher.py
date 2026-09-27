@@ -121,26 +121,31 @@ def fetch_and_save_prices(db: Session, ticker: str, period_days: int = 450) -> b
             logger.info(f"{ticker} 상장 {(date.today() - first_date).days}일 → is_active=False")
             return False
 
-        for idx, row in hist.iterrows():
-            price_date = idx.date()
-            # 이미 있으면 건너뜀
-            exists = (
-                db.query(DailyPrice)
-                .filter(DailyPrice.stock_id == stock.id, DailyPrice.date == price_date)
-                .first()
-            )
-            if not exists:
-                db.add(
-                    DailyPrice(
-                        stock_id=stock.id,
-                        date=price_date,
-                        open=row.get("Open"),
-                        high=row.get("High"),
-                        low=row.get("Low"),
+        # auto_adjust=True라 분할·배당이 생기면 yfinance가 과거 전체를 새 단위로 다시 준다.
+        # 새 날짜만 넣으면 옛 단위 행과 새 단위 행이 섞이므로(APH·MNST 등 반값/두배 교차),
+        # 겹치는 날짜 중 하나라도 1% 넘게 어긋나면 그 종목의 겹치는 구간을 통째로 새 값으로 덮는다.
+        existing = {
+            p.date: p for p in db.query(DailyPrice).filter(DailyPrice.stock_id == stock.id,
+                                                           DailyPrice.date >= start).all()
+        }
+        # 종가가 비어 있는 행(장중·휴장일 등)은 버린다. 넣으면 NOT NULL 위반으로 그 종목 전체가 롤백된다.
+        rows = [(idx.date(), row) for idx, row in hist.iterrows() if pd.notna(row["Close"])]
+        rescaled = any(
+            existing[d].close and abs(float(row["Close"]) / existing[d].close - 1) > 0.01
+            for d, row in rows if d in existing
+        )
+        for price_date, row in rows:
+            vals = dict(open=row.get("Open"), high=row.get("High"), low=row.get("Low"),
                         close=row["Close"],
-                        volume=int(row.get("Volume", 0)),
-                    )
-                )
+                        volume=int(row["Volume"]) if pd.notna(row.get("Volume")) else 0)
+            p = existing.get(price_date)
+            if p is None:
+                db.add(DailyPrice(stock_id=stock.id, date=price_date, **vals))
+            elif rescaled:
+                for k, v in vals.items():
+                    setattr(p, k, v)
+        if rescaled:
+            logger.info(f"{ticker} 저장 가격이 최신 조정가와 달라 {len(existing)}행 재기록(분할·조정 반영)")
         db.commit()
         return True
     except Exception as e:

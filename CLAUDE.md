@@ -9,9 +9,12 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 
 - **서버렌더링 고수.** React/Tailwind/빌드툴 없음. 화면은 Jinja2 템플릿 + **순수 CSS**로만.
   새 기능도 이 방식으로 — SPA/프론트 프레임워크 도입 금지(스택 단순성이 이 프로젝트의 전제).
-- **테마는 CSS 커스텀 프로퍼티로.** 라이트/다크는 `:root` 변수(`--green`/`--red`/`--surface`
-  등)와 `:root[data-theme=...]`로 처리. 색을 하드코딩하지 말고 항상 토큰(변수)을 쓴다.
-  차트(JS)도 `getComputedStyle`로 같은 토큰을 읽어 UI와 어긋나지 않게.
+- **테마는 CSS 커스텀 프로퍼티로, 다크 전용.** 토큰은 `templates/base.html`의 `:root` 하나에만
+  있다(라이트 테마·`data-theme` 없음). 색을 하드코딩하지 말고 항상 토큰(변수)을 쓴다.
+  차트(JS)도 `getComputedStyle`로 같은 토큰을 읽어 UI와 어긋나지 않게(`stock.html` 참고).
+- **시각 규칙은 `DESIGN.md`가 기준.** 세계관은 "운항 관제실"(건메탈 랙 · 인쇄 비행 스트립 · 비행장 표지).
+  색의 의미(노랑=적극 매수·인터랙션, 회색=대기, 빨강=매도, 국면=VFR/MVFR/IFR), 글꼴 역할, 금지 사항이
+  거기 있다. 제품 맥락은 `PRODUCT.md`. Figma 사본: https://www.figma.com/design/t8mXuZka6OS3qbZv4MipwW
 - **DB는 커밋되는 스냅샷.** `screener.db`(SQLite)는 배포 스냅샷이라 git에 **커밋**한다
   (`.gitignore` 하지 않음). Postgres 경로는 백업용.
 
@@ -40,7 +43,7 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 
 ## 디자인·UX 원칙 (일관성 = AI티 안 나는 UI의 핵심)
 
-- **축마다 값 하나.** radius 성격 하나(샤프 3~4px), 컨트롤 높이 셋 하나, 아이콘 패밀리 하나
+- **축마다 값 하나.** radius 성격 하나(샤프 2~3px), 컨트롤 높이 셋 하나, 아이콘 패밀리 하나
   (currentColor 스트로크 SVG). 섞지 말 것.
 - **색 = 심각도, 장식 아님.** 보통/정상은 중립 회색, 색은 주의가 필요한 소수에만. 같은 값엔
   같은 색. 정반대 의미(기회 vs 위험)에 사실상 같은 색을 쓰지 말 것.
@@ -79,8 +82,8 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 - **Reader** (아무 세션): 읽기·분석·조사·리뷰·패치 초안만. 결과는 텍스트로 Owner에 전달.
 
 Owner 외 전원 금지: git `add`/`commit`/`stash`/`checkout`/`restore`/`reset`/`clean` ·
-8010·8011 포트에 서버 기동(**8010은 공개 퍼널에 연결돼 있다**) · `bash smoke.sh`(기본 포트가
-8010이고 프로세스 종료를 포트 대신 실행경로로 매칭) · 재스크리닝·수집 스크립트
+8010·8011 포트에 서버 기동(**8010은 공개 퍼널에 연결돼 있다**) · `bash smoke.sh`(공용 venv에
+`pip install`을 실행한다. 기본 포트는 18010이지만 `PORT=8010`/`8011`을 주면 퍼널 포트를 건드린다) · 재스크리닝·수집 스크립트
 (`local_refresh.py`, `daily_update.py`, `collect_kr.py`, `send_alerts.py`, `backfill_eps.py`) ·
 `GET /api/screen-now`(공개 웹 프로세스 안에서 배타적 DB 쓰기를 유발) · `pip install`(venv 공용).
 

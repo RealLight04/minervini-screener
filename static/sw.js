@@ -1,7 +1,7 @@
 // 미너비니 스크리너 서비스워커 — 설치형 PWA용.
 // 전략: 페이지(HTML)는 네트워크 우선(항상 최신 시세), 정적 자원은 캐시 우선,
 //       오프라인이면 폴백 페이지. 아이콘 등 자원 버전이 바뀌면 CACHE 값을 올린다.
-const CACHE = 'minervini-v1';
+const CACHE = 'minervini-v2';   // v2: 다크 전용 리디자인(인디고 아이콘·offline.html)
 const CORE = [
   '/static/offline.html',
   '/static/icons/icon-192.png',

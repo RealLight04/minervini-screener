@@ -15,13 +15,13 @@ templates = Jinja2Templates(directory="templates")
 
 # 템플릿에서 신호 한국어 라벨/색상 사용
 SIGNAL_COLORS = {
-    "STRONG_BUY": {"light": "#0c8055", "dark": "#2fdc84"},
-    "BUY": {"light": "#1a7d5c", "dark": "#25a750"},
-    "WATCH": {"light": "#78716c", "dark": "#9ca3af"},
-    "SELL": {"light": "#8a5c00", "dark": "#f5a524"},
-    "AVOID": {"light": "#a39c92", "dark": "#6b7280"},
+    "STRONG_BUY": {"light": "#0c8055", "dark": "#f2c200"},
+    "BUY": {"light": "#1a7d5c", "dark": "#52c47a"},
+    "WATCH": {"light": "#78716c", "dark": "#a2aab1"},
+    "SELL": {"light": "#8a5c00", "dark": "#e5483d"},
+    "AVOID": {"light": "#a39c92", "dark": "#808990"},
 }
-SIGNAL_COLOR_DEFAULT = {"light": "#78716c", "dark": "#9ca3af"}
+SIGNAL_COLOR_DEFAULT = {"light": "#78716c", "dark": "#a2aab1"}
 templates.env.globals["signal_labels"] = SIGNAL_LABELS
 templates.env.globals["signal_colors"] = SIGNAL_COLORS
 templates.env.globals["signal_color_default"] = SIGNAL_COLOR_DEFAULT
@@ -154,16 +154,16 @@ def ad_interpret(accum, distrib) -> dict:
     매집일 = 대량거래 + 상승 마감(기관이 사들인 흔적)
     분산일 = 대량거래 + 하락 마감(기관이 판 흔적)
     """
-    GRAY = {"light": "#78716c", "dark": "#9ca3af"}
-    GREEN = {"light": "#0a7048", "dark": "#25a750"}
-    RED = {"light": "#c81e0a", "dark": "#f4483c"}
+    GRAY = {"light": "#78716c", "dark": "#a2aab1"}
+    GREEN = {"light": "#0a7048", "dark": "#52c47a"}
+    RED = {"light": "#c81e0a", "dark": "#ef5a4f"}
     a, d = accum or 0, distrib or 0
     if a == 0 and d == 0:
         return {"verdict": "자료 부족", "color": GRAY, "accum": a, "distrib": d,
-                "note": "대량거래일이 뚜렷하지 않습니다."}
+                "note": "대량거래일 뚜렷하지 않음."}
     if d >= 5 and d >= a:
         return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
-                "note": "대량 하락일이 많습니다 → 기관 매도 흔적. 신규 매수 신중, 보유 시 경계하세요."}
+                "note": "대량 하락일 많음, 기관 매도 흔적. 신규 매수 신중, 보유 시 경계."}
     if a >= d + 2:
         return {"verdict": "매집 우세", "color": GREEN, "accum": a, "distrib": d,
                 "note": "대량 상승일 우세 → 기관 매수 흔적(건강), 미너비니 선호 패턴."}
@@ -171,7 +171,7 @@ def ad_interpret(accum, distrib) -> dict:
         return {"verdict": "분산 우세", "color": RED, "accum": a, "distrib": d,
                 "note": "대량 하락일 우세 → 기관 매도 압력, 추세 약화 주의."}
     return {"verdict": "중립", "color": GRAY, "accum": a, "distrib": d,
-            "note": "매집·분산이 팽팽합니다 → 대량거래 동반 돌파를 기다리세요."}
+            "note": "매집·분산 팽팽. 대량거래 동반 돌파 대기."}
 
 
 def ud_interpret(ratio) -> dict | None:
@@ -182,9 +182,9 @@ def ud_interpret(ratio) -> dict | None:
     """
     if ratio is None:
         return None
-    GRAY = {"light": "#78716c", "dark": "#9ca3af"}
-    GREEN = {"light": "#0a7048", "dark": "#25a750"}
-    RED = {"light": "#c81e0a", "dark": "#f4483c"}
+    GRAY = {"light": "#78716c", "dark": "#a2aab1"}
+    GREEN = {"light": "#0a7048", "dark": "#52c47a"}
+    RED = {"light": "#c81e0a", "dark": "#ef5a4f"}
     if ratio >= 1.5:
         return {"verdict": "강한 매집", "color": GREEN, "ratio": ratio,
                 "note": "상승일 거래량이 하락일의 1.5배 이상 → 기관이 적극적으로 사들이는 중(강력)."}
@@ -203,7 +203,7 @@ def dryup_note(ratio) -> str:
     if ratio is None:
         return ""
     if ratio <= 0.6:
-        return f"거래량이 크게 말랐습니다({ratio:.2f}x) — 매물 거의 소진"
+        return f"거래량 크게 마름({ratio:.2f}x), 매물 거의 소진"
     if ratio <= 0.85:
         return f"거래량이 마르는 중({ratio:.2f}x) — 매도세 고갈"
     if ratio <= 1.1:
@@ -222,16 +222,16 @@ def volume_verdict(r) -> dict:
     close, ma50, ma200 = r.close, r.ma50, r.ma200
     pivot = r.vcp_pivot or r.pivot_price
 
-    GOOD = ("good", {"light": "#0a7048", "dark": "#25a750"}, "🟢")
-    WATCH = ("watch", {"light": "#8a5c00", "dark": "#f5a524"}, "🟡")
-    BAD = ("bad", {"light": "#c81e0a", "dark": "#f4483c"}, "🔴")
-    NEU = ("neutral", {"light": "#78716c", "dark": "#9ca3af"}, "⚪")
+    GOOD = ("good", {"light": "#0a7048", "dark": "#52c47a"}, "🟢")
+    WATCH = ("watch", {"light": "#8a5c00", "dark": "#f2c200"}, "🟡")
+    BAD = ("bad", {"light": "#c81e0a", "dark": "#ef5a4f"}, "🔴")
+    NEU = ("neutral", {"light": "#78716c", "dark": "#a2aab1"}, "⚪")
 
     def mk(t, headline, detail):
         return {"status": t[0], "color": t[1], "icon": t[2], "headline": headline, "detail": detail}
 
     if v is None:
-        return mk(NEU, "거래량 자료 부족", "거래량 데이터가 아직 충분하지 않습니다.")
+        return mk(NEU, "거래량 자료 부족", "거래량 데이터 아직 부족.")
 
     # 현재 국면 판정
     if r.signal == "STRONG_BUY":
@@ -270,7 +270,7 @@ def volume_verdict(r) -> dict:
         if v >= 1.4 and d >= a:
             return mk(WATCH, "베이스 대량 분산 → 주의",
                       f"쉬는 구간에 대량거래({v:.1f}x)+분산일 다수 → 매물 출회 주의.")
-        return mk(NEU, "베이스 형성 중", "거래량이 마르는지(dry-up) 지켜보세요.")
+        return mk(NEU, "베이스 형성 중", "거래량이 마르는지(dry-up) 관찰.")
 
     if phase == "downtrend":
         if d >= a + 2 or d >= 5:
@@ -312,10 +312,10 @@ def est_revision(up, down, chg) -> dict | None:
         parts.append(f"연간EPS 추정 {'+' if chg >= 0 else ''}{chg}%")
     note = " · ".join(parts) if parts else "데이터 부족"
     if net >= 3 or (chg is not None and chg >= 3 and net >= 0):
-        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#0a7048", "dark": "#25a750"}, "note": note, "good": True}
+        return {"label": "추정치 상향", "icon": "📈", "color": {"light": "#0a7048", "dark": "#52c47a"}, "note": note, "good": True}
     if net <= -3 or (chg is not None and chg <= -3):
-        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#c81e0a", "dark": "#f4483c"}, "note": note, "good": False}
-    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#78716c", "dark": "#9ca3af"}, "note": note, "good": None}
+        return {"label": "추정치 하향", "icon": "📉", "color": {"light": "#c81e0a", "dark": "#ef5a4f"}, "note": note, "good": False}
+    return {"label": "추정치 보합", "icon": "➖", "color": {"light": "#78716c", "dark": "#a2aab1"}, "note": note, "good": None}
 
 
 templates.env.globals["fmt_price"] = fmt_price
@@ -349,6 +349,39 @@ def _latest_screen_date(db: Session) -> date | None:
         .first()
     )
     return row[0] if row else None
+
+
+def _expected_last_session(market: str) -> date:
+    """지금 시각에 이미 종가가 수집됐어야 할 가장 최근 평일(휴장일은 모름)."""
+    from datetime import datetime, time
+    from zoneinfo import ZoneInfo
+    if market == "US":
+        now, cutoff = datetime.now(ZoneInfo("America/New_York")), time(17, 0)
+    else:
+        now, cutoff = datetime.now(ZoneInfo("Asia/Seoul")), time(16, 0)
+    d = now.date() if now.time() >= cutoff else now.date() - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return d
+
+
+def _price_freshness(db: Session, screen_date: date, market: str) -> dict:
+    """화면 결과가 쓴 실제 종가 날짜와, 예상 최신 거래일보다 몇 평일 뒤처졌는지."""
+    from sqlalchemy import func
+    price_date = (
+        db.query(func.max(ScreeningResult.price_date))
+        .join(Stock, ScreeningResult.stock_id == Stock.id)
+        .filter(ScreeningResult.screen_date == screen_date, Stock.market == market)
+        .scalar()
+    )
+    if price_date is None:
+        return {"price_date": None, "lag": 0, "stale": False}
+    expected, lag, d = _expected_last_session(market), 0, price_date
+    while d < expected:
+        d += timedelta(days=1)
+        if d.weekday() < 5:
+            lag += 1
+    return {"price_date": price_date, "lag": lag, "stale": lag >= settings.STALE_WARN_SESSIONS}
 
 
 def _fetch_sparklines(db: Session, stock_ids: list[int], days: int = 30) -> dict:
@@ -420,15 +453,18 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             gap = round((r.pivot_price / r.close - 1) * 100, 1)
             breakout_watch.append((r, s, gap))
     breakout_watch.sort(key=lambda x: x[2])
+    watch_ids = {s.id for _, s, _ in breakout_watch}
+    # 눌림목 대기: 매수 신호 중 돌파 대기가 아닌 것(피벗 위로 연장·베이스 없이 고점 부근)
+    extended_list = [(r, s) for r, s in buy_list if s.id not in watch_ids]
+
+    # 스트립을 당기면 펼쳐지는 비행 계획(진입·손절·목표·비중)
+    plans = {s.id: build_trade_plan(r, market) for r, s in strong_buy_list + buy_list}
 
     # 매도 경고: Stage 2 유지 중 50일선 이탈 종목 (RS 강한 순 상위 30개만 표시)
     sell_all = _by_signals(["SELL"])
     sell_list = sell_all[:30]
-
-    # 표에 쓸 미니 스파크라인(최근 30거래일) — 배치 조회 1회
-    sparkline_ids = ([s.id for _, s in strong_buy_list] + [s.id for _, s in buy_list]
-                     + [s.id for _, s in sell_list])
-    sparklines = _fetch_sparklines(db, sparkline_ids)
+    data_list = _by_signals(["DATA"])
+    sparklines = {}
 
     # 시장 국면(breadth) — 선택한 시장 기준
     breadth = compute_market_breadth(db, screen_date, market=market)
@@ -475,10 +511,14 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             "strong_buy_list": strong_buy_list,
             "buy_list": buy_list,
             "breakout_watch": breakout_watch,
+            "extended_list": extended_list,
+            "plans": plans,
+            "data_list": data_list,
             "themes": themes,
             "sell_list": sell_list,
             "sparklines": sparklines,
             "screen_date": screen_date,
+            "freshness": _price_freshness(db, screen_date, market),
             "strong_buy_count": len(strong_buy_list),
             "buy_count": len(buy_list),
             "sell_count": len(sell_all),
@@ -520,7 +560,7 @@ def search_tickers(q: str = "", db: Session = Depends(get_db)):
 def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
     stock = db.query(Stock).filter(Stock.ticker == ticker.upper()).first()
     if not stock:
-        return HTMLResponse("<h2>종목을 찾을 수 없습니다.</h2>", status_code=404)
+        return HTMLResponse("<h2>종목을 찾을 수 없음</h2>", status_code=404)
 
     latest_result = (
         db.query(ScreeningResult)
@@ -679,13 +719,13 @@ def alerts_page(request: Request, ok: str = "", err: str = ""):
 def alerts_subscribe(email: str = Form(...), market: str = Form("US")):
     email = (email or "").strip().lower()
     if "@" not in email or "." not in email.split("@")[-1]:
-        return RedirectResponse("/alerts?err=이메일 형식을 확인하세요", status_code=303)
+        return RedirectResponse("/alerts?err=이메일 형식 확인 필요", status_code=303)
     if not alerts_mod.email_enabled():
-        return RedirectResponse("/alerts?err=관리자가 발송 계정을 아직 설정하지 않았습니다", status_code=303)
+        return RedirectResponse("/alerts?err=발송 계정 미설정, 관리자 설정 후 이용 가능", status_code=303)
     token, already = alerts_mod.add_subscriber(email, market if market in MARKETS else "US")
     if already:
         return RedirectResponse("/alerts?ok=이미 구독 중입니다", status_code=303)
-    ok_redirect = RedirectResponse("/alerts?ok=확인 메일을 보냈습니다 — 메일함에서 '구독 확정'을 눌러주세요", status_code=303)
+    ok_redirect = RedirectResponse("/alerts?ok=확인 메일 발송. 메일함에서 '구독 확정'을 누르면 완료", status_code=303)
     if alerts_mod.recently_sent(email):
         # 짧은 간격의 반복 요청은 재발송만 억제(이메일 폭탄 방지) — 열거 방지 위해 응답은 동일하게
         return ok_redirect
@@ -699,15 +739,15 @@ def alerts_subscribe(email: str = Form(...), market: str = Form("US")):
 @router.get("/alerts/confirm", response_class=HTMLResponse)
 def alerts_confirm(request: Request, token: str = ""):
     email = alerts_mod.confirm(token)
-    msg = (f"✅ {email} 구독이 확정되었습니다! 매일 새 돌파·매도신호를 보내드립니다."
-           if email else "잘못되었거나 만료된 링크입니다.")
+    msg = (f"{email} 구독 확정. 매일 새 돌파·매도신호 발송."
+           if email else "잘못되었거나 만료된 링크.")
     return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
 
 
 @router.get("/alerts/unsubscribe", response_class=HTMLResponse)
 def alerts_unsubscribe(request: Request, token: str = ""):
     email = alerts_mod.unsubscribe(token)
-    msg = f"{email} 구독이 취소되었습니다." if email else "잘못된 링크입니다."
+    msg = f"{email} 구독 취소 완료." if email else "잘못된 링크."
     return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
 
 

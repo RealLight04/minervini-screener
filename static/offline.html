@@ -3,23 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0c0c">
   <title>오프라인 · 미너비니 스크리너</title>
   <style>
+    /* base.html :root 토큰과 같은 값 (오프라인이라 base.html을 못 불러와 복제) */
+    :root {
+      color-scheme: dark;
+      --bg: #0b0c0c; --surface: #1b1c1d; --border: #32363d;
+      --text: #efe9e9; --muted: #9ca3af; --accent: #8b8ff5; --radius: 10px;
+    }
     html, body { height: 100%; margin: 0; }
     body {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 16px; padding: 24px; text-align: center;
-      background: #131722; color: #d1d4dc;
-      font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
+      background: var(--bg); color: var(--text);
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
     }
-    .mark { color: #2962ff; }
+    .mark { color: var(--accent); }
     h1 { font-size: 1.15rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
-    p { font-size: 0.9rem; color: #787b86; margin: 0; line-height: 1.65; }
+    p { font-size: 0.9rem; color: var(--muted); margin: 0; line-height: 1.65; }
     button {
-      margin-top: 6px; background: #1e222d; border: 1px solid #2a2e39; color: #d1d4dc;
-      padding: 11px 20px; border-radius: 4px; font-size: 0.9rem; cursor: pointer; font-weight: 550;
+      margin-top: 6px; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+      min-height: 44px; padding: 11px 20px; border-radius: var(--radius); font-size: 0.9rem; cursor: pointer; font-weight: 550;
     }
-    button:hover { border-color: #2962ff; }
+    button:hover { border-color: var(--accent); }
+    button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   </style>
 </head>
 <body>

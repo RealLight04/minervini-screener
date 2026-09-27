@@ -94,6 +94,7 @@ class ScreeningResult(Base):
     cond_price_above_ma150 = Column(Boolean)
     cond_price_above_ma200 = Column(Boolean)
     cond_ma150_above_ma200 = Column(Boolean)
+    cond_ma50_above_ma150_200 = Column(Boolean)
     cond_ma200_uptrend = Column(Boolean)
     cond_price_above_ma50 = Column(Boolean)
     cond_above_52w_low_30pct = Column(Boolean)
@@ -134,7 +135,8 @@ class ScreeningResult(Base):
     signal = Column(String)         # STRONG_BUY / BUY / WATCH / SELL / AVOID
     signal_reason = Column(String)  # 신호 근거 (한국어 설명)
     pivot_price = Column(Float)     # VCP 피벗 = 매수 트리거 가격 (돌파 기준선)
-    stop_loss = Column(Float)       # 권장 손절가 (피벗 -8%, Minervini 기준)
+    stop_loss = Column(Float)       # 권장 손절가 (진입가 -8%, Minervini 기준)
+    price_date = Column(Date)       # 이 결과를 계산한 마지막 종가 날짜 (스크리닝일과 다를 수 있음)
 
     stock = relationship("Stock", back_populates="results")
 

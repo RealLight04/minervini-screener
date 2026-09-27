@@ -38,10 +38,11 @@ bash .claude/skills/run-minervini-screener/smoke.sh
 
 What it does, in order: create `venv/` if missing → `pip install -r requirements.txt`
 → stop any previous instance of this project's server → launch
-`uvicorn main:app --host 0.0.0.0 --port 8010` in the background (logs → `server.log`)
+`uvicorn main:app --host 0.0.0.0 --port 18010` in the background (logs → `server.log`)
 → poll `/api/stats` until ready → curl `/`, `/stock/AMD`, `/api/chart/AMD`.
 
-Override the port with `PORT=8020 bash .claude/skills/run-minervini-screener/smoke.sh`.
+Override the port with `PORT=18020 bash .claude/skills/run-minervini-screener/smoke.sh`.
+Never pass 8010 or 8011 — both are exposed by the Tailscale Funnel (8011 is the live site).
 
 Expected output ends with:
 ```
@@ -72,12 +73,12 @@ Matches by port, not by venv path — so this only stops what's actually on that
 port, never the live production server on 8011 (see Gotchas):
 
 ```bash
-netstat -ano | awk '$2 ~ /:8010$/ && $4=="LISTENING" {print $5}' | xargs -I{} taskkill //F //PID {}
+netstat -ano | awk '$2 ~ /:18010$/ && $4=="LISTENING" {print $5}' | xargs -I{} taskkill //F //PID {}
 ```
 
 ## Run (human path)
 
-Open `http://localhost:8010/` in a browser once `smoke.sh` reports it's up.
+Open `http://localhost:18010/` in a browser once `smoke.sh` reports it's up.
 The repo's own `run.sh` is WSL2-oriented (assumes `hostname -I`, port 8001) —
 on native Windows, `smoke.sh` is the path that's actually verified to work.
 

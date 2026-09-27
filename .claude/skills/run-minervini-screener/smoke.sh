@@ -3,7 +3,7 @@
 # Run from the repo root: bash .claude/skills/run-minervini-screener/smoke.sh
 set -e
 
-PORT="${PORT:-8010}"
+PORT="${PORT:-18010}"  # 8010·8011은 Tailscale 퍼널이 공개하는 포트 — 기본값으로 쓰지 않는다
 BASE="http://localhost:${PORT}"
 export PYTHONUTF8=1   # requirements.txt has Korean comments; on a non-UTF8-locale Windows
                        # (e.g. Korean codepage 949), pip's auto_decode falls back to cp949

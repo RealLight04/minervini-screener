@@ -14,8 +14,18 @@ class Settings(BaseSettings):
     KOSPI_TOP_N: int = 200
     KOSDAQ_TOP_N: int = 100
     # 시장 국면 게이트: 약세장(BEAR)인 시장의 BUY/STRONG_BUY를 보류(WATCH)로 강등.
-    # 백테스트 근거: 지수<200MA(≈BEAR)에서 트렌드 신호는 시장평균 대비 -2.5~3.5%p 열위.
+    # 판정은 '200일선 위 종목 비율 < 40%'(breadth). 근거 백테스트는 '지수 < 200MA' 기준이라
+    # 이 breadth 정의 자체는 아직 검증되지 않았다 — 조정은 표본외 결과를 보고 한다.
     REGIME_GATE: bool = True
+
+    STOP_LOSS_PCT: float = 8.0         # 진입가 대비 최대 손절폭(%) — 미너비니 7~8% 원칙
+    EXTENDED_NEAR_HIGH: float = 0.90   # 피벗 없는 통과 종목: 52주 고점의 이 비율 이상=연장, 미만=베이스 미형성 (초기 휴리스틱)
+
+    # 가격 데이터 이상 격리 (초기 휴리스틱)
+    PRICE_JUMP_LIMIT: float = 0.40     # 하루 종가 변동이 이보다 크면 분할 미반영·출처 혼합 의심
+    PRICE_JUMP_LOOKBACK: int = 60      # 최근 N거래일 안에 이상 변동이 있으면 신호 보류
+    STALE_WARN_SESSIONS: int = 3       # 가격 기준일이 예상 최신 거래일보다 이만큼 뒤처지면 화면 경고
+    PRICE_STALE_DAYS: int = 7          # 종목 마지막 종가가 자기 시장 최신일보다 이 달력일수 넘게 늦으면 신호 보류
 
     # VCP 레지스트리 튜닝 (초기 휴리스틱 — 보존된 결과로 캘리브레이션 예정)
     VCP_BREAKOUT_VOL: float = 1.4      # 돌파 확정에 필요한 거래량 배수(50일평균 대비)

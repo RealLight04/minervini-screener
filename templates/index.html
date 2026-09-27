@@ -1,202 +1,419 @@
 {% extends "base.html" %}
-{% from "_macros.html" import empty_state, avatar, spark %}
-{% block title %}오늘의 스크리닝 — Minervini Screener{% endblock %}
+{% block title %}오늘의 판정 — Minervini Screener{% endblock %}
 
-{% macro signal_badge(sig) %}
-  {% set c = signal_colors.get(sig, signal_color_default) %}
-  <span class="badge tone-badge" style="--tone-light:{{ c.light }}; --tone-dark:{{ c.dark }};">
-    {{ signal_labels.get(sig, sig) }}
-  </span>
+{% block head %}
+<style>
+  /* ───── 판정판: 오늘 떠도 되는 날씨인가 ───── */
+  .board { background: var(--surface); border: 1px solid var(--border); padding: 22px 24px 20px; }
+  .board-obs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); letter-spacing: 0.01em; }
+  .board-obs b { color: var(--text); font-weight: 600; }
+  .board-obs .late { color: var(--sign); font-family: var(--font-body); font-weight: 700; }
+  .board-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px 44px; align-items: end; margin-top: 18px; }
+  .verdict-cat { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-sign); font-weight: 800; font-size: 0.84rem; letter-spacing: 0.08em; color: var(--sign-ink); background: var(--cat); padding: 5px 10px 4px; }
+  .verdict-cat span { font-family: var(--font-body); letter-spacing: 0; font-weight: 700; }
+  .verdict-word { font-family: var(--font-verdict); font-weight: 400; font-size: clamp(3rem, 8.4vw, 5.6rem); line-height: 1; letter-spacing: -0.01em; color: var(--heading); margin: 14px 0 12px; text-wrap: balance; }
+  .verdict-advice { font-size: 1rem; color: var(--text); max-width: 34ch; line-height: 1.6; }
+  .regime-VFR { --cat: var(--vfr); } .regime-MVFR { --cat: var(--mvfr); } .regime-IFR { --cat: var(--ifr); }
+
+  .minimums { display: grid; gap: 16px; }
+  .gauge-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .gauge-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
+  .gauge-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600; color: var(--heading); line-height: 1; }
+  .gauge-track { position: relative; height: 12px; margin-top: 8px; background: var(--inset); box-shadow: inset 0 0 0 1px var(--border); }
+  .gauge-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fill, var(--hold)); transform-origin: left; animation: fill-in .9s var(--ease-out) both; }
+  @keyframes fill-in { from { transform: scaleX(.001); } }
+  .gauge-tick { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--heading); }
+  .gauge-tick i { position: absolute; top: 100%; margin-top: 4px; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-size: 0.76rem; color: var(--muted); font-family: var(--font-mono); }
+  .gauge-foot { height: 18px; }
+  .fill-VFR { --fill: var(--vfr); } .fill-MVFR { --fill: var(--mvfr); } .fill-IFR { --fill: var(--ifr); } .fill-HOLD { --fill: var(--hold); }
+  .board-rule { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.84rem; color: var(--muted); line-height: 1.7; }
+  .board-rule b { color: var(--text); font-weight: 700; }
+  .board-gate { margin-top: 12px; padding: 10px 12px; background: color-mix(in srgb, var(--ifr) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--ifr) 40%, transparent); color: var(--text); font-size: 0.88rem; }
+
+  /* ───── 베이: 스트립을 꽂는 랙 한 칸 ───── */
+  .bay { margin-top: 38px; }
+  .bay-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 14px; padding: 12px 0 10px; border-top: 2px solid var(--rail); }
+  .bay-head h2 { font-size: 1.14rem; font-weight: 800; color: var(--heading); letter-spacing: -0.01em; }
+  .bay-count { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; color: var(--muted); }
+  .bay-rule { font-size: 0.86rem; color: var(--muted); flex-basis: 100%; }
+  .bay-list { display: grid; gap: 7px; }
+
+  /* ───── 비행 스트립 ───── */
+  .strip {
+    --holder: var(--hold);
+    display: grid; grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(5, minmax(0, 1fr)) 6.8rem;
+    grid-template-areas: "holder id c1 c2 c3 c4 c5 pull" "holder remark remark remark remark remark remark pull";
+    background: var(--strip); color: var(--strip-ink); box-shadow: var(--shadow);
+    transition: transform .28s var(--ease-out);
+    animation: slot-in .5s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 10) * 45ms);
+  }
+  @keyframes slot-in { from { transform: translateX(-12px); } }
+  .strip.is-pulled { transform: translateX(10px); }
+  .strip--go { --holder: var(--go); } .strip--buy { --holder: var(--buy); } .strip--warn { --holder: var(--warn); }
+  .strip-holder {
+    grid-area: holder; background: var(--holder); color: var(--sign-ink);
+    display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 10px 11px;
+  }
+  .holder-label { font-weight: 800; font-size: 0.92rem; line-height: 1.25; }
+  .holder-code { font-family: var(--font-sign); font-weight: 800; font-size: 0.76rem; letter-spacing: 0.1em; opacity: .8; }
+  .strip-id { grid-area: id; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 9px 12px; text-decoration: none; color: inherit; border-right: 1px solid var(--strip-rule); min-width: 0; }
+  .callsign { font-family: var(--font-mono); font-weight: 700; font-size: 1.16rem; letter-spacing: 0.01em; line-height: 1.15; }
+  .strip-name { font-size: 0.8rem; color: var(--strip-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .strip-id:hover .callsign { text-decoration: underline; text-decoration-thickness: 2px; }
+  .cell { padding: 9px 11px 7px; border-right: 1px solid var(--strip-rule); min-width: 0; }
+  .cell dt { font-size: 0.76rem; font-weight: 700; color: var(--strip-ink-2); line-height: 1.3; }
+  .cell dd { font-family: var(--font-mono); font-size: 0.98rem; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell dd small { display: block; font-size: 0.78rem; font-weight: 500; color: var(--strip-ink-2); line-height: 1.3; }
+  .cell .neg { color: #b3261e; } .cell .pos { color: #146c37; }
+  .c1 { grid-area: c1; } .c2 { grid-area: c2; } .c3 { grid-area: c3; } .c4 { grid-area: c4; } .c5 { grid-area: c5; }
+  .vcp-marks { display: inline-flex; align-items: center; gap: 5px; }
+  .vcp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--strip-ink); display: inline-block; }
+  .strip-remark { grid-area: remark; padding: 6px 12px 8px; border-top: 1px solid var(--strip-rule); font-size: 0.86rem; color: var(--strip-ink-2); line-height: 1.5; }
+  .strip-pull {
+    grid-area: pull; border: none; border-left: 1px solid var(--strip-rule); background: var(--strip-2); color: var(--strip-ink);
+    font: inherit; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px;
+  }
+  .strip-pull:hover { background: #c9cece; }
+  .strip-pull svg { transition: transform .28s var(--ease-out); }
+  .strip.is-pulled .strip-pull svg { transform: rotate(180deg); }
+  .strip-pull:focus-visible { outline: 3px solid var(--sign-ink); outline-offset: -3px; }
+  a.strip-pull { text-decoration: none; }
+
+  /* 비행 계획: 스트립 아래로 펼쳐지는 인쇄 양식 */
+  .plan { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s var(--ease-out); }
+  .plan > div { overflow: hidden; }
+  .is-open + .plan, .plan.is-open { grid-template-rows: 1fr; }
+  .plan-sheet { margin: 0 0 4px 7.2rem; background: var(--strip-2); color: var(--strip-ink); border-top: 1px dashed var(--strip-rule); padding: 14px 16px 16px; }
+  .plan-head { font-weight: 800; font-size: 0.95rem; margin-bottom: 12px; }
+  .plan-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--strip-rule); border: 1px solid var(--strip-rule); }
+  .plan-fig { background: var(--strip); padding: 9px 11px; }
+  .plan-fig dt { font-size: 0.76rem; font-weight: 700; color: var(--strip-ink-2); }
+  .plan-fig dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.02rem; }
+  .plan-size { margin-top: 12px; font-size: 0.88rem; line-height: 1.65; }
+  .plan-steps { margin: 10px 0 0 1.2em; font-size: 0.88rem; line-height: 1.7; color: var(--strip-ink); }
+  .plan-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; min-height: 44px; padding: 0 14px; background: var(--sign-ink); color: var(--sign); font-weight: 800; font-size: 0.88rem; text-decoration: none; }
+  .plan-link:hover { box-shadow: inset 0 0 0 2px var(--sign); }
+
+  /* 빈 슬롯 */
+  .slot-empty { border: 1px dashed var(--rail); padding: 16px 18px; color: var(--muted); font-size: 0.9rem; display: grid; gap: 2px; }
+  .slot-empty b { color: var(--text); font-weight: 700; }
+
+  /* 매도 경고: 작은 스트립 */
+  .strip--warn { grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(4, minmax(0, 1fr)) 6.8rem; grid-template-areas: "holder id c1 c2 c3 c4 pull"; }
+  .strip--warn .strip-holder { padding: 7px 11px; }
+  .strip--warn .strip-id, .strip--warn .cell { padding-top: 7px; padding-bottom: 6px; }
+  .more-warn > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; padding: 0 14px; border: 1px solid var(--rail); color: var(--text); font-weight: 700; font-size: 0.88rem; }
+  .more-warn > summary::-webkit-details-marker { display: none; }
+  .more-warn > summary:hover { border-color: var(--sign); }
+  .more-warn[open] > summary { margin-bottom: 7px; }
+  .bay-more { margin-top: 10px; font-size: 0.86rem; color: var(--muted); }
+
+  /* ───── 주도 섹터 · 데이터 점검 ───── */
+  .traffic { width: 100%; border-collapse: collapse; }
+  .traffic th { position: static; background: none; border-bottom: 1px solid var(--rail); font-size: 0.78rem; color: var(--muted); padding: 8px 12px 8px 0; }
+  .traffic td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--line); font-size: 0.92rem; }
+  .traffic td.num, .traffic th.num { text-align: right; font-family: var(--font-mono); }
+  .traffic tr:hover td { background: none; }
+  .traffic .lead td:first-child { font-weight: 800; color: var(--heading); }
+  .dq { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .dq a { font-family: var(--font-mono); font-size: 0.84rem; padding: 3px 8px; border: 1px dashed var(--rail); color: var(--muted); text-decoration: none; min-height: 32px; display: inline-flex; align-items: center; }
+  .dq a:hover { color: var(--text); border-color: var(--muted); }
+  .disclaimer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--faint); line-height: 1.7; max-width: 80ch; }
+
+  @media (max-width: 900px) {
+    .board-main { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .board { padding: 14px 14px 12px; }
+    .board-obs { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; font-size: 0.78rem; scrollbar-width: none; }
+    .board-main { margin-top: 10px; gap: 14px; }
+    .verdict-word { font-size: 3.2rem; margin: 8px 0 6px; }
+    .verdict-advice { font-size: 0.9rem; }
+    .minimums { gap: 8px; }
+    .gauge-val { font-size: 1.15rem; }
+    .gauge-foot { height: 14px; }
+    .board-rule { display: none; }
+    .bay { margin-top: 22px; }
+  }
+  @media (max-width: 760px) {
+    .board { padding: 18px 16px 16px; }
+    .strip, .strip--warn {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-areas: "holder holder holder" "id id id" "c1 c2 c3" "c4 c5 c5" "remark remark remark" "pull pull pull";
+    }
+    .strip--warn { grid-template-areas: "holder holder holder" "id id id" "c1 c2 c3" "c4 c4 c4" "pull pull pull"; }
+    .strip-holder { flex-direction: row; align-items: baseline; justify-content: space-between; padding: 7px 12px; }
+    .strip-id { border-right: none; border-bottom: 1px solid var(--strip-rule); }
+    .cell { border-bottom: 1px solid var(--strip-rule); }
+    .c3, .c5 { border-right: none; }
+    .strip--warn .c4 { border-right: none; }
+    .strip-pull { border-left: none; border-top: 1px solid var(--strip-rule); flex-direction: row; }
+    .plan-sheet { margin-left: 0; }
+    .plan-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .strip.is-pulled { transform: none; }
+  }
+</style>
+{% endblock %}
+
+{% macro plan_sheet(p, s, mk) %}
+{% if p %}
+<div class="plan" id="plan-{{ s.id }}"><div>
+  <div class="plan-sheet">
+    <p class="plan-head">{{ p.headline }}</p>
+    <dl class="plan-figs">
+      <div class="plan-fig"><dt>{% if p.mode == 'wait_pivot' %}돌파 매수가{% elif p.mode == 'pullback' %}눌림 진입가{% else %}진입가{% endif %}</dt><dd>{{ fmt_price(p.entry, mk) }}</dd></div>
+      <div class="plan-fig"><dt>손절가</dt><dd>{{ fmt_price(p.stop, mk) }}{% if p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></div>
+      <div class="plan-fig"><dt>1차 익절</dt><dd>{% if p.target %}{{ fmt_price(p.target, mk) }} <small>+{{ p.reward_pct }}%</small>{% else %}-{% endif %}</dd></div>
+      <div class="plan-fig"><dt>손익비</dt><dd>{% if p.target and p.risk_pct %}1 : {{ "%.1f"|format(p.reward_pct / p.risk_pct) }}{% else %}-{% endif %}</dd></div>
+    </dl>
+    {% if p.sizing %}{% set sz = p.sizing %}
+    <p class="plan-size">계좌 {{ fmt_amount(sz.account, mk) }} 기준, 손실을 계좌의 {{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})로 제한하면 비중 약 <b>{{ sz.weight_pct }}%</b>(≈ {{ fmt_amount(sz.position, mk) }}, {{ sz.shares }}주){% if sz.capped %}, 단일 종목 상한으로 제한됨{% endif %}.</p>
+    {% endif %}
+    <ol class="plan-steps">{% for st in p.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+    <a class="plan-link" href="/stock/{{ s.ticker }}">점검표 전체 보기
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></a>
+  </div>
+</div></div>
+{% endif %}
 {% endmacro %}
 
-{# 거래량(50일 평균 대비) 배지: ≥1.4=많음(초록), <0.85=적음(파랑), 그 외 보통.
-   숫자 x = 50일 평균의 몇 배인지 (예: 0.7x = 평균의 70%로 한산). #}
-{% macro vol_badge(v) %}{% if v is none %}<span class="faint">-</span>{% elif v >= 1.4 %}<span class="badge" style="background:{{ vol_heat(v) }}; color:var(--green-ink);" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 많음(대량)">{{ "%.1f"|format(v) }}x 많음</span>{% elif v < 0.85 %}<span class="badge" style="background:var(--badge-blue-bg); color:var(--accent);" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 거래량 적음(한산)">{{ "%.1f"|format(v) }}x 적음</span>{% else %}<span class="badge badge-gray" title="50일 평균의 {{ '%.1f'|format(v) }}배 — 보통">{{ "%.1f"|format(v) }}x 보통</span>{% endif %}{% endmacro %}
+{% macro pull_button(s) %}
+<button type="button" class="strip-pull" aria-expanded="false" aria-controls="plan-{{ s.id }}">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  비행 계획
+</button>
+{% endmacro %}
+
+{% macro form_cell(r) %}
+<dl class="cell c5"><dt>형태</dt><dd>{% if r.vcp_detected %}<span class="vcp-marks">VCP T{{ r.vcp_contractions }}<span class="vcp-dot" aria-hidden="true"></span>{% if r.vcp_last_contraction is not none %}<small>{{ "%.1f"|format(r.vcp_last_contraction) }}%</small>{% endif %}</span>{% else %}베이스{% endif %}</dd></dl>
+{% endmacro %}
 
 {% block content %}
-<div style="margin-bottom: 22px;">
-  <div style="display:flex; align-items:baseline; gap:11px; flex-wrap:wrap;">
-    <h2 class="page-title">오늘의 스크리닝</h2>
-    <span class="badge badge-gray" style="font-family:var(--font-mono); font-variant-numeric:tabular-nums;">데이터 기준 {{ screen_date }}</span>
-  </div>
-  <p class="muted" style="font-size:0.9rem; margin-top:6px;">
-    추세 템플릿·실적 모멘텀·VCP 돌파를 모두 통과한 종목만 골랐습니다 ·
-    <span style="color:var(--green); font-weight:700;">적극 매수 {{ strong_buy_count }}</span> ·
-    <span style="color:var(--green);">매수 후보 {{ buy_count }}</span> ·
-    <span style="color:var(--orange);">매도 경고 {{ sell_count }}</span>
-  </p>
-</div>
+{% set mk = cur_market %}
+{% set fr = freshness %}
+{% set reg = {'BULL': ('VFR', '시계 양호', '매수 가능'), 'NEUTRAL': ('MVFR', '제한 시계', '선별 매수'), 'BEAR': ('IFR', '시계 불량', '매수 중지')} %}
 
-<!-- 시장 전환 탭 -->
 {% if avail_markets and avail_markets|length > 1 %}
-<div class="tabs">
+<nav class="tabs" aria-label="시장 선택">
   {% for m in avail_markets %}
-  <a href="/?market={{ m }}" class="tab {% if m == cur_market %}active{% endif %}">{{ market_labels.get(m, m) }}</a>
+  <a href="/?market={{ m }}" class="tab {% if m == cur_market %}active{% endif %}" {% if m == cur_market %}aria-current="page"{% endif %}>{{ market_labels.get(m, m) }}</a>
   {% endfor %}
-</div>
+</nav>
 {% endif %}
 
-<!-- 대시보드 위젯 행: 시장 국면 + 주도 섹터/테마 (나란히) -->
-<div class="dash-row" style="margin-bottom:24px;">
-  <!-- 시장 국면 신호등 -->
-  {% if market and market.available %}
-  <div class="card tone-tint" style="--tone-light:{{ market.color.light }}; --tone-dark:{{ market.color.dark }};">
-    <div style="display:flex; align-items:center; gap:11px; flex-wrap:wrap;">
-      <span class="tone-text" style="width:11px; height:11px; border-radius:50%; background:currentColor;"></span>
-      <span class="tone-text" style="font-size:1.04rem; font-weight:760;">시장 국면 · {{ market.label }}</span>
-    </div>
-    <p style="color:var(--muted); font-size:0.87rem; margin-top:9px;">{{ market.advice }}</p>
-    {% if market.regime == "BEAR" %}
-    <p style="color:var(--red); font-size:0.83rem; margin-top:7px; font-weight:600; line-height:1.5;">약세장 게이트가 작동 중입니다 — 매수 신호를 자동으로 '관심'으로 낮춰 보류하고, 시장이 회복되면 다시 매수 신호로 되돌립니다. <span class="muted" style="font-weight:400;">(백테스트: 약세장 매수는 시장평균 대비 −2.5~3.5%p 열위)</span></p>
-    {% endif %}
-    <div class="stat-strip">
-      <div class="stat-strip-item"><span class="ss-label">200일선 위</span><span class="ss-val tone-text">{{ market.pct_above_200 }}%</span></div>
-      <div class="stat-strip-item"><span class="ss-label">50일선 위</span><span class="ss-val tone-text">{{ market.pct_above_50 }}%</span></div>
-      <div class="stat-strip-item"><span class="ss-label">Stage 2</span><span class="ss-val tone-text">{{ market.pct_stage2 }}%</span></div>
-      <div class="stat-strip-item"><span class="ss-label">{{ market_labels.get(cur_market, cur_market) }}</span><span class="ss-val">{{ market.total }}종목</span></div>
-    </div>
-  </div>
-  {% endif %}
+<section class="board" aria-labelledby="verdict">
+  <p class="board-obs">
+    <b>{{ market_labels.get(mk, mk) }}</b>
+    {% if fr.price_date %}<span>종가 {{ fr.price_date }}</span>{% endif %}
+    <span>스크리닝 {{ screen_date }}</span>
+    {% if market and market.available %}<span>관측 {{ market.total }}종목</span>{% endif %}
+    {% if fr.stale %}<span class="late">가격 {{ fr.lag }}거래일 지연, 신호가 최신 시세와 다를 수 있음</span>{% endif %}
+  </p>
 
-  <!-- 주도 섹터/테마 -->
-  {% if themes %}
-  <div>
-    <div class="section-title" style="margin-top:0; color:var(--violet);">주도 섹터/테마 <span class="hint">매수세와 상승 추세가 몰린 섹터가 지금의 주도 테마입니다</span></div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:11px;">
-      {% for t in themes %}
-      <div class="card" style="padding:14px 16px; {% if loop.first and t.buy > 0 %}border-color:color-mix(in srgb, var(--violet) 53%, transparent);{% endif %}">
-        <div style="font-weight:700;">{{ t.sector }}</div>
-        <div class="muted" style="font-size:0.8rem; margin-top:7px; line-height:1.65;">
-          매수후보 <strong style="color:var(--green);">{{ t.buy }}</strong> · Stage2 <strong style="color:var(--text);">{{ t.stage2_pct }}%</strong><br>
-          평균 RS <strong style="color:var(--text);">{{ t.avg_rs }}</strong> · {{ t.total }}종목
+  {% if market and market.available %}
+  {% set code, sky, word = reg.get(market.regime, ('MVFR', '제한 시계', '선별 매수')) %}
+  {% set p200 = market.pct_above_200 %}{% set p50 = market.pct_above_50 %}
+  <div class="board-main regime-{{ code }}">
+    <div>
+      <span class="verdict-cat">{{ code }} <span>{{ sky }}</span></span>
+      <h1 class="verdict-word" id="verdict"><span class="sr-only">{{ market_labels.get(mk, mk) }} 시장 국면: </span>{{ word }}</h1>
+      <p class="verdict-advice">{{ market.advice }}</p>
+    </div>
+    <div class="minimums">
+      <div class="gauge fill-{{ 'VFR' if p200 >= 60 else ('IFR' if p200 < 40 else 'MVFR') }}">
+        <div class="gauge-head"><span class="gauge-name">200일선 위 종목</span><span class="gauge-val">{{ p200 }}%</span></div>
+        <div class="gauge-track" role="img" aria-label="200일선 위 종목 {{ p200 }}%, 약세 기준 40%, 강세 기준 60%">
+          <span class="gauge-fill" style="width:{{ p200 }}%"></span>
+          <span class="gauge-tick" style="left:40%"><i>40 약세</i></span>
+          <span class="gauge-tick" style="left:60%"><i>60 강세</i></span>
+        </div>
+        <div class="gauge-foot"></div>
+      </div>
+      <div class="gauge fill-{{ 'VFR' if p50 >= 50 else 'MVFR' }}">
+        <div class="gauge-head"><span class="gauge-name">50일선 위 종목</span><span class="gauge-val">{{ p50 }}%</span></div>
+        <div class="gauge-track" role="img" aria-label="50일선 위 종목 {{ p50 }}%, 강세 기준 50%">
+          <span class="gauge-fill" style="width:{{ p50 }}%"></span>
+          <span class="gauge-tick" style="left:50%"><i>50 강세</i></span>
+        </div>
+        <div class="gauge-foot"></div>
+      </div>
+      <div class="gauge fill-HOLD">
+        <div class="gauge-head"><span class="gauge-name">추세 템플릿 통과 (Stage 2)</span><span class="gauge-val">{{ market.pct_stage2 }}%</span></div>
+        <div class="gauge-track" role="img" aria-label="Stage 2 종목 {{ market.pct_stage2 }}%">
+          <span class="gauge-fill" style="width:{{ market.pct_stage2 }}%"></span>
         </div>
       </div>
-      {% endfor %}
     </div>
   </div>
+  <p class="board-rule">판정 규칙: 200일선 위 <b>60% 이상</b>이고 50일선 위 <b>50% 이상</b>이면 매수 가능, 200일선 위 <b>40% 미만</b>이면 매수 중지(매수 신호 자동 보류), 그 사이는 선별 매수. 종목의 약 4분의 3은 시장을 따라간다는 미너비니 원칙.</p>
+  {% if market.regime == "BEAR" %}
+  <p class="board-gate">매수 중지 구간이라 이 시장의 매수 신호는 전부 관심으로 보류됨. 시장이 회복되면 다음 스크리닝에서 자동 복귀.</p>
   {% endif %}
-</div>
+  {% else %}
+  <h1 class="verdict-word" id="verdict" style="font-size:2rem;">국면 데이터 없음</h1>
+  {% endif %}
+</section>
 
-<!-- 적극 매수 (STRONG_BUY): 별도 카테고리, 최상단 -->
-<div class="section-title" style="color:var(--green);">적극 매수 <span class="hint">피벗을 갓 돌파 · 미너비니 매수 시점</span></div>
-{% if strong_buy_list %}
-<div class="table-wrap">
-<table class="cards">
-  <thead>
-    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="num sortable">현재가</th><th class="num sortable">피벗(매수가)</th><th class="num sortable">손절가</th><th class="ctr sortable">RS</th><th class="ctr">거래량<br><span style="font-weight:400; font-size:0.66rem; color:var(--faint);">50일평균 대비</span></th><th class="ctr">VCP</th><th>근거</th></tr>
-  </thead>
-  <tbody>
-    {% for r, s in strong_buy_list %}
-    <tr data-href="/stock/{{ s.ticker }}" style="border-left:3px solid {{ rs_heat(r.rs_rank) if r.rs_rank else 'transparent' }};">
-      <td data-label="티커" data-sort="{{ s.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(s.ticker) }}<a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></span></td>
-      <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="추이" class="ctr">{{ spark(s.id, sparklines) }}</td>
-      <td data-label="현재가" class="num" data-sort="{{ r.close or 0 }}">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="피벗(매수가)" class="num" data-sort="{{ r.pivot_price or 0 }}">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="손절가" class="num" data-sort="{{ r.stop_loss or 0 }}">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="RS" class="ctr" data-sort="{{ r.rs_rank or 0 }}">{% if r.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.rs_rank) }};">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="거래량(50일평균 대비)" class="ctr">{{ vol_badge(r.vol_vs_avg) }}</td>
-      <td data-label="VCP" class="ctr">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="근거" class="stack muted reason" style="font-size:0.82rem;" data-tt="{{ r.signal_reason or '' }}">{{ r.signal_reason or '-' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-{{ empty_state('현재 적극 매수 종목이 없습니다', '피벗을 갓 돌파한 종목이 나오면 여기 표시됩니다') }}
+{# ───── 1. 이륙 허가: 적극 매수 ───── #}
+<section class="bay" aria-labelledby="bay-go">
+  <div class="bay-head">
+    <h2 id="bay-go">이륙 허가 · 적극 매수</h2><span class="bay-count">{{ strong_buy_list|length }}</span>
+    <p class="bay-rule">피벗을 갓 넘은 종목. 피벗 위 5%까지가 매수 구간, 손절은 진입가 −8%.</p>
+  </div>
+  <div class="bay-list">
+  {% for r, s in strong_buy_list %}{% set p = plans.get(s.id) %}
+    <div class="strip-slot"><article class="strip strip--go" style="--i:{{ loop.index0 }}">
+      <div class="strip-holder"><span class="holder-label">적극 매수</span><span class="holder-code">CLEARED</span></div>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <dl class="cell c1"><dt>피벗</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
+      <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.pivot_price %} <small>+{{ "%.1f"|format((r.close / r.pivot_price - 1) * 100) }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
+      {{ form_cell(r) }}
+      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
+      {{ pull_button(s) }}
+    </article>
+    {{ plan_sheet(p, s, mk) }}</div>
+  {% else %}
+    <div class="slot-empty"><b>빈 슬롯</b>오늘 피벗을 갓 넘은 종목 없음. 돌파 대기 베이에서 가까운 순으로 확인.</div>
+  {% endfor %}
+  </div>
+</section>
+
+{# ───── 2. 대기: 돌파 대기 ───── #}
+<section class="bay" aria-labelledby="bay-wait">
+  <div class="bay-head">
+    <h2 id="bay-wait">대기 · 돌파 대기</h2><span class="bay-count">{{ breakout_watch|length }}</span>
+    <p class="bay-rule">베이스를 다 만든 종목. 종가가 피벗을 넘는 날이 매수일, 피벗까지 가까운 순.</p>
+  </div>
+  <div class="bay-list">
+  {% for r, s, gap in breakout_watch %}{% set p = plans.get(s.id) %}
+    <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
+      <div class="strip-holder"><span class="holder-label">돌파 대기</span><span class="holder-code">HOLD SHORT</span></div>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <dl class="cell c1"><dt>피벗 = 매수가</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
+      <dl class="cell c2"><dt>피벗까지</dt><dd>+{{ gap }}%</dd></dl>
+      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
+      {{ form_cell(r) }}
+      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
+      {{ pull_button(s) }}
+    </article>
+    {{ plan_sheet(p, s, mk) }}</div>
+  {% else %}
+    <div class="slot-empty"><b>빈 슬롯</b>베이스를 완성하고 피벗 아래에서 대기 중인 종목 없음.</div>
+  {% endfor %}
+  </div>
+</section>
+
+{# ───── 3. 눌림목 대기: 연장 ───── #}
+{% if extended_list %}
+<section class="bay" aria-labelledby="bay-ext">
+  <div class="bay-head">
+    <h2 id="bay-ext">눌림목 대기 · 연장</h2><span class="bay-count">{{ extended_list|length }}</span>
+    <p class="bay-rule">추세·실적은 통과했지만 매수 구간을 지나 올라간 종목. 추격하지 않고 50일선까지 눌릴 때 진입.</p>
+  </div>
+  <div class="bay-list">
+  {% for r, s in extended_list %}{% set p = plans.get(s.id) %}
+    <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
+      <div class="strip-holder"><span class="holder-label">눌림목 대기</span><span class="holder-code">EXTENDED</span></div>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <dl class="cell c1"><dt>눌림 진입(50일선)</dt><dd>{{ fmt_price(r.ma50, mk) }}</dd></dl>
+      <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.ma50 %} <small>+{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
+      {{ form_cell(r) }}
+      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
+      {{ pull_button(s) }}
+    </article>
+    {{ plan_sheet(p, s, mk) }}</div>
+  {% endfor %}
+  </div>
+</section>
 {% endif %}
 
-<!-- 돌파 대기 -->
-<div class="section-title" style="color:var(--amber);">돌파 대기 <span class="hint">베이스 완성 · 피벗 돌파 시 매수 (가까운 순)</span></div>
-{% if breakout_watch %}
-<div class="table-wrap">
-<table class="cards">
-  <thead>
-    <tr><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="num sortable">현재가</th><th class="num sortable">피벗(매수가)</th><th class="ctr sortable">돌파까지</th><th class="num sortable">손절가</th><th class="num sortable">RS</th></tr>
-  </thead>
-  <tbody>
-    {% for r, s, gap in breakout_watch %}
-    <tr data-href="/stock/{{ s.ticker }}" {% if gap <= 1 %}class="hot-row"{% endif %} style="border-left:3px solid {{ rs_heat(r.rs_rank) if r.rs_rank else 'transparent' }};">
-      <td data-label="티커" data-sort="{{ s.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(s.ticker) }}<a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></span></td>
-      <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="추이" class="ctr">{{ spark(s.id, sparklines) }}</td>
-      <td data-label="현재가" class="num" data-sort="{{ r.close or 0 }}">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="피벗(매수가)" class="num" data-sort="{{ r.pivot_price or 0 }}"><span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span></td>
-      <td data-label="돌파까지" class="ctr" data-sort="{{ gap }}"><span class="badge {% if gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ gap }}%</span></td>
-      <td data-label="손절가" class="num" data-sort="{{ r.stop_loss or 0 }}"><span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span></td>
-      <td data-label="RS" class="num" data-sort="{{ r.rs_rank or 0 }}">{% if r.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.rs_rank) }};">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-<p class="faint" style="font-size:0.78rem; margin-top:10px;">거래량과 함께 피벗을 돌파하면 <strong style="color:var(--green);">적극 매수</strong> 시점입니다. 3% 이내면 임박 신호로 보세요.</p>
-{% else %}
-{{ empty_state('현재 돌파 대기 종목이 없습니다', '강세 종목이 이미 연장됐거나 베이스 형성 중입니다') }}
+{# ───── 4. 매도 경고 ───── #}
+<section class="bay" aria-labelledby="bay-warn">
+  <div class="bay-head">
+    <h2 id="bay-warn">매도 경고 · 50일선 이탈</h2><span class="bay-count">{{ sell_count }}</span>
+    <p class="bay-rule">상승 추세였다가 50일선 아래로 마감한 종목. 보유 중이면 매도·비중 축소 검토. RS 강한 순.</p>
+  </div>
+  <div class="bay-list">
+  {% macro warn_strip(r, s, i) %}
+    <article class="strip strip--warn" style="--i:{{ i }}">
+      <div class="strip-holder"><span class="holder-label">매도 경고</span><span class="holder-code">DIVERT</span></div>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <dl class="cell c1"><dt>현재가</dt><dd>{{ fmt_price(r.close, cur_market) }}</dd></dl>
+      <dl class="cell c2"><dt>50일선</dt><dd>{{ fmt_price(r.ma50, cur_market) }}</dd></dl>
+      <dl class="cell c3"><dt>이탈폭</dt><dd class="neg">{% if r.ma50 %}{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%{% else %}-{% endif %}</dd></dl>
+      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
+      <a class="strip-pull" href="/stock/{{ s.ticker }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+        점검표</a>
+    </article>
+  {% endmacro %}
+  {% for r, s in sell_list[:12] %}{{ warn_strip(r, s, loop.index0) }}
+  {% else %}
+    <div class="slot-empty"><b>빈 슬롯</b>50일선을 새로 이탈한 상승 추세 종목 없음.</div>
+  {% endfor %}
+  </div>
+  {% if sell_list|length > 12 %}
+  <details class="more-warn">
+    <summary>나머지 {{ sell_list|length - 12 }}종목 보기</summary>
+    <div class="bay-list">{% for r, s in sell_list[12:] %}{{ warn_strip(r, s, 0) }}{% endfor %}</div>
+  </details>
+  {% endif %}
+  {% if sell_count > sell_list|length %}<p class="bay-more">RS 상위 {{ sell_list|length }}개만 표시, 전체 {{ sell_count }}종목.</p>{% endif %}
+</section>
+
+{# ───── 주도 섹터 ───── #}
+{% if themes %}
+<section class="bay" aria-labelledby="bay-sector">
+  <div class="bay-head">
+    <h2 id="bay-sector">주도 섹터</h2>
+    <p class="bay-rule">매수 후보와 Stage 2 종목이 몰린 섹터 순.</p>
+  </div>
+  <div class="table-wrap" style="border:none; background:none;">
+    <table class="traffic">
+      <thead><tr><th>섹터</th><th class="num">매수 후보</th><th class="num">Stage 2</th><th class="num">평균 RS</th><th class="num">종목</th></tr></thead>
+      <tbody>
+      {% for t in themes %}
+        <tr {% if loop.first and t.buy > 0 %}class="lead"{% endif %}><td>{{ t.sector }}</td><td class="num">{{ t.buy }}</td><td class="num">{{ t.stage2_pct }}%</td><td class="num">{{ t.avg_rs }}</td><td class="num">{{ t.total }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endif %}
 
-<!-- 매수 후보 -->
-<div class="section-title" style="color:var(--green);">매수 후보 <span class="hint">돌파 대기·눌림목 종목 전체</span></div>
-{% if buy_list %}
-<div class="table-wrap">
-<table class="cards">
-  <thead>
-    <tr><th class="ctr">신호</th><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="num sortable">현재가</th><th class="num sortable">피벗(매수가)</th><th class="num sortable">손절가</th><th class="ctr sortable">RS</th><th class="ctr">거래량<br><span style="font-weight:400; font-size:0.66rem; color:var(--faint);">50일평균 대비</span></th><th class="ctr">VCP</th><th>근거</th></tr>
-  </thead>
-  <tbody>
-    {% for r, s in buy_list %}
-    <tr data-href="/stock/{{ s.ticker }}" style="border-left:3px solid {{ rs_heat(r.rs_rank) if r.rs_rank else 'transparent' }};">
-      <td data-label="신호" class="ctr">{{ signal_badge(r.signal) }}</td>
-      <td data-label="티커" data-sort="{{ s.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(s.ticker) }}<a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></span></td>
-      <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="추이" class="ctr">{{ spark(s.id, sparklines) }}</td>
-      <td data-label="현재가" class="num" data-sort="{{ r.close or 0 }}">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="피벗(매수가)" class="num" data-sort="{{ r.pivot_price or 0 }}">{% if r.pivot_price %}<span style="color:var(--accent);">{{ fmt_price(r.pivot_price, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="손절가" class="num" data-sort="{{ r.stop_loss or 0 }}">{% if r.stop_loss %}<span style="color:var(--red);">{{ fmt_price(r.stop_loss, cur_market) }}</span>{% else %}-{% endif %}</td>
-      <td data-label="RS" class="ctr" data-sort="{{ r.rs_rank or 0 }}">{% if r.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.rs_rank) }};">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="거래량(50일평균 대비)" class="ctr">{{ vol_badge(r.vol_vs_avg) }}</td>
-      <td data-label="VCP" class="ctr">{% if r.vcp_detected %}<span class="badge badge-green">✓</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="근거" class="stack muted reason" style="font-size:0.82rem;" data-tt="{{ r.signal_reason or '' }}">{{ r.signal_reason or '-' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-{{ empty_state('현재 매수 후보가 없습니다') }}
+{# ───── 데이터 점검 ───── #}
+{% if data_list %}
+<section class="bay" aria-labelledby="bay-dq">
+  <div class="bay-head">
+    <h2 id="bay-dq">데이터 점검 중</h2><span class="bay-count">{{ data_list|length }}</span>
+    <p class="bay-rule">가격이 멈췄거나 하루에 40% 넘게 움직여 데이터가 의심되는 종목. 확인 전까지 신호를 내지 않음.</p>
+  </div>
+  <div class="dq">
+    {% for r, s in data_list %}<a href="/stock/{{ s.ticker }}" title="{{ r.signal_reason or '' }}">{{ s.ticker }}</a>{% endfor %}
+  </div>
+</section>
 {% endif %}
 
-<!-- 매도 경고 -->
-<div class="section-title" style="color:var(--orange);">매도 경고 <span class="hint">상승추세였으나 50일선 이탈</span></div>
-{% if sell_list %}
-<div class="table-wrap">
-<table class="cards">
-  <thead>
-    <tr><th class="ctr">신호</th><th class="sortable">티커</th><th>회사명</th><th class="ctr">추이</th><th class="num sortable">현재가</th><th class="num sortable">50일 MA</th><th class="num sortable">RS</th><th>근거</th></tr>
-  </thead>
-  <tbody>
-    {% for r, s in sell_list %}
-    <tr data-href="/stock/{{ s.ticker }}" style="border-left:3px solid {{ rs_heat(r.rs_rank) if r.rs_rank else 'transparent' }};">
-      <td data-label="신호" class="ctr">{{ signal_badge(r.signal) }}</td>
-      <td data-label="티커" data-sort="{{ s.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(s.ticker) }}<a class="ticker-link" href="/stock/{{ s.ticker }}">{{ s.ticker }}</a></span></td>
-      <td data-label="회사명">{{ s.name or '-' }}</td>
-      <td data-label="추이" class="ctr">{{ spark(s.id, sparklines) }}</td>
-      <td data-label="현재가" class="num" data-sort="{{ r.close or 0 }}">{{ fmt_price(r.close, cur_market) }}</td>
-      <td data-label="50일 MA" class="num" data-sort="{{ r.ma50 or 0 }}">{{ fmt_price(r.ma50, cur_market) }}</td>
-      <td data-label="RS" class="num" data-sort="{{ r.rs_rank or 0 }}">{% if r.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.rs_rank) }};">{{ "%.0f"|format(r.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="근거" class="stack muted reason" style="font-size:0.82rem;" data-tt="{{ r.signal_reason or '' }}">{{ r.signal_reason or '-' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% else %}
-{{ empty_state('현재 매도 경고 종목이 없습니다') }}
-{% endif %}
+<p class="disclaimer">마크 미너비니의 공개된 추세·실적·VCP 규칙을 코드로 구현한 교육·참고용 도구. 매수가·손절가는 규칙에 따른 기계적 계산값이며 투자 권유가 아님. 모든 투자 판단과 책임은 본인에게 있음.</p>
+{% endblock %}
 
-<p class="faint" style="margin-top:34px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.78rem; line-height:1.6;">
-  본 서비스는 Mark Minervini의 공개된 추세/실적/VCP 규칙을 코드로 구현한 <strong>교육·참고용</strong> 도구입니다.
-  매수가·손절가는 규칙에 따른 기계적 계산값이며 투자 권유가 아닙니다. 모든 투자 판단과 책임은 본인에게 있습니다.
-</p>
+{% block scripts %}
+<script>
+  // 스트립 당기기: 옆으로 밀려 나오며 아래에 비행 계획을 펼친다
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('button.strip-pull');
+    if (!btn) return;
+    var strip = btn.closest('.strip');
+    var plan = document.getElementById(btn.getAttribute('aria-controls'));
+    var open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    strip.classList.toggle('is-pulled', open);
+    if (plan) plan.classList.toggle('is-open', open);
+  });
+</script>
 {% endblock %}
