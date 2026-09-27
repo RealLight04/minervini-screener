@@ -42,7 +42,7 @@
   .strip {
     --holder: var(--hold);
     display: grid; grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(5, minmax(0, 1fr)) 6.8rem;
-    grid-template-areas: "holder id c1 c2 c3 c4 c5 pull" "holder remark remark remark remark remark remark pull";
+    grid-template-areas: "holder id c1 c2 c3 c4 c5 pull";
     background: var(--strip); color: var(--strip-ink); box-shadow: var(--shadow);
     transition: transform .28s var(--ease-out);
     animation: slot-in .5s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 10) * 45ms);
@@ -55,7 +55,6 @@
     display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 10px 11px;
   }
   .holder-label { font-weight: 800; font-size: 0.92rem; line-height: 1.25; }
-  .holder-code { font-family: var(--font-sign); font-weight: 800; font-size: 0.76rem; letter-spacing: 0.1em; opacity: .8; }
   .strip-id { grid-area: id; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 9px 12px; text-decoration: none; color: inherit; border-right: 1px solid var(--strip-rule); min-width: 0; }
   .callsign { font-family: var(--font-mono); font-weight: 700; font-size: 1.16rem; letter-spacing: 0.01em; line-height: 1.15; }
   .strip-name { font-size: 0.8rem; color: var(--strip-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -68,7 +67,6 @@
   .c1 { grid-area: c1; } .c2 { grid-area: c2; } .c3 { grid-area: c3; } .c4 { grid-area: c4; } .c5 { grid-area: c5; }
   .vcp-marks { display: inline-flex; align-items: center; gap: 5px; }
   .vcp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--strip-ink); display: inline-block; }
-  .strip-remark { grid-area: remark; padding: 6px 12px 8px; border-top: 1px solid var(--strip-rule); font-size: 0.86rem; color: var(--strip-ink-2); line-height: 1.5; }
   .strip-pull {
     grid-area: pull; border: none; border-left: 1px solid var(--strip-rule); background: var(--strip-2); color: var(--strip-ink);
     font: inherit; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px;
@@ -137,16 +135,20 @@
   }
   @media (max-width: 760px) {
     .board { padding: 18px 16px 16px; }
+    /* 모바일 스트립: 홀더는 색 막대(베이 제목이 이미 분류를 말한다), RS는 종목명 옆 */
     .strip, .strip--warn {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-areas: "holder holder holder" "id id id" "c1 c2 c3" "c4 c5 c5" "remark remark remark" "pull pull pull";
+      grid-template-areas: "holder holder holder" "id id c4" "c1 c2 c3" "c5 c5 c5" "pull pull pull";
     }
-    .strip--warn { grid-template-areas: "holder holder holder" "id id id" "c1 c2 c3" "c4 c4 c4" "pull pull pull"; }
-    .strip-holder { flex-direction: row; align-items: baseline; justify-content: space-between; padding: 7px 12px; }
+    .strip--warn { grid-template-areas: "holder holder holder" "id id c4" "c1 c2 c3" "pull pull pull"; }
+    .strip-holder { padding: 0; height: 5px; overflow: hidden; }
+    .strip-holder .holder-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .strip-id { border-right: none; border-bottom: 1px solid var(--strip-rule); }
-    .cell { border-bottom: 1px solid var(--strip-rule); }
-    .c3, .c5 { border-right: none; }
-    .strip--warn .c4 { border-right: none; }
+    .c4 { border-right: none; border-bottom: 1px solid var(--strip-rule); display: flex; flex-direction: column; justify-content: center; align-items: flex-end; }
+    .c1, .c2 { border-right: 1px solid var(--strip-rule); }
+    .c3 { border-right: none; }
+    .c5 { border-right: none; border-top: 1px solid var(--strip-rule); }
+    div.c5 { display: none; }
     .strip-pull { border-left: none; border-top: 1px solid var(--strip-rule); flex-direction: row; }
     .plan-sheet { margin-left: 0; }
     .plan-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -180,18 +182,18 @@
 {% macro pull_button(s) %}
 <button type="button" class="strip-pull" aria-expanded="false" aria-controls="plan-{{ s.id }}">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-  비행 계획
+  매수 계획
 </button>
 {% endmacro %}
 
 {% macro form_cell(r) %}
-<dl class="cell c5"><dt>형태</dt><dd>{% if r.vcp_detected %}<span class="vcp-marks">VCP T{{ r.vcp_contractions }}<span class="vcp-dot" aria-hidden="true"></span>{% if r.vcp_last_contraction is not none %}<small>{{ "%.1f"|format(r.vcp_last_contraction) }}%</small>{% endif %}</span>{% else %}베이스{% endif %}</dd></dl>
+{% if r.vcp_detected %}<dl class="cell c5"><dt>형태</dt><dd><span class="vcp-marks">VCP T{{ r.vcp_contractions }}<span class="vcp-dot" aria-hidden="true"></span>{% if r.vcp_last_contraction is not none %}<small>{{ "%.1f"|format(r.vcp_last_contraction) }}%</small>{% endif %}</span></dd></dl>{% else %}<div class="cell c5" aria-hidden="true"></div>{% endif %}
 {% endmacro %}
 
 {% block content %}
 {% set mk = cur_market %}
 {% set fr = freshness %}
-{% set reg = {'BULL': ('VFR', '시계 양호', '매수 가능'), 'NEUTRAL': ('MVFR', '제한 시계', '선별 매수'), 'BEAR': ('IFR', '시계 불량', '매수 중지')} %}
+{% set reg = {'BULL': ('VFR', '강세장', '매수 가능'), 'NEUTRAL': ('MVFR', '혼조장', '선별 매수'), 'BEAR': ('IFR', '약세장', '매수 중지')} %}
 
 {% if avail_markets and avail_markets|length > 1 %}
 <nav class="tabs" aria-label="시장 선택">
@@ -211,11 +213,11 @@
   </p>
 
   {% if market and market.available %}
-  {% set code, sky, word = reg.get(market.regime, ('MVFR', '제한 시계', '선별 매수')) %}
+  {% set code, sky, word = reg.get(market.regime, ('MVFR', '혼조장', '선별 매수')) %}
   {% set p200 = market.pct_above_200 %}{% set p50 = market.pct_above_50 %}
   <div class="board-main regime-{{ code }}">
     <div>
-      <span class="verdict-cat">{{ code }} <span>{{ sky }}</span></span>
+      <span class="verdict-cat"><span>{{ sky }}</span></span>
       <h1 class="verdict-word" id="verdict"><span class="sr-only">{{ market_labels.get(mk, mk) }} 시장 국면: </span>{{ word }}</h1>
       <p class="verdict-advice">{{ market.advice }}</p>
     </div>
@@ -257,20 +259,19 @@
 {# ───── 1. 이륙 허가: 적극 매수 ───── #}
 <section class="bay" aria-labelledby="bay-go">
   <div class="bay-head">
-    <h2 id="bay-go">이륙 허가 · 적극 매수</h2><span class="bay-count">{{ strong_buy_list|length }}</span>
+    <h2 id="bay-go">적극 매수</h2><span class="bay-count">{{ strong_buy_list|length }}</span>
     <p class="bay-rule">피벗을 갓 넘은 종목. 피벗 위 5%까지가 매수 구간, 손절은 진입가 −8%.</p>
   </div>
   <div class="bay-list">
   {% for r, s in strong_buy_list %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--go" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">적극 매수</span><span class="holder-code">CLEARED</span></div>
+      <div class="strip-holder"><span class="holder-label">적극 매수</span></div>
       <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
       <dl class="cell c1"><dt>피벗</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
       <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.pivot_price %} <small>+{{ "%.1f"|format((r.close / r.pivot_price - 1) * 100) }}%</small>{% endif %}</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
       <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
       {{ form_cell(r) }}
-      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -283,20 +284,19 @@
 {# ───── 2. 대기: 돌파 대기 ───── #}
 <section class="bay" aria-labelledby="bay-wait">
   <div class="bay-head">
-    <h2 id="bay-wait">대기 · 돌파 대기</h2><span class="bay-count">{{ breakout_watch|length }}</span>
+    <h2 id="bay-wait">돌파 대기</h2><span class="bay-count">{{ breakout_watch|length }}</span>
     <p class="bay-rule">베이스를 다 만든 종목. 종가가 피벗을 넘는 날이 매수일, 피벗까지 가까운 순.</p>
   </div>
   <div class="bay-list">
   {% for r, s, gap in breakout_watch %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">돌파 대기</span><span class="holder-code">HOLD SHORT</span></div>
+      <div class="strip-holder"><span class="holder-label">돌파 대기</span></div>
       <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
       <dl class="cell c1"><dt>피벗 = 매수가</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
       <dl class="cell c2"><dt>피벗까지</dt><dd>+{{ gap }}%</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
       <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
       {{ form_cell(r) }}
-      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -310,20 +310,19 @@
 {% if extended_list %}
 <section class="bay" aria-labelledby="bay-ext">
   <div class="bay-head">
-    <h2 id="bay-ext">눌림목 대기 · 연장</h2><span class="bay-count">{{ extended_list|length }}</span>
+    <h2 id="bay-ext">눌림목 대기</h2><span class="bay-count">{{ extended_list|length }}</span>
     <p class="bay-rule">추세·실적은 통과했지만 매수 구간을 지나 올라간 종목. 추격하지 않고 50일선까지 눌릴 때 진입.</p>
   </div>
   <div class="bay-list">
   {% for r, s in extended_list %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">눌림목 대기</span><span class="holder-code">EXTENDED</span></div>
+      <div class="strip-holder"><span class="holder-label">눌림목 대기</span></div>
       <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
       <dl class="cell c1"><dt>눌림 진입(50일선)</dt><dd>{{ fmt_price(r.ma50, mk) }}</dd></dl>
       <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.ma50 %} <small>+{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%</small>{% endif %}</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
       <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
       {{ form_cell(r) }}
-      <p class="strip-remark">{{ r.signal_reason or '' }}</p>
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -341,7 +340,7 @@
   <div class="bay-list">
   {% macro warn_strip(r, s, i) %}
     <article class="strip strip--warn" style="--i:{{ i }}">
-      <div class="strip-holder"><span class="holder-label">매도 경고</span><span class="holder-code">DIVERT</span></div>
+      <div class="strip-holder"><span class="holder-label">매도 경고</span></div>
       <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
       <dl class="cell c1"><dt>현재가</dt><dd>{{ fmt_price(r.close, cur_market) }}</dd></dl>
       <dl class="cell c2"><dt>50일선</dt><dd>{{ fmt_price(r.ma50, cur_market) }}</dd></dl>

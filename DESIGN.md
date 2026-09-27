@@ -208,14 +208,14 @@ A neutral gunmetal-and-paper world where hue is reserved for state and for the o
 
 ### Secondary: strip holder states
 The coloured block at the head of each strip. One state, one colour, everywhere (home strips, detail strip, VCP log holder cells).
-- **Cleared Yellow** (holder-go): 적극 매수 (`CLEARED`). Same pigment as the sign: on a strip rack yellow means "go".
-- **Standby Gray** (holder-wait): 대기 states, 돌파 대기 (`HOLD SHORT`) and 눌림목 대기 (`EXTENDED`). Waiting is gray by contract.
-- **Divert Red** (holder-warn): 매도 경고 (`DIVERT`). Carries Sign Ink, not white (4.9:1).
+- **Cleared Yellow** (holder-go): 적극 매수. Same pigment as the sign: on a strip rack yellow means "go".
+- **Standby Gray** (holder-wait): 대기 states, 돌파 대기 and 눌림목 대기. Waiting is gray by contract.
+- **Divert Red** (holder-warn): 매도 경고. Carries Sign Ink, not white (4.9:1).
 - **Hold Gray** (holder-hold): 관심 (`STANDBY`), 회피 (`NO GO`), 데이터 점검 (`CHECK`), and finished log rows.
 
 ### Tertiary: flight categories (market regime only)
 - **VFR Green** (regime-vfr): 시계 양호, 매수 가능 (server regime BULL).
-- **MVFR Blue** (regime-mvfr): 제한 시계, 선별 매수 (NEUTRAL). Also the 150-day moving-average line on the chart.
+- **MVFR Blue** (regime-mvfr): 혼조장, 선별 매수 (NEUTRAL). Also the 150-day moving-average line on the chart.
 - **IFR Red** (regime-ifr): 시계 불량, 매수 중지 (BEAR). Also tints the buy-suspension gate note.
 These colour the regime chip and the breadth gauge fills (200-day ≥60 VFR, <40 IFR, else MVFR; 50-day ≥50 VFR else MVFR; Stage 2 gauge always Hold Gray). Server-side, `compute_market_breadth` emits the same dark values (#3fb46a / #4f95e6 / #e5483d).
 
@@ -248,7 +248,7 @@ These colour the regime chip and the breadth gauge fills (200-day ≥60 VFR, <40
 **Measurement Font:** Overpass Mono (with D2Coding, Cascadia Code, Consolas)
 **Verdict Font:** Black Han Sans (with Pretendard)
 
-**Character:** Pretendard carries Korean prose with `word-break: keep-all`; Overpass, the typeface drawn from highway signage, gives signs and holder codes their stencilled airfield voice; Overpass Mono prints every number in tabular figures like a strip printer; Black Han Sans is the one loud word on the board.
+**Character:** Pretendard carries Korean prose with `word-break: keep-all`; Overpass, the typeface drawn from highway signage, gives signs and tabs their stencilled airfield voice; Overpass Mono prints every number in tabular figures like a strip printer; Black Han Sans is the one loud word on the board.
 
 ### Hierarchy
 - **Verdict** (400, clamp(3rem, 8.4vw, 5.6rem), 1; 3.2rem under 480px): the single regime word on the board (매수 가능 / 선별 매수 / 매수 중지). Nothing else.
@@ -258,7 +258,7 @@ These colour the regime chip and the breadth gauge fills (200-day ≥60 VFR, <40
 - **Measure** (Overpass Mono 600, 0.98rem in strip cells, up to 1.5rem for gauge values): every price, percent, count.
 - **Body** (400, 1rem, 1.55; notes 0.86rem at 1.7, advice capped at 34ch, disclaimers 80ch).
 - **Sign** (Overpass 800, 0.86 to 0.95rem, 0.02 to 0.06em tracking): nav, tabs, brand (uppercase).
-- **Sign Code** (Overpass 800, 0.76rem, 0.1em, uppercase English): holder codes CLEARED / HOLD SHORT / EXTENDED / DIVERT / STANDBY / NO GO / CHECK, and the regime code VFR / MVFR / IFR.
+- **No English codes on screen.** Holder and regime labels are Korean only (적극 매수, 돌파 대기, 강세장 / 혼조장 / 약세장). VFR / MVFR / IFR survive only as internal token and class names.
 - **Label** (Pretendard 700, 0.76rem): cell `dt` labels and table headers. 0.76rem is the floor; no text below 12px.
 
 ### Named Rules
@@ -313,10 +313,10 @@ Taxiway-sign plain: a flat block, no gradient, no shadow.
 One panel carrying a METAR-style mono observation line (market, close date, screen date, universe; a stale-price notice in Sign Yellow), the flight-category chip (code in Overpass plus Korean sky condition, on the regime colour with Sign Ink text), the verdict word, one line of advice, and three breadth gauges. Gauges are 12px inset tracks with a regime-coloured fill and white threshold ticks labelled in mono (40 약세, 60 강세, 50 강세). A buy-suspension gate note appears under IFR, tinted with IFR Red.
 
 ### Flight Strip (signature)
-Paper strip: holder block (Korean state word in Pretendard 800 plus English sign code), callsign and company name, labelled mono measurement cells split by printed rules (피벗, 현재가, 손절 in Paper Negative, RS, 형태), a remark row with the Korean signal reason, and a pull tab. The warn strip is a compact single-row variant whose tab links straight to the checklist. The detail page opens with a larger version of the same strip.
+Paper strip: holder block (Korean state word in Pretendard 800), callsign and company name, labelled mono measurement cells split by printed rules (피벗, 현재가, 손절 in Paper Negative, RS, and 형태 only when VCP is detected), and a pull tab. No remark row: the signal reason repeated the cells, so the full sentence lives on the detail page and the pulled plan. On mobile the holder shrinks to a 5px colour bar (the bay heading already names the state, the label stays for screen readers) and RS moves beside the callsign. The warn strip is a compact single-row variant whose tab links straight to the checklist. The detail page is the Chart Note surface instead (see below).
 
 ### Strip Pull and Flight Plan (signature interaction)
-The pull tab is a real `<button>` with `aria-expanded` / `aria-controls`. Pulling slides the strip 10px to the right (desktop only), rotates the chevron 180°, and unfolds the flight-plan sheet beneath it by animating `grid-template-rows` 0fr to 1fr. The sheet is Strip Paper 2 behind a dashed printed tear line, indented to align with the strip body, and holds four mono figures (진입가, 손절가, 1차 익절, 손익비), position sizing, numbered steps, and a location-sign style link to the full checklist.
+The pull tab (labelled 매수 계획) is a real `<button>` with `aria-expanded` / `aria-controls`. Pulling slides the strip 10px to the right (desktop only), rotates the chevron 180°, and unfolds the flight-plan sheet beneath it by animating `grid-template-rows` 0fr to 1fr. The sheet is Strip Paper 2 behind a dashed printed tear line, indented to align with the strip body, and holds four mono figures (진입가, 손절가, 1차 익절, 손익비), position sizing, numbered steps, and a location-sign style link to the full checklist.
 
 ### Preflight Checklist
 A rack panel with a mono pass count, then one row per trend-template condition: item, dotted leader, and an Overpass mark (통과 green, 미통과 red with the item in bold heading colour, faint for not applicable).
@@ -326,6 +326,14 @@ Tables on the rack whose first column is a 44px holder chip in the strip-holder 
 
 ### Badges and Heat Chips
 2px radius, 0.78rem 700. Green, red and gray variants built from 14 to 15% tints with a 40% outline; heat chips carry server-computed backgrounds for RS and returns.
+
+### Chart Note (stock detail page only)
+The one light surface in the product. The stock detail page sits on chart paper (`--paper #f3f2ec`) under the dark sign header, like a page from Minervini's annotated charts. `.notebook` remaps the semantic tokens to the paper set, so older inline styles follow without edits; server tones switch to their `light` values.
+- **Ink, not colour:** candles are one ink (hollow up, filled down), volume is pencil shading, 50-day is blue ballpoint (`--pen`), 150/200-day are pencil (solid / dashed).
+- **Marker red (`--marker`) is stop and sell only:** the stop line, stop figures, 미통과 checks, and the ring around 매도.
+- **Highlighter (`--highlight`) is buying only:** the entry-to-stop band on the chart, the entry figure, the 적극 매수 verdict, Code 33.
+- **Handwriting (`--font-hand`, Nanum Pen Script) is only the verdict word and on-chart notes.** Every figure stays Overpass Mono.
+- **T1, T2… contraction notes appear only when VCP is detected.** They come from the same zigzag as `detect_vcp` (`vcp_swings`), are drawn in pencil from swing high to next low, and the tightest gets the single dot. Labels step up 20px when they would collide.
 
 ### Motion
 - **Slot in:** each strip enters once from translateX(-12px) over .5s, staggered 45ms per strip, capped at 10.

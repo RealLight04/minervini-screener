@@ -863,16 +863,29 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         if not pd.isna(ma200.iloc[i]):
             ma200_s.append({"time": d, "value": round(float(ma200.iloc[i]), 2)})
 
-    # 매수 지점: 돌파형=피벗, 눌림형=50일선 (매수 신호일 때만). 손절은 매수가 -8%
+    # 매수 지점: 돌파형=피벗, 눌림형=50일선 (매수 신호일 때만).
+    # 손절은 스크리닝이 저장한 값 그대로 — 목록·계획표·차트가 같은 숫자를 보여야 한다
     buy, buy_label = None, None
     chart_stop = latest.stop_loss if latest else None
     if latest and latest.signal in ("BUY", "STRONG_BUY"):
         if latest.pivot_price:
-            buy, buy_label = latest.pivot_price, "🎯 매수(피벗 돌파)"
-            chart_stop = round(latest.pivot_price * 0.92, 2)
+            buy, buy_label = latest.pivot_price, "피벗 돌파 매수"
         elif latest.ma50:
-            buy, buy_label = round(latest.ma50, 2), "🎯 매수(50일선 눌림)"
-            chart_stop = round(latest.ma50 * 0.92, 2)
+            buy, buy_label = round(latest.ma50, 2), "50일선 눌림 매수"
+
+    # VCP 수축 구간(T1, T2, …): 판정과 같은 지그재그에서 고점→다음 저점 쌍
+    from app.screener import vcp_swings, VCP_LOOKBACK
+    contractions = []
+    if n >= 60:
+        zz = vcp_swings(close)
+        off = max(0, n - VCP_LOOKBACK)
+        for a, b in zip(zz, zz[1:]):
+            if a[2] == "H" and b[2] == "L" and a[1] > b[1] > 0:
+                contractions.append({
+                    "h_time": rows[off + a[0]][0].isoformat(), "h": round(a[1], 2),
+                    "l_time": rows[off + b[0]][0].isoformat(), "l": round(b[1], 2),
+                    "pct": round((a[1] - b[1]) / a[1] * 100, 1),
+                })
 
     return {
         "ticker": stock.ticker,
@@ -888,6 +901,8 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         "stop": chart_stop,
         "buy": buy,
         "buy_label": buy_label,
+        "contractions": contractions,
+        "vcp_detected": bool(latest.vcp_detected) if latest else False,
     }
 
 

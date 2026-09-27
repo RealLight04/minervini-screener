@@ -314,24 +314,13 @@ def _check_fundamentals(db: Session, stock_id: int, result: ScreeningResult) -> 
     return q_eps_ok and q_rev_ok and annual_uptrend
 
 
-def detect_vcp(series: pd.Series, min_contractions: int = 3) -> dict:
-    """
-    VCP(변동성 축소 패턴) 탐지.
+VCP_LOOKBACK = 120
 
-    고점→저점 조정 구간을 지그재그로 뽑은 뒤, 조정폭이 뒤로 갈수록 '전체적으로'
-    조여드는지 본다. 엄격한 단조 감소(매 구간이 예외 없이 더 작아야 함)는 실제
-    스윙 데이터의 잡음 탓에 정상 VCP도 대부분 탈락시키므로 쓰지 않는다. 대신
-    Minervini의 2~6회 수축(단계가 점점 얕아지고 마지막이 가장 타이트)에 맞춰
-    세 가지 질적 조건으로 판정한다:
-      1) 마지막 조정 ≤ 가장 넓은 조정의 60%  (전체적으로 조여듦)
-      2) 마지막 조정 ≤ 12%                    (돌파 직전 베이스가 타이트)
-      3) 다시 벌어진 구간(uptick)은 최대 1회까지 노이즈로 허용
-    """
-    if len(series) < 60:
-        return {"detected": False, "contractions": 0, "pivot": None}
 
-    # 최근 120거래일 사용
-    prices = series.tail(120).values
+def vcp_swings(series: pd.Series) -> list[tuple[int, float, str]]:
+    """최근 120거래일 종가의 고-저 교대 지그재그. (tail 안 인덱스, 가격, 'H'/'L')
+    detect_vcp와 차트 주석(/api/chart)이 같은 구간을 쓰도록 한 곳에서 계산한다."""
+    prices = series.tail(VCP_LOOKBACK).values
     n = len(prices)
     w = 5
 
@@ -353,6 +342,26 @@ def detect_vcp(series: pd.Series, min_contractions: int = 3) -> dict:
                 zz[-1] = (idx, price, kind)
         else:
             zz.append((idx, price, kind))
+    return zz
+
+
+def detect_vcp(series: pd.Series, min_contractions: int = 3) -> dict:
+    """
+    VCP(변동성 축소 패턴) 탐지.
+
+    고점→저점 조정 구간을 지그재그로 뽑은 뒤, 조정폭이 뒤로 갈수록 '전체적으로'
+    조여드는지 본다. 엄격한 단조 감소(매 구간이 예외 없이 더 작아야 함)는 실제
+    스윙 데이터의 잡음 탓에 정상 VCP도 대부분 탈락시키므로 쓰지 않는다. 대신
+    Minervini의 2~6회 수축(단계가 점점 얕아지고 마지막이 가장 타이트)에 맞춰
+    세 가지 질적 조건으로 판정한다:
+      1) 마지막 조정 ≤ 가장 넓은 조정의 60%  (전체적으로 조여듦)
+      2) 마지막 조정 ≤ 12%                    (돌파 직전 베이스가 타이트)
+      3) 다시 벌어진 구간(uptick)은 최대 1회까지 노이즈로 허용
+    """
+    if len(series) < 60:
+        return {"detected": False, "contractions": 0, "pivot": None}
+
+    zz = vcp_swings(series)
 
     # 피벗 = 가장 최근 스윙 고점 (돌파해야 할 매수 트리거 가격)
     pivot = next((p for _, p, k in reversed(zz) if k == "H"), None)

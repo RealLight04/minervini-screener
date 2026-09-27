@@ -2,208 +2,245 @@
 {% from "_macros.html" import tv_link, avatar %}
 {% block title %}{{ stock.ticker }} — Minervini Screener{% endblock %}
 {% block head %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
 <style>
-  .dstrip { --holder: var(--hold); display: grid; grid-template-columns: 9rem minmax(0, 1.4fr) minmax(0, 2fr); grid-template-areas: "holder id cells" "holder remark remark";
-    background: var(--strip); color: var(--strip-ink); box-shadow: var(--shadow); margin-bottom: 26px; }
-  .dstrip--go { --holder: var(--go); } .dstrip--buy { --holder: var(--buy); } .dstrip--warn { --holder: var(--warn); }
-  .dstrip-holder { grid-area: holder; background: var(--holder); color: var(--sign-ink); padding: 14px; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-  .dstrip-sig { font-weight: 800; font-size: 1.15rem; line-height: 1.2; }
-  .dstrip-code { font-family: var(--font-sign); font-weight: 800; font-size: 0.76rem; letter-spacing: 0.1em; opacity: .8; }
-  .dstrip-id { grid-area: id; padding: 14px 16px; border-right: 1px solid var(--strip-rule); min-width: 0; }
-  .dstrip-title { display: flex; align-items: center; gap: 10px; }
-  .dstrip-callsign { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 700; line-height: 1.1; letter-spacing: 0.01em; }
-  .dstrip .tv-link { color: var(--strip-ink-2); }
-  .dstrip-name { font-size: 0.88rem; color: var(--strip-ink-2); margin-top: 4px; }
-  .dstrip-cells { grid-area: cells; display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); }
-  .dstrip-cells > div { padding: 14px 14px 10px; border-right: 1px solid var(--strip-rule); }
-  .dstrip-cells > div:last-child { border-right: none; }
-  .dstrip-cells dt { font-size: 0.76rem; font-weight: 700; color: var(--strip-ink-2); }
-  .dstrip-cells dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.15rem; }
-  .dstrip .neg, .fplan .neg { color: #b3261e; } .fplan .pos { color: #146c37; }
-  .dstrip-remark { grid-area: remark; padding: 9px 16px 11px; border-top: 1px solid var(--strip-rule); font-size: 0.92rem; color: var(--strip-ink-2); }
-
-  .fplan { background: var(--strip-2); color: var(--strip-ink); margin-bottom: 28px; box-shadow: var(--shadow); }
-  .fplan-head { padding: 14px 18px 12px; border-bottom: 1px dashed var(--strip-rule); }
-  .fplan-head h2 { font-size: 1.05rem; font-weight: 800; }
-  .fplan-head p { margin-top: 4px; font-weight: 600; }
-  .fplan-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--strip-rule); border-bottom: 1px solid var(--strip-rule); }
-  .fplan-figs > div { background: var(--strip); padding: 11px 16px; }
-  .fplan-figs dt { font-size: 0.76rem; font-weight: 700; color: var(--strip-ink-2); }
-  .fplan-figs dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.2rem; }
-  .fplan-figs small { font-size: 0.82rem; font-weight: 500; }
-  .fplan-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px; padding: 16px 18px 4px; }
-  .fplan-body h3 { font-size: 0.84rem; font-weight: 800; color: var(--strip-ink-2); margin-bottom: 6px; }
-  .fplan-body ol, .fplan-body ul { padding-left: 1.2em; font-size: 0.9rem; line-height: 1.75; }
-  .fplan-size { padding: 10px 18px 0; font-size: 0.9rem; line-height: 1.7; }
-  .fplan-note { padding: 8px 18px 14px; font-size: 0.8rem; color: var(--strip-ink-2); }
-
-  .checklist { background: var(--surface); border: 1px solid var(--border); padding: 6px 18px 12px; }
-  .checklist-sum { padding: 10px 0 8px; border-bottom: 1px solid var(--rail); font-size: 0.92rem; color: var(--muted); }
-  .checklist-sum b { color: var(--heading); font-size: 1.1rem; }
-  .checklist ol { list-style: none; }
-  .checklist li { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 0.94rem; }
-  .checklist li:last-child { border-bottom: none; }
-  .ck-lead { flex: 1; border-bottom: 1px dotted var(--rail); transform: translateY(-4px); min-width: 20px; }
-  .ck-mark { font-family: var(--font-sign); font-weight: 800; font-size: 0.82rem; letter-spacing: 0.02em; white-space: nowrap; }
-  .checklist li.ok .ck-item { color: var(--muted); } .checklist li.ok .ck-mark { color: var(--green-ink); }
-  .checklist li.no .ck-item { color: var(--heading); font-weight: 700; } .checklist li.no .ck-mark { color: var(--red-ink); }
-  .checklist li.na .ck-item, .checklist li.na .ck-mark { color: var(--faint); }
-
-  /* 용지 영역: 토큰을 용지용으로 재정의 → 인라인 스타일·히트맵 칩이 그대로 용지 색을 따른다 */
-  .paper {
-    background: var(--strip); color: var(--strip-ink); border: none; box-shadow: var(--shadow);
-    --surface: #e3e6e5; --inset: #d5d9d9; --text: #121518; --heading: #121518; --muted: #464d54; --faint: #545b62;
-    --line: #c9ced0; --border: #b9bfc2; --rail: #aab1b5;
-    --green: #146c37; --green-ink: #146c37; --red: #b3261e; --red-ink: #b3261e; --amber: #7a5600; --accent: #6b5200; --violet: #6d3f86;
-    --badge-green-bg: rgba(20,108,55,.12); --badge-red-bg: rgba(179,38,30,.10); --badge-gray-bg: rgba(0,0,0,.05);
-    --badge-sign-bg: rgba(107,82,0,.10); --badge-violet-bg: rgba(109,63,134,.10); --row-hover: rgba(0,0,0,.035);
+  /* 차트 노트: 이 페이지만 용지 위. 토큰을 용지 값으로 다시 매핑 → 아래 섹션 인라인 스타일도 그대로 따라온다 */
+  body { background: var(--paper); }
+  html { scrollbar-color: var(--paper-rule-2) var(--paper); }
+  .notebook {
+    color-scheme: light;
+    --bg: var(--paper); --surface: var(--paper); --inset: var(--paper-2);
+    --text: var(--paper-ink); --heading: var(--paper-ink); --muted: var(--paper-ink-2); --faint: var(--pencil);
+    --line: var(--paper-rule); --border: var(--paper-rule-2); --rail: var(--paper-rule-2);
+    --green: var(--paper-green); --green-ink: var(--paper-green); --red: var(--marker); --red-ink: var(--marker);
+    --amber: #7a5600; --accent: var(--paper-ink); --violet: #6d3f86; --orange: #8a4a00;
+    --badge-green-bg: rgba(28,102,54,.10); --badge-red-bg: rgba(192,48,42,.09); --badge-gray-bg: rgba(0,0,0,.05);
+    --badge-sign-bg: color-mix(in srgb, var(--highlight) 55%, transparent); --badge-violet-bg: rgba(109,63,134,.09);
+    --row-hover: rgba(0,0,0,.03); --sign: var(--paper-ink); --shadow: none;
+    color: var(--text);
   }
-  .paper thead th { background: var(--inset); color: var(--muted); border-bottom-color: var(--rail); }
-  .paper .tone-text, .paper .tone-badge { filter: brightness(.55) saturate(1.4); }
-  .paper .tone-tint { background: color-mix(in srgb, var(--tone-dark) 14%, var(--strip)); border-color: color-mix(in srgb, var(--tone-dark) 45%, transparent); }
-  /* 아래쪽 섹션도 같은 용지: 밸류에이션은 측정 칸이 줄지은 스트립 한 장 */
-  .stat-grid { gap: 0; background: var(--strip); box-shadow: var(--shadow); grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-  .stat-grid .stat { background: none; border: none; border-right: 1px solid var(--strip-rule); border-bottom: 1px solid var(--strip-rule); color: var(--strip-ink); }
-  .stat-grid .stat .k { color: var(--strip-ink-2); font-weight: 700; font-size: 0.78rem; }
-  .stat-grid .stat .v { color: var(--strip-ink); }
-  .stat-grid .stat .note-sm { color: var(--strip-ink-2); }
-  .stat-grid { --green: #146c37; --green-ink: #146c37; --amber: #7a5600; --red: #b3261e; --red-ink: #b3261e; --accent: #6b5200; }
-  .stat-grid .tone-text { filter: brightness(.55) saturate(1.4); }
-  .code33-banner { background: var(--strip); border: none; box-shadow: var(--shadow); display: grid; grid-template-columns: 9rem 1fr; padding: 0 !important; }
-  .code33-banner > div { padding: 12px 16px; }
-  .code33-tag { background: var(--go); color: var(--sign-ink); font-weight: 800; display: flex; align-items: center; }
-  .code33-banner .c33-t { font-weight: 800; color: var(--strip-ink); }
-  .code33-banner .c33-d { color: var(--strip-ink-2); font-size: 0.9rem; margin-top: 2px; }
+  .notebook :focus-visible { outline-color: var(--paper-ink); }
+  .notebook ::selection { background: var(--highlight); color: var(--paper-ink); }
+  .notebook .tone-text { color: var(--tone-light); }
+  .notebook .tone-badge { color: var(--tone-light); background: color-mix(in srgb, var(--tone-light) 10%, transparent); border-color: color-mix(in srgb, var(--tone-light) 40%, transparent); }
+  .notebook .tone-tint { background: color-mix(in srgb, var(--tone-light) 7%, var(--paper)); border-color: color-mix(in srgb, var(--tone-light) 35%, transparent); }
+  .notebook .card, .notebook .table-wrap { background: transparent; border: 1px solid var(--paper-rule-2); box-shadow: none; }
+  .notebook thead th { background: var(--paper-2); }
+  .notebook .stat-grid { gap: 0; border-top: 1px solid var(--paper-rule-2); border-left: 1px solid var(--paper-rule-2); grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  .notebook .stat { background: none; border: none; border-right: 1px solid var(--paper-rule-2); border-bottom: 1px solid var(--paper-rule-2); }
+  .notebook .stat .k { font-weight: 700; font-size: 0.78rem; }
+  .notebook a.tv-link:hover { color: var(--paper-ink); }
+
+  /* 손글씨: 판정 한 단어와 차트 위 주석에만 */
+  .hand { font-family: var(--font-hand); font-weight: 400; letter-spacing: 0; }
+  /* 형광펜: 글자 아래 비스듬한 칠 */
+  .hl { background: linear-gradient(100deg, transparent 0 2%, color-mix(in srgb, var(--highlight) 85%, transparent) 3% 97%, transparent 98%);
+    padding: 0 .18em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+
+  /* ── 머리: 종목 · 판정 · 핵심 숫자 ── */
+  .nhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 24px; align-items: end; padding-bottom: 14px; border-bottom: 2px solid var(--paper-ink); }
+  .nhead-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .nhead-ticker { font-family: var(--font-mono); font-size: 2.2rem; font-weight: 700; line-height: 1.05; letter-spacing: 0.01em; }
+  .nhead-name { color: var(--muted); font-size: 0.92rem; margin-top: 4px; }
+  .verdict { font-size: 3.1rem; line-height: .9; white-space: nowrap; color: var(--paper-ink); text-align: right; }
+  .verdict--warn { color: var(--marker); }
+  .verdict--warn .vw { border: 2.5px solid var(--marker); border-radius: 48% 52% 45% 55% / 60% 50% 50% 40%; padding: 0 .28em; }
+  .verdict--hold, .verdict--buy { color: var(--paper-ink-2); }
+  .verdict--buy .vw { text-decoration: underline; text-decoration-color: var(--pencil); text-decoration-thickness: 2px; text-underline-offset: 7px; }
+  .nfigs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-bottom: 1px solid var(--paper-rule-2); }
+  .nfigs > div { padding: 12px 16px 10px 0; }
+  .nfigs > div + div { padding-left: 16px; border-left: 1px solid var(--paper-rule); }
+  .nfigs dt { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+  .nfigs dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.2rem; }
+  .neg { color: var(--marker); } .pos { color: var(--paper-green); }
+  .nremark { padding: 10px 0 0; font-size: 0.95rem; color: var(--text); }
+  .code33 { margin-top: 14px; font-size: 0.92rem; color: var(--text); }
+  .code33 b { font-weight: 800; }
+
+  /* ── 차트: 용지 위 주석 ── */
+  .nchart { margin-top: 26px; }
+  .nchart-wrap { position: relative; }
+  #priceChart { height: 460px; width: 100%; }
+  .anno { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; overflow: hidden; }
+  .anno text { font-family: var(--font-hand); font-size: 21px; }
+  .nlegend { display: flex; gap: 6px 16px; flex-wrap: wrap; margin-top: 8px; font-size: 0.8rem; color: var(--muted); align-items: center; }
+  .nlegend i { display: inline-block; width: 16px; height: 0; margin-right: 5px; vertical-align: 3px; border-top: 2px solid currentColor; }
+  .nlegend .candle { width: 8px; height: 11px; border: 1.5px solid var(--paper-ink); vertical-align: -1px; margin-right: 3px; }
+  .nlegend .candle.dn { background: var(--paper-ink); }
+  .nlegend .zone { width: 16px; height: 10px; border: none; background: color-mix(in srgb, var(--highlight) 60%, transparent); vertical-align: -1px; }
+  .nma { display: flex; flex-wrap: wrap; gap: 4px 0; margin-top: 16px; border-top: 1px solid var(--paper-rule-2); border-bottom: 1px solid var(--paper-rule-2); }
+  .nma > div { padding: 9px 16px 8px 0; }
+  .nma > div + div { padding-left: 16px; border-left: 1px solid var(--paper-rule); }
+  .nma dt { font-size: 0.76rem; font-weight: 700; color: var(--muted); }
+  .nma dd { font-family: var(--font-mono); font-weight: 600; font-size: 0.98rem; }
+  .nma-order { flex: 1 1 100%; border-bottom: 1px solid var(--paper-rule); padding-left: 0 !important; border-left: none !important; font-size: 0.86rem; color: var(--muted); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .nma-order b { color: var(--paper-ink); margin-right: 8px; }
+  .nma-order .gt { color: var(--paper-green); } .nma-order .gt.off { color: var(--marker); }
+
+  /* ── 매수 계획 ── */
+  .nplan-head p { font-weight: 600; font-size: 1rem; }
+  .nplan-figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 12px; border-top: 1px solid var(--paper-rule-2); border-bottom: 1px solid var(--paper-rule-2); }
+  .nplan-figs > div { padding: 11px 16px 10px 0; }
+  .nplan-figs > div + div { padding-left: 16px; border-left: 1px solid var(--paper-rule); }
+  .nplan-figs dt { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+  .nplan-figs dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.22rem; }
+  .nplan-figs small { font-size: 0.82rem; font-weight: 500; }
+  .nplan-body { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 36px; margin-top: 18px; }
+  .nplan-body h3 { font-size: 0.86rem; font-weight: 800; margin-bottom: 4px; }
+  /* 줄 노트: 항목이 괘선 위에 앉는다 */
+  .ruled { padding-left: 1.3em; font-size: 0.92rem; line-height: 30px;
+    background-image: repeating-linear-gradient(to bottom, transparent 0 29px, var(--paper-rule) 29px 30px); }
+  .nplan-size { margin-top: 14px; font-size: 0.92rem; line-height: 1.7; }
+  .nplan-note { margin-top: 8px; font-size: 0.8rem; color: var(--faint); }
+
+  /* ── 트렌드 템플릿 점검 ── */
+  .checklist-sum { padding: 0 0 8px; border-bottom: 1px solid var(--paper-rule-2); font-size: 0.92rem; color: var(--muted); }
+  .checklist-sum b { color: var(--paper-ink); font-size: 1.1rem; }
+  .checklist ol { list-style: none; }
+  .checklist li { display: flex; align-items: center; gap: 10px; min-height: 40px; border-bottom: 1px solid var(--paper-rule); font-size: 0.94rem; }
+  .ck-box { width: 22px; height: 22px; border: 1.5px solid var(--paper-ink-2); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ck-item { flex: 1; }
+  .ck-mark { font-size: 0.82rem; font-weight: 700; white-space: nowrap; }
+  .checklist li.ok .ck-item { color: var(--muted); } .checklist li.ok .ck-box { color: var(--paper-green); border-color: var(--paper-green); } .checklist li.ok .ck-mark { color: var(--paper-green); }
+  .checklist li.no .ck-item { font-weight: 700; } .checklist li.no .ck-box { color: var(--marker); border-color: var(--marker); } .checklist li.no .ck-mark { color: var(--marker); }
+  .checklist li.na .ck-item, .checklist li.na .ck-mark { color: var(--faint); } .checklist li.na .ck-box { border-style: dashed; border-color: var(--pencil); }
+
   @media (max-width: 760px) {
-    .code33-banner { grid-template-columns: 1fr; }
-    .dstrip { grid-template-columns: 1fr; grid-template-areas: "holder" "id" "cells" "remark"; }
-    .dstrip-holder { flex-direction: row; justify-content: space-between; align-items: baseline; padding: 9px 14px; }
-    .dstrip-id { border-right: none; border-bottom: 1px solid var(--strip-rule); }
-    .dstrip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .dstrip-cells > div { border-bottom: 1px solid var(--strip-rule); }
-    .fplan-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .fplan-body { grid-template-columns: 1fr; }
+    .nhead { grid-template-columns: 1fr; }
+    .verdict { text-align: left; font-size: 2.6rem; margin-top: 4px; }
+    .nhead-ticker { font-size: 1.8rem; }
+    .nfigs, .nplan-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .nfigs > div:nth-child(3), .nplan-figs > div:nth-child(3) { padding-left: 0; border-left: none; }
+    .nfigs > div:nth-child(n+3), .nplan-figs > div:nth-child(n+3) { border-top: 1px solid var(--paper-rule); }
+    #priceChart { height: 340px; }
+    .anno text { font-size: 18px; }
+    .nplan-body { grid-template-columns: 1fr; }
   }
 </style>
 {% endblock %}
 {% block content %}
 {% set mk = stock.market or 'US' %}
 {% set sig = (result.signal if result else None) or 'WATCH' %}
-{% set holder = {'STRONG_BUY': ('go', 'CLEARED'), 'BUY': ('buy', 'HOLD SHORT'), 'SELL': ('warn', 'DIVERT'), 'AVOID': ('hold', 'NO GO'), 'WATCH': ('hold', 'STANDBY'), 'DATA': ('hold', 'CHECK')}.get(sig, ('hold', 'STANDBY')) %}
-<article class="dstrip dstrip--{{ holder[0] }}" aria-label="{{ stock.ticker }} 신호">
-  <div class="dstrip-holder">
-    <span class="dstrip-sig">{{ signal_labels.get(sig, sig) }}</span>
-    <span class="dstrip-code">{{ holder[1] }}</span>
-  </div>
-  <div class="dstrip-id">
-    <div class="dstrip-title">
+{% set tone = {'STRONG_BUY': 'go', 'BUY': 'buy', 'SELL': 'warn'}.get(sig, 'hold') %}
+<div class="notebook">
+<div class="nhead" aria-label="{{ stock.ticker }} 신호">
+  <div>
+    <div class="nhead-title">
       {{ avatar(stock.ticker, size=34) }}
-      <h1 class="dstrip-callsign">{{ stock.ticker }}</h1>
+      <h1 class="nhead-ticker">{{ stock.ticker }}</h1>
       {{ tv_link(stock.ticker, mk, size=14) }}
     </div>
-    <p class="dstrip-name">{{ stock.name }}{% if stock.sector %} · {{ stock.sector }}{% endif %} · {{ market_labels.get(mk, mk) }}</p>
+    <p class="nhead-name">{{ stock.name }}{% if stock.sector %} · {{ stock.sector }}{% endif %} · {{ market_labels.get(mk, mk) }}</p>
   </div>
-  {% if result %}
-  <dl class="dstrip-cells">
-    <div><dt>현재가</dt><dd>{{ fmt_price(result.close, mk) }}</dd></div>
-    {% if result.pivot_price %}<div><dt>피벗</dt><dd>{{ fmt_price(result.pivot_price, mk) }}</dd></div>{% endif %}
-    {% if result.stop_loss %}<div><dt>손절</dt><dd class="neg">{{ fmt_price(result.stop_loss, mk) }}</dd></div>{% endif %}
-    <div><dt>RS</dt><dd>{{ "%.0f"|format(result.rs_rank) if result.rs_rank else '-' }}</dd></div>
-  </dl>
-  {% if result.signal_reason %}<p class="dstrip-remark">{{ result.signal_reason }}</p>{% endif %}
-  {% endif %}
-</article>
-
-{% if code33 %}
-<!-- Code 33: 매출+영업이익 동시 3분기 가속 -->
-<div class="code33-banner" style="margin-bottom:24px;">
-  <div class="code33-tag">Code 33</div>
-  <div><p class="c33-t">전방위 실적 가속</p><p class="c33-d">매출과 영업이익이 동시에 3분기 연속 가속 중. 미너비니가 가장 선호하는 최상급 실적 모멘텀.</p></div>
+  <p class="verdict verdict--{{ tone }} hand"><span class="vw{% if tone == 'go' %} hl{% endif %}">{{ signal_labels.get(sig, sig) }}</span></p>
 </div>
+{% if result %}
+<dl class="nfigs">
+  <div><dt>현재가</dt><dd>{{ fmt_price(result.close, mk) }}</dd></div>
+  <div><dt>피벗</dt><dd>{{ fmt_price(result.pivot_price, mk) if result.pivot_price else '-' }}</dd></div>
+  <div><dt>손절</dt><dd class="neg">{{ fmt_price(result.stop_loss, mk) if result.stop_loss else '-' }}</dd></div>
+  <div><dt>RS</dt><dd>{{ "%.0f"|format(result.rs_rank) if result.rs_rank else '-' }}</dd></div>
+</dl>
+{% if result.signal_reason %}<p class="nremark">{{ result.signal_reason }}</p>{% endif %}
+{% endif %}
+{% if code33 %}
+<p class="code33"><b class="hl">Code 33 · 전방위 실적 가속</b> 매출과 영업이익이 동시에 3분기 연속 가속 중. 미너비니가 가장 선호하는 최상급 실적 모멘텀.</p>
 {% endif %}
 
-<!-- 가격 차트 -->
-<div class="sec-title">가격 차트 <span class="sub">최근 1년 · 50/150/200일 이동평균선</span></div>
-<div class="chart-row" style="margin-bottom:24px;">
-  <div class="card">
-    <div id="priceChart" class="skeleton" style="height:420px; width:100%;"></div>
-    <div class="chart-legend">
-      <span><span class="sw" style="background:var(--green);"></span>양봉<span class="sw" style="background:var(--red); margin-left:8px;"></span>음봉</span>
-      <span><span class="ln" style="background:var(--accent);"></span>50일</span>
-      <span><span class="ln" style="background:var(--mvfr);"></span>150일</span>
-      <span><span class="ln" style="background:var(--violet);"></span>200일</span>
-      <span><span class="ln thick" style="background:var(--green);"></span>매수</span>
-      <span><span class="ln dash" style="color:var(--accent);"></span>피벗</span>
-      <span><span class="ln dash" style="color:var(--red);"></span>손절</span>
-    </div>
+<!-- 가격 차트: 수축 T1·T2… 과 피벗·매수 구간·손절을 차트 위에 직접 적는다 -->
+<section class="nchart" aria-label="가격 차트">
+  <div class="nchart-wrap">
+    <div id="priceChart" class="skeleton"></div>
+    <svg class="anno" id="chartAnno" aria-hidden="true"></svg>
   </div>
-  <div class="card chart-side">
-    {% if result %}
-    {% set ma_ok1 = result.close and result.ma50 and result.close > result.ma50 %}
-    {% set ma_ok2 = result.ma50 and result.ma150 and result.ma50 > result.ma150 %}
-    {% set ma_ok3 = result.ma150 and result.ma200 and result.ma150 > result.ma200 %}
-    {% set ma_aligned = ma_ok1 and ma_ok2 and ma_ok3 %}
-    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:16px;">
-      {% if result.rs_rank %}<span class="heat-chip" style="font-size: 0.76rem; background:{{ rs_heat(result.rs_rank) }};">RS {{ "%.0f"|format(result.rs_rank) }}</span>{% endif %}
-      <span class="heat-chip" style="font-size: 0.76rem; background:{% if ma_aligned %}var(--badge-green-bg){% else %}var(--badge-gray-bg){% endif %}; color:{% if ma_aligned %}var(--green-ink){% else %}var(--muted){% endif %};">{% if ma_aligned %}정배열{% else %}혼조{% endif %}</span>
-    </div>
-    <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-size: 0.76rem; color:var(--muted); margin-bottom:18px;">
-      <span>현재가</span><span style="color:{% if ma_ok1 %}var(--green){% else %}var(--faint){% endif %};"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
-      <span>50일</span><span style="color:{% if ma_ok2 %}var(--green){% else %}var(--faint){% endif %};"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
-      <span>150일</span><span style="color:{% if ma_ok3 %}var(--green){% else %}var(--faint){% endif %};"><svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+  <div class="nlegend">
+    <span><span class="candle"></span><span class="candle dn"></span>양봉·음봉</span>
+    <span><i style="color:var(--pen);"></i>50일</span>
+    <span><i style="color:var(--pencil);"></i>150일</span>
+    <span><i style="color:var(--pencil); border-top-style:dashed;"></i>200일</span>
+    <span><i class="zone"></i>매수 구간</span>
+    <span><i style="color:var(--paper-ink); border-top-style:dotted;"></i>피벗</span>
+    <span><i style="color:var(--marker);"></i>손절</span>
+    <span id="annoLegend" hidden><i style="color:var(--paper-ink-2); border-top-width:1.5px;"></i>수축 T1·T2… 고점→저점 조정폭, 점은 가장 좁은 수축</span>
+  </div>
+  {% if result %}
+  {% set ma_ok1 = result.close and result.ma50 and result.close > result.ma50 %}
+  {% set ma_ok2 = result.ma50 and result.ma150 and result.ma50 > result.ma150 %}
+  {% set ma_ok3 = result.ma150 and result.ma200 and result.ma150 > result.ma200 %}
+  {% set gt_ic = '<svg class="ic" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="square" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>' %}
+  <dl class="nma">
+    <div class="nma-order">
+      <b>{% if ma_ok1 and ma_ok2 and ma_ok3 %}정배열{% else %}혼조{% endif %}</b>
+      <span>현재가</span><span class="gt{% if not ma_ok1 %} off{% endif %}">{{ gt_ic|safe }}</span>
+      <span>50일</span><span class="gt{% if not ma_ok2 %} off{% endif %}">{{ gt_ic|safe }}</span>
+      <span>150일</span><span class="gt{% if not ma_ok3 %} off{% endif %}">{{ gt_ic|safe }}</span>
       <span>200일</span>
     </div>
-    {% set side_cards = [
-      ("현재가", fmt_price(result.close, mk)),
-      ("50일 MA", fmt_price(result.ma50, mk)),
-      ("150일 MA", fmt_price(result.ma150, mk)),
-      ("200일 MA", fmt_price(result.ma200, mk)),
-      ("52주 고가", fmt_price(result.week52_high, mk)),
-      ("52주 저가", fmt_price(result.week52_low, mk)),
-      ("거래량(50일평균 대비)", (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-'),
-    ] %}
-    <div>
-      {% for label, val in side_cards %}
-      <div style="display:flex; justify-content:space-between; align-items:baseline; padding:8px 0; border-bottom:1px solid var(--line);">
-        <span class="muted" style="font-size:0.78rem;">{{ label }}</span>
-        <span class="num" style="font-weight:650;">{{ val }}</span>
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="faint" style="font-size:0.85rem;">스크리닝 데이터 없음</p>
-    {% endif %}
-  </div>
-</div>
+    <div><dt>50일선</dt><dd>{{ fmt_price(result.ma50, mk) }}</dd></div>
+    <div><dt>150일선</dt><dd>{{ fmt_price(result.ma150, mk) }}</dd></div>
+    <div><dt>200일선</dt><dd>{{ fmt_price(result.ma200, mk) }}</dd></div>
+    <div><dt>52주 고가</dt><dd>{{ fmt_price(result.week52_high, mk) }}</dd></div>
+    <div><dt>52주 저가</dt><dd>{{ fmt_price(result.week52_low, mk) }}</dd></div>
+    <div><dt>거래량(50일 대비)</dt><dd>{{ (("%.1f"|format(result.vol_vs_avg)) ~ "x") if result.vol_vs_avg else '-' }}</dd></div>
+  </dl>
+  {% endif %}
+</section>
 
 {% if trade_plan %}
 {% set tp = trade_plan %}
-<section class="fplan" aria-labelledby="fplan-h">
-  <div class="fplan-head">
-    <h2 id="fplan-h">비행 계획 · 매수 접근법</h2>
-    <p>{{ tp.headline }}</p>
-  </div>
-  <dl class="fplan-figs">
-    <div><dt>{% if tp.mode == 'wait_pivot' %}돌파 매수가{% elif tp.mode == 'pullback' %}눌림 진입가{% else %}진입가{% endif %}</dt><dd>{{ fmt_price(tp.entry, mk) }}</dd></div>
+<section aria-labelledby="nplan-h">
+  <h2 class="sec-title" id="nplan-h">매수 계획</h2>
+  <div class="nplan-head"><p>{{ tp.headline }}</p></div>
+  <dl class="nplan-figs">
+    <div><dt>{% if tp.mode == 'wait_pivot' %}돌파 매수가{% elif tp.mode == 'pullback' %}눌림 진입가{% else %}진입가{% endif %}</dt><dd><span class="hl">{{ fmt_price(tp.entry, mk) }}</span></dd></div>
     <div><dt>손절가</dt><dd class="neg">{{ fmt_price(tp.stop, mk) }}{% if tp.risk_pct %} <small>−{{ tp.risk_pct }}%</small>{% endif %}</dd></div>
     <div><dt>1차 익절</dt><dd class="pos">{% if tp.target %}{{ fmt_price(tp.target, mk) }} <small>+{{ tp.reward_pct }}%</small>{% else %}-{% endif %}</dd></div>
     <div><dt>손익비</dt><dd>{% if tp.target and tp.risk_pct %}1 : {{ "%.1f"|format(tp.reward_pct / tp.risk_pct) }}{% else %}-{% endif %}</dd></div>
   </dl>
-  <div class="fplan-body">
+  <div class="nplan-body">
     <div>
       <h3>진입 절차</h3>
-      <ol>{% for st in tp.steps %}<li>{{ st }}</li>{% endfor %}</ol>
+      <ol class="ruled">{% for st in tp.steps %}<li>{{ st }}</li>{% endfor %}</ol>
     </div>
     <div>
       <h3>익절 · 매도 규칙</h3>
-      <ul>{% for r in tp.sell_rules %}<li>{{ r }}</li>{% endfor %}</ul>
+      <ul class="ruled">{% for r in tp.sell_rules %}<li>{{ r }}</li>{% endfor %}</ul>
     </div>
   </div>
   {% if tp.sizing %}{% set sz = tp.sizing %}
-  <p class="fplan-size">포지션 크기 예시: 계좌 {{ fmt_amount(sz.account, mk) }} 기준, 손실을 계좌의 {{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})로 제한하면 손절폭 {{ tp.risk_pct }}%에서 비중 약 <b>{{ sz.weight_pct }}%</b>(≈ {{ fmt_amount(sz.position, mk) }}, {{ sz.shares }}주){% if sz.capped %}. 단일 종목 상한으로 제한됨{% endif %}.</p>
+  <p class="nplan-size">포지션 크기 예시: 계좌 {{ fmt_amount(sz.account, mk) }} 기준, 손실을 계좌의 {{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})로 제한하면 손절폭 {{ tp.risk_pct }}%에서 비중 약 <b>{{ sz.weight_pct }}%</b>(≈ {{ fmt_amount(sz.position, mk) }}, {{ sz.shares }}주){% if sz.capped %}. 단일 종목 상한으로 제한됨{% endif %}.</p>
   {% endif %}
-  <p class="fplan-note">교육용 예시. 계좌·리스크 비율은 본인 상황에 맞게 조정. 투자 권유 아님.</p>
+  <p class="nplan-note">교육용 예시. 계좌·리스크 비율은 본인 상황에 맞게 조정. 투자 권유 아님.</p>
 </section>
+{% endif %}
+
+{% if result %}
+<!-- 기술적 조건 체크리스트 -->
+<div class="sec-title">트렌드 템플릿 점검 <span class="sub">전부 통과해야 Stage 2 상승 추세</span></div>
+{% set conditions = [
+  ("현재가 > 150일선", result.cond_price_above_ma150),
+  ("현재가 > 200일선", result.cond_price_above_ma200),
+  ("150일선 > 200일선", result.cond_ma150_above_ma200),
+  ("50일선 > 150일선·200일선", result.cond_ma50_above_ma150_200),
+  ("200일선 1개월 이상 상승 중", result.cond_ma200_uptrend),
+  ("현재가 > 50일선", result.cond_price_above_ma50),
+  ("현재가 ≥ 52주 저가 × 1.30", result.cond_above_52w_low_30pct),
+  ("현재가 ≥ 52주 고가 × 0.75", result.cond_within_52w_high_25pct),
+  ("RS 상위 30% 이내", result.cond_rs_rank),
+] %}
+{% set passed = conditions|selectattr(1)|list|length %}
+<div class="checklist" style="margin-bottom:24px;">
+  <p class="checklist-sum"><b class="mono">{{ passed }} / {{ conditions|length }}</b> 통과{% if result.technical_pass %} · 추세 통과{% endif %}</p>
+  <ol>
+  {% for label, ok in conditions %}
+    <li class="{% if ok is none %}na{% elif ok %}ok{% else %}no{% endif %}">
+      <span class="ck-box" aria-hidden="true">{% if ok %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l5 5L20 5"/></svg>{% elif ok is not none %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>{% endif %}</span>
+      <span class="ck-item">{{ label }}</span>
+      <span class="ck-mark">{% if ok is none %}{% if result.signal == 'DATA' %}데이터 점검{% else %}다음 스크리닝{% endif %}{% elif ok %}통과{% else %}미통과{% endif %}</span>
+    </li>
+  {% endfor %}
+  </ol>
+</div>
 {% endif %}
 
 {% if result %}
@@ -246,32 +283,6 @@
 </div>
 {% endif %}
 
-<!-- 기술적 조건 체크리스트 -->
-<div class="sec-title">이륙 전 점검 · 트렌드 템플릿 <span class="sub">전부 통과해야 Stage 2 상승 추세</span></div>
-{% set conditions = [
-  ("현재가 > 150일선", result.cond_price_above_ma150),
-  ("현재가 > 200일선", result.cond_price_above_ma200),
-  ("150일선 > 200일선", result.cond_ma150_above_ma200),
-  ("50일선 > 150일선·200일선", result.cond_ma50_above_ma150_200),
-  ("200일선 1개월 이상 상승 중", result.cond_ma200_uptrend),
-  ("현재가 > 50일선", result.cond_price_above_ma50),
-  ("현재가 ≥ 52주 저가 × 1.30", result.cond_above_52w_low_30pct),
-  ("현재가 ≥ 52주 고가 × 0.75", result.cond_within_52w_high_25pct),
-  ("RS 상위 30% 이내", result.cond_rs_rank),
-] %}
-{% set passed = conditions|selectattr(1)|list|length %}
-<div class="checklist" style="margin-bottom:24px;">
-  <p class="checklist-sum"><b class="mono">{{ passed }} / {{ conditions|length }}</b> 통과{% if result.technical_pass %} · 추세 통과{% endif %}</p>
-  <ol>
-  {% for label, ok in conditions %}
-    <li class="{% if ok is none %}na{% elif ok %}ok{% else %}no{% endif %}">
-      <span class="ck-item">{{ label }}</span>
-      <span class="ck-lead" aria-hidden="true"></span>
-      <span class="ck-mark">{% if ok is none %}{% if result.signal == 'DATA' %}데이터 점검{% else %}다음 스크리닝{% endif %}{% elif ok %}통과{% else %}미통과{% endif %}</span>
-    </li>
-  {% endfor %}
-  </ol>
-</div>
 
 <!-- 펀더멘털: 분기 실적 추이 -->
 {% macro accel_badge(on, label) %}{% if on %}<span style="background:var(--badge-green-bg); color:var(--green-ink); font-size: 0.76rem; padding:2px 8px; border-radius:var(--radius-sm); margin-left:6px;">{{ label }}</span>{% endif %}{% endmacro %}
@@ -429,6 +440,7 @@
 {% else %}
 <p style="color:var(--faint);">스크리닝 데이터 없음.</p>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -438,6 +450,7 @@
 <script>
 (function () {
   var el = document.getElementById('priceChart');
+  var svg = document.getElementById('chartAnno');
   if (!el) return;
   function showChartError() {
     el.classList.remove('skeleton');
@@ -452,8 +465,17 @@
   // 차트는 CSS가 아니라 JS로 그리므로 같은 토큰을 읽어 UI와 어긋나지 않게 한다(CLAUDE.md)
   var cs = getComputedStyle(document.documentElement);
   function tk(n) { return cs.getPropertyValue(n).trim(); }
-  var C = { bg: tk('--surface'), text: tk('--muted'), grid: tk('--line'), axis: tk('--border'),
-        up: tk('--green'), down: tk('--red'), ma50: tk('--sign'), ma150: tk('--mvfr'), ma200: tk('--violet') };
+  var C = { paper: tk('--paper'), ink: tk('--paper-ink'), ink2: tk('--paper-ink-2'), pencil: tk('--pencil'),
+        rule: tk('--paper-rule'), rule2: tk('--paper-rule-2'), marker: tk('--marker'), hl: tk('--highlight'), pen: tk('--pen') };
+  function rgba(hex, a) { var h = hex.replace('#', ''); return 'rgba(' + parseInt(h.substr(0, 2), 16) + ',' + parseInt(h.substr(2, 2), 16) + ',' + parseInt(h.substr(4, 2), 16) + ',' + a + ')'; }
+  var NS = 'http://www.w3.org/2000/svg';
+  function node(tag, attrs, text) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    svg.appendChild(n);
+    return n;
+  }
   fetch('/api/chart/{{ stock.ticker }}')
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -461,69 +483,115 @@
       el.classList.remove('skeleton');
       var cur = d.currency || '$';
       var precision = cur === '₩' ? 0 : 2;
+      function money(p) { return cur + p.toLocaleString(undefined, { maximumFractionDigits: precision }); }
       var chart = LightweightCharts.createChart(el, {
-        layout: { background: { color: C.bg }, textColor: C.text },
-        grid: { vertLines: { color: C.grid }, horzLines: { color: C.grid } },
-        rightPriceScale: { borderColor: C.axis },
-        timeScale: { borderColor: C.axis, timeVisible: false },
+        layout: { background: { color: C.paper }, textColor: C.ink2, fontFamily: tk('--font-mono') },
+        grid: { vertLines: { color: C.rule }, horzLines: { color: C.rule } },
+        rightPriceScale: { borderColor: C.rule2 },
+        timeScale: { borderColor: C.rule2, timeVisible: false },
         crosshair: { mode: 0 },
-        localization: {
-          priceFormatter: function (p) { return cur + p.toLocaleString(undefined, { maximumFractionDigits: precision }); }
-        }
+        localization: { priceFormatter: money }
       });
+      // 책 인쇄 차트처럼 먹 하나: 양봉은 속 빈 봉, 음봉은 칠한 봉
       var candle = chart.addCandlestickSeries({
-        upColor: C.up, downColor: C.down, borderUpColor: C.up,
-        borderDownColor: C.down, wickUpColor: C.up, wickDownColor: C.down,
+        upColor: C.paper, downColor: C.ink, borderUpColor: C.ink, borderDownColor: C.ink,
+        wickUpColor: C.ink, wickDownColor: C.ink,
         priceFormat: { type: 'price', precision: precision, minMove: cur === '₩' ? 1 : 0.01 }
       });
       candle.setData(d.candles);
 
-      function addMA(data, color) {
+      function addMA(data, color, style, width) {
         if (!data || !data.length) return;
-        var s = chart.addLineSeries({ color: color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
-        s.setData(data);
+        chart.addLineSeries({ color: color, lineWidth: width, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }).setData(data);
       }
-      addMA(d.ma50, C.ma50);
-      addMA(d.ma150, C.ma150);
-      addMA(d.ma200, C.ma200);
+      addMA(d.ma50, C.pen, 0, 2);
+      addMA(d.ma150, C.pencil, 0, 1);
+      addMA(d.ma200, C.pencil, 2, 1);
 
+      // 거래량은 연필 음영: 상승일 옅게, 하락일 진하게
+      var up = {};
+      d.candles.forEach(function (c) { up[c.time] = c.close >= c.open; });
       var vol = chart.addHistogramSeries({ priceScaleId: '', priceFormat: { type: 'volume' }, lastValueVisible: false });
-      vol.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-      vol.setData(d.volume);
+      vol.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+      vol.setData(d.volume.map(function (v) {
+        return { time: v.time, value: v.value, color: up[v.time] ? rgba(C.pencil, 0.28) : rgba(C.ink, 0.55) };
+      }));
 
-      if (d.buy) candle.createPriceLine({ price: d.buy, color: C.up, lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: d.buy_label || '매수' });
-      if (d.pivot && d.pivot !== d.buy) candle.createPriceLine({ price: d.pivot, color: C.ma50, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '피벗' });
-      if (d.stop) candle.createPriceLine({ price: d.stop, color: C.down, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '손절' });
+      var entry = d.buy || null;
+      if (d.pivot) candle.createPriceLine({ price: d.pivot, color: C.ink, lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: '' });
+      if (entry && entry !== d.pivot) candle.createPriceLine({ price: entry, color: C.ink, lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' });
+      if (d.stop) candle.createPriceLine({ price: d.stop, color: C.marker, lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: '' });
 
-      // 매수구간(진입~손절) 음영 오버레이 — TrendSpider식 차트 위 리스크존 시각화
-      var entry = d.buy || d.pivot;
-      var zoneEl = null;
-      if (entry && d.stop) {
-        el.style.position = 'relative';
-        zoneEl = document.createElement('div');
-        zoneEl.style.cssText = 'position:absolute; left:0; right:0; pointer-events:none; ' +
-          'background:color-mix(in srgb, ' + C.up + ' 8%, transparent); ' +
-          'border-top:1px dashed color-mix(in srgb, ' + C.up + ' 45%, transparent); ' +
-          'border-bottom:1px dashed color-mix(in srgb, ' + C.down + ' 45%, transparent); display:none;';
-        el.appendChild(zoneEl);
-      }
-      function updateZone() {
-        if (!zoneEl) return;
-        var yTop = candle.priceToCoordinate(Math.max(entry, d.stop));
-        var yBot = candle.priceToCoordinate(Math.min(entry, d.stop));
-        if (yTop == null || yBot == null) { zoneEl.style.display = 'none'; return; }
-        zoneEl.style.top = yTop + 'px';
-        zoneEl.style.height = Math.max(1, yBot - yTop) + 'px';
-        zoneEl.style.display = 'block';
+      var times = d.candles.map(function (c) { return c.time; });
+      var first = times[0];
+      // T번호는 VCP로 판정된 종목에만. 조정폭이 넓어지는 종목에 붙이면 VCP처럼 보인다
+      var maxK = el.clientWidth < 600 ? 3 : 5;
+      var ks = d.vcp_detected ? (d.contractions || []).filter(function (k) { return k.h_time >= first; }).slice(-maxK) : [];
+      if (ks.length) document.getElementById('annoLegend').hidden = false;
+      var tightest = ks.length ? ks.reduce(function (a, b) { return b.pct < a.pct ? b : a; }) : null;
+
+      function x(t) { return chart.timeScale().timeToCoordinate(t); }
+      function y(p) { return candle.priceToCoordinate(p); }
+
+      function draw() {
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        var W = el.clientWidth, H = el.clientHeight;
+        svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+        var plotW = W - chart.priceScale('right').width();
+
+        // 형광펜: 매수가~손절 구간
+        if (entry && d.stop) {
+          var yt = y(Math.max(entry, d.stop)), yb = y(Math.min(entry, d.stop));
+          if (yt != null && yb != null) {
+            node('rect', { x: 0, y: yt, width: plotW, height: Math.max(2, yb - yt), fill: C.hl, opacity: 0.32 });
+          }
+        }
+
+        // 수축: 고점→저점을 연필로 긋고, T번호·조정폭은 고점 위에 손글씨로. 겹치면 한 줄 위로 올린다
+        var boxes = [];
+        function place(xx, yy, w) {
+          for (var tries = 0; tries < 6; tries++) {
+            var hit = boxes.some(function (b) { return xx < b.x2 + 6 && xx + w > b.x1 - 6 && Math.abs(yy - b.y) < 20; });
+            if (!hit) break;
+            yy -= 20;
+          }
+          boxes.push({ x1: xx, x2: xx + w, y: yy });
+          return yy;
+        }
+        ks.forEach(function (k, i) {
+          var x1 = x(k.h_time), y1 = y(k.h), x2 = x(k.l_time), y2 = y(k.l);
+          if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+          var tight = k === tightest && ks.length > 1;
+          node('path', { d: 'M' + x1 + ' ' + (y1 - 5) + ' L' + x2 + ' ' + (y2 + 5), stroke: tight ? C.ink : C.ink2, 'stroke-width': tight ? 2.2 : 1.4, fill: 'none', 'stroke-linecap': 'round' });
+          var label = 'T' + (i + 1) + ' ' + k.pct + '%';
+          var w = label.length * 8.5;
+          var lx = Math.min(Math.max(4, x1 - w / 2), plotW - w - 4);
+          var ly = place(lx, Math.max(18, y1 - 12), w);
+          node('text', { x: lx, y: ly, fill: tight ? C.ink : C.ink2 }, label);
+          if (tight) node('circle', { cx: x2, cy: y2 + 13, r: 3.5, fill: C.ink });
+        });
+
+        // 피벗·매수·손절 메모: 차트 왼쪽 빈 곳에, 선 바로 위(손절은 아래)
+        function note(price, text, color, dy) {
+          var yy = y(price);
+          if (yy == null || yy < 14 || yy > H - 8) return;
+          node('text', { x: 10, y: yy + dy, fill: color }, text);
+        }
+        if (d.pivot) note(d.pivot, '피벗 ' + money(d.pivot) + (d.buy === d.pivot ? ', 돌파 시 매수' : ''), C.ink, -7);
+        if (entry && entry !== d.pivot) note(entry, (d.buy_label || '매수') + ' ' + money(entry), C.ink, -7);
+        if (d.stop) note(d.stop, '손절 ' + money(d.stop), C.marker, 20);
       }
 
       chart.timeScale().fitContent();
-      chart.timeScale().subscribeVisibleTimeRangeChange(updateZone);
-      new ResizeObserver(function () { chart.applyOptions({ width: el.clientWidth }); updateZone(); }).observe(el);
-      updateZone();
+      var raf = 0;
+      function redraw() { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); }
+      chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
+      new ResizeObserver(function () { chart.applyOptions({ width: el.clientWidth, height: el.clientHeight }); redraw(); }).observe(el);
+      // 손글씨 글꼴이 늦게 오면 한 번 더 그린다
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+      redraw();
     })
     .catch(showChartError);
 })();
-
 </script>
 {% endblock %}

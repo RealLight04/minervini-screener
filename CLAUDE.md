@@ -12,6 +12,8 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 - **테마는 CSS 커스텀 프로퍼티로, 다크 전용.** 토큰은 `templates/base.html`의 `:root` 하나에만
   있다(라이트 테마·`data-theme` 없음). 색을 하드코딩하지 말고 항상 토큰(변수)을 쓴다.
   차트(JS)도 `getComputedStyle`로 같은 토큰을 읽어 UI와 어긋나지 않게(`stock.html` 참고).
+  예외 하나: 종목 상세만 밝은 "차트 노트" 용지. `--paper*` 토큰을 `.notebook`이 의미 토큰에 다시
+  매핑하는 방식이고(`stock.html`), 테마 전환이 아니다. 다른 페이지를 밝게 만들지 말 것.
 - **시각 규칙은 `DESIGN.md`가 기준.** 세계관은 "운항 관제실"(건메탈 랙 · 인쇄 비행 스트립 · 비행장 표지).
   색의 의미(노랑=적극 매수·인터랙션, 회색=대기, 빨강=매도, 국면=VFR/MVFR/IFR), 글꼴 역할, 금지 사항이
   거기 있다. 제품 맥락은 `PRODUCT.md`. Figma 사본: https://www.figma.com/design/t8mXuZka6OS3qbZv4MipwW
