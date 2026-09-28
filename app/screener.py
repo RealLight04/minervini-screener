@@ -16,7 +16,7 @@ from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
@@ -634,6 +634,8 @@ def compute_market_breadth(db: Session, screen_date: date, market: str | None = 
             ScreeningResult.technical_pass,
         )
         .filter(ScreeningResult.screen_date == screen_date)
+        # 데이터 이상(DATA) 행은 국면 판정에서 제외 — signal이 NULL인 행은 포함
+        .filter(or_(ScreeningResult.signal.is_(None), ScreeningResult.signal != "DATA"))
     )
     if market:
         q = q.join(Stock, ScreeningResult.stock_id == Stock.id).filter(Stock.market == market)
@@ -830,7 +832,16 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
 
     for r in results:
         seen.add(r.stock_id)
-        if r.stock_id in skip or r.signal == "DATA":
+        if r.stock_id in skip:
+            continue
+        if r.signal == "DATA":
+            # 데이터 이상 종목은 이벤트를 갱신하지 않되, 오래 방치된 열린 이벤트는 실패로 닫는다
+            ev = open_events.get(r.stock_id)
+            if ev and (screen_date - ev.last_detected).days > VCP_STALE_DAYS:
+                ev.status = "failed"
+                ev.resolved_date = screen_date
+                ev.close = r.close
+                stats["failed"] += 1
             continue
         ev = open_events.get(r.stock_id)
         trend = _trend_ok(r)
@@ -1003,8 +1014,12 @@ def _fresh_markets(db: Session, stocks: list) -> set:
     return fresh
 
 
-def run_daily_screen(db: Session) -> int:
-    """전체 종목 스크리닝 실행 (일일 배치)"""
+def run_daily_screen(db: Session, force: bool = False) -> int:
+    """전체 종목 스크리닝 실행 (일일 배치)
+
+    force=True이고 새 종가가 없으면 새 날짜를 만들지 않고 마지막 스크리닝 날짜의 결과를
+    그 자리에서 다시 계산한다(로직 변경 반영용). 이때 VCP 레지스트리는 건드리지 않는다.
+    """
     _migrate_schema()   # vcp_events 테이블·vcp_pivot 컬럼 보장(기존 DB용)
     screen_date = date.today()
     stocks = db.query(Stock).filter(Stock.is_active == True).all()
@@ -1015,11 +1030,20 @@ def run_daily_screen(db: Session) -> int:
 
     # 가격이 멈춘 채 날짜만 바꿔 신호를 내지 않는다(2026-08 한 달 정지 재발 방지).
     fresh = _fresh_markets(db, stocks)
-    if not fresh:
+    if not fresh and not force:
         logger.warning("직전 스크리닝 이후 새 종가가 들어온 시장이 없음 — 스크리닝 건너뜀(수집 실패·휴장 확인)")
         return 0
     stale = {s.market or "US" for s in stocks} - fresh
-    if stale:
+    if not fresh:
+        # force: 새 날짜를 만들지 않고 마지막 스크리닝 날짜를 제자리 재계산.
+        # 모든 시장을 stale로 두어 VCP 레지스트리는 건드리지 않는다(같은 날 중복 기록 방지).
+        last_date = db.query(func.max(ScreeningResult.screen_date)).scalar()
+        if last_date is None:
+            logger.warning("기존 스크리닝 결과가 없어 강제 재계산할 날짜가 없음 — 건너뜀")
+            return 0
+        screen_date = last_date
+        logger.warning(f"새 종가 없음 — 기존 스크리닝 날짜 {screen_date} 결과를 강제 재계산(VCP 레지스트리는 건너뜀)")
+    elif stale:
         logger.warning(f"새 종가 없는 시장 {sorted(stale)} — 결과는 다시 계산하되 VCP 레지스트리는 갱신 안 함")
 
     logger.info(f"스크리닝 시작: {len(stocks)}개 종목, 기준일 {screen_date}")

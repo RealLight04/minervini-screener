@@ -26,8 +26,10 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
   만든 스냅샷**이다. `app/screener.py`의 로직(신호 문구·VCP 판정·품질 등)을 고쳐도
   **DB의 기존 행은 그대로**다 → 반드시 **재스크리닝**해야 화면에 반영된다:
   ```
-  PYTHONUTF8=1 ENABLE_SCHEDULER=false venv/Scripts/python.exe -c "from app.database import SessionLocal; from app.screener import run_daily_screen; db=SessionLocal(); run_daily_screen(db); db.close()"
+  PYTHONUTF8=1 ENABLE_SCHEDULER=false venv/Scripts/python.exe -c "from app.database import SessionLocal; from app.screener import run_daily_screen; db=SessionLocal(); run_daily_screen(db, force=True); db.close()"
   ```
+  force 없이 부르면 같은 날 다시 돌리거나 주말에 돌릴 때 새 종가가 없어서 조용히 건너뛴다.
+  force=True를 주면 마지막 스크리닝 날짜의 결과를 그 자리에서 다시 계산하고 VCP 레지스트리는 건드리지 않는다.
 - 재스크리닝 후 **서버 코드도 재시작**해야 새 파이썬 로직이 로드된다(서버는 요청 시 DB만
   읽으므로 데이터 변경은 즉시 보이지만, 함수 변경은 재시작 필요).
 

@@ -863,12 +863,14 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
         if not pd.isna(ma200.iloc[i]):
             ma200_s.append({"time": d, "value": round(float(ma200.iloc[i]), 2)})
 
-    # 매수 지점: 돌파형=피벗, 눌림형=50일선 (매수 신호일 때만).
+    # 매수 지점: build_trade_plan과 동일한 분기(현재가 돌파/피벗 대기/50일선 눌림)로 계산.
     # 손절은 스크리닝이 저장한 값 그대로 — 목록·계획표·차트가 같은 숫자를 보여야 한다
     buy, buy_label = None, None
     chart_stop = latest.stop_loss if latest else None
     if latest and latest.signal in ("BUY", "STRONG_BUY"):
-        if latest.pivot_price:
+        if latest.signal == "STRONG_BUY" and latest.pivot_price:
+            buy, buy_label = round(latest.close, 2), "갓 돌파 · 현재가 진입"
+        elif latest.pivot_price and latest.close < latest.pivot_price:
             buy, buy_label = latest.pivot_price, "피벗 돌파 매수"
         elif latest.ma50:
             buy, buy_label = round(latest.ma50, 2), "50일선 눌림 매수"
