@@ -41,6 +41,27 @@
   <p class="mono" style="font-size:0.84rem; color:var(--muted); margin-top:10px;">스크리닝 {{ screen_date }} · 형성 중 {{ forming|length }} · 최근 30일 돌파 {{ broke|length }}</p>
 </div>
 
+{% if stats and stats.total > 0 %}
+<div class="section-title">돌파 후 성과 <span class="hint">실제 손절(−8%대)·목표(+2.5R) 도달 기준 · 표본외 검증용</span></div>
+<div class="stat-grid" style="margin-bottom:10px;">
+  <div class="stat"><div class="k">승률 (목표 vs 손절)</div>
+    <div class="v">{% if stats.win_rate is not none %}{{ stats.win_rate }}%{% else %}-{% endif %}</div>
+    <div class="note-sm" style="margin-top:4px;">목표 {{ stats.target_n }} · 손절 {{ stats.stop_n }} (결판 {{ stats.resolved }}건)</div></div>
+  <div class="stat"><div class="k">평균 손절</div>
+    <div class="v" style="color:var(--red);">{% if stats.avg_stop is not none %}{{ stats.avg_stop }}%{% else %}-{% endif %}</div></div>
+  <div class="stat"><div class="k">평균 목표</div>
+    <div class="v" style="color:var(--green);">{% if stats.avg_target is not none %}+{{ stats.avg_target }}%{% else %}-{% endif %}</div></div>
+  <div class="stat"><div class="k">건당 기대값</div>
+    <div class="v" style="color:{% if stats.expectancy is none %}var(--heading){% elif stats.expectancy >= 0 %}var(--green){% else %}var(--red){% endif %};">{% if stats.expectancy is not none %}{{ "%+.1f"|format(stats.expectancy) }}%{% else %}-{% endif %}</div></div>
+  <div class="stat"><div class="k">진행 중 · 타임아웃</div>
+    <div class="v">{{ stats.pending }} · {{ stats.timeout }}</div></div>
+</div>
+<p class="note-sm" style="margin-bottom:28px; max-width:80ch;">
+  {% if stats.by_regime %}국면별 승률: {% for mk, s in stats.by_regime.items() %}{{ {'BULL': '강세장', 'NEUTRAL': '혼조장', 'BEAR': '약세장'}.get(mk, mk) }} {{ s.win_rate }}%(n={{ s.n }}){% if not loop.last %} · {% endif %}{% endfor %}. {% endif %}
+  표본 {{ stats.resolved }}건, 대부분 같은 시장 국면 안에서 나온 결과라 참고용. 국면이 한 번 더 바뀌고 표본이 쌓일수록 갱신됨.
+</p>
+{% endif %}
+
 <!-- 형성 중 (감시 대상) -->
 <div class="section-title">형성 중 <span class="hint">베이스 완성 단계 · 피벗 돌파를 감시 (RS 강한 순)</span></div>
 {% if forming %}

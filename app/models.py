@@ -118,6 +118,11 @@ class ScreeningResult(Base):
     vcp_base_low = Column(Float)   # VCP 베이스 저점 — 레지스트리 리셋 판정 입력
     vcp_base_high = Column(Float)  # VCP 베이스 고점 — 레지스트리 정체성 앵커
     vcp_last_contraction = Column(Float)  # 마지막 조정폭(%) — 품질점수 '타이트함' 입력
+    # 미너비니식 dry-up: 마지막 수축 구간의 최저 거래량이 베이스 전체에서 가장 낮은가
+    # (app.screener.vcp_last_contraction_volume). 아직 점수엔 안 쓰고 기록만 — 표본외 검증용.
+    vdu_lowest_in_last = Column(Boolean)
+    vdu_last_vs_prior = Column(Float)   # 마지막 수축 최저 / 이전 베이스 최저 (작을수록 조용)
+    vdu_last_vs_base = Column(Float)    # 마지막 수축 최저 / 베이스 평균 (작을수록 조용)
 
     # 거래량 / 유동성
     avg_volume = Column(Float)        # 50일 평균 거래량
@@ -172,6 +177,10 @@ class VCPEvent(Base):
     dryup_ratio = Column(Float)       # 최근10/50일 거래량 (dry-up 등급)
     ud_volume_ratio = Column(Float)   # 50일 상승/하락 거래량 비율
     last_contraction = Column(Float)  # 마지막 조정폭(%)
+    # 미너비니식 dry-up 3종 — ScreeningResult 값의 마지막 스냅샷(돌파·실패 직전). 점수엔 미반영.
+    vdu_lowest_in_last = Column(Boolean)
+    vdu_last_vs_prior = Column(Float)
+    vdu_last_vs_base = Column(Float)
 
     # 결과 추적
     breakout_date = Column(Date)     # 피벗 돌파 확정일
@@ -180,5 +189,13 @@ class VCPEvent(Base):
     alert_formed_at = Column(DateTime)    # '첫 형성' 알림 발송 워터마크(exactly-once)
     alert_breakout_at = Column(DateTime)  # '돌파' 알림 발송 워터마크(exactly-once)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # 표본외 검증용 — 돌파 시점 국면과 실제 체결 결과(손절 -8%/목표 +2.5R 반영).
+    # 나중에 다시 계산 불가(screening_results는 90일 후 삭제)하므로 돌파 때 바로 찍어야 한다.
+    regime_at_breakout = Column(String)   # BULL/NEUTRAL/BEAR — 돌파일 그 시장의 국면
+    pct_above_200_at_breakout = Column(Float)  # 돌파일 200일선 위 종목 비율(%) — 국면 세부치
+    outcome = Column(String)        # None(진행 중) / stop / target / timeout
+    outcome_date = Column(Date)     # 결과 확정일
+    outcome_pct = Column(Float)     # 돌파가 대비 실현 수익률(%)
 
     stock = relationship("Stock")

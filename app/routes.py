@@ -801,10 +801,58 @@ def vcp_page(request: Request, db: Session = Depends(get_db)):
     all_stock_ids = [s.id for _, s in forming] + [s.id for _, s in broke]
     sparklines = _fetch_sparklines(db, all_stock_ids)
 
+    outcome_stats = _vcp_outcome_stats(db)
+
     return templates.TemplateResponse(request, "vcp.html", context={
         "forming": forming_rows, "broke": broke_rows, "screen_date": latest,
-        "sparklines": sparklines,
+        "sparklines": sparklines, "stats": outcome_stats,
     })
+
+
+def _vcp_outcome_stats(db: Session) -> dict:
+    """돌파(broke_out) 이벤트의 실제 손절·목표 결과 — 표본외 성과 검증용 상시 통계.
+
+    outcome_pct는 app.screener.update_breakout_outcomes가 매일 손절(-8%대)·목표(+2.5R)
+    도달 여부로 채운다. '현재가 대비'가 아니라 실제 체결 규칙 기준이라 승률 해석이 다르다.
+    """
+    from app.models import VCPEvent
+
+    rows = (
+        db.query(VCPEvent.outcome, VCPEvent.regime_at_breakout, VCPEvent.outcome_pct)
+        .filter(VCPEvent.status == "broke_out")
+        .all()
+    )
+    total = len(rows)
+    resolved = [r for r in rows if r.outcome in ("stop", "target")]
+    stop_n = sum(1 for r in resolved if r.outcome == "stop")
+    target_n = sum(1 for r in resolved if r.outcome == "target")
+    pending_n = sum(1 for r in rows if r.outcome is None)
+    timeout_n = sum(1 for r in rows if r.outcome == "timeout")
+
+    def avg_pct(outcome):
+        vals = [r.outcome_pct for r in resolved if r.outcome == outcome and r.outcome_pct is not None]
+        return round(sum(vals) / len(vals), 1) if vals else None
+
+    win_rate = round(target_n / len(resolved) * 100) if resolved else None
+    avg_stop, avg_target = avg_pct("stop"), avg_pct("target")
+    expectancy = None
+    if resolved and avg_stop is not None and avg_target is not None:
+        expectancy = round((target_n * avg_target + stop_n * avg_stop) / len(resolved), 1)
+
+    by_regime = {}
+    for mk in ("BULL", "NEUTRAL", "BEAR"):
+        sub = [r for r in rows if r.regime_at_breakout == mk and r.outcome in ("stop", "target")]
+        if not sub:
+            continue
+        t = sum(1 for r in sub if r.outcome == "target")
+        by_regime[mk] = {"n": len(sub), "win_rate": round(t / len(sub) * 100)}
+
+    return {
+        "total": total, "resolved": len(resolved), "pending": pending_n, "timeout": timeout_n,
+        "stop_n": stop_n, "target_n": target_n, "win_rate": win_rate,
+        "avg_stop": avg_stop, "avg_target": avg_target, "expectancy": expectancy,
+        "by_regime": by_regime,
+    }
 
 
 @router.get("/api/chart/{ticker}")

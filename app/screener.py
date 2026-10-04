@@ -197,7 +197,14 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
         pivot = detect_pivot(series)
 
     # ─── 거래량 / 유동성 분석 ───
-    vol_series = _get_volume_series(db, stock.id, days=120)
+    # 180일: VCP 구간(최근 120거래일)을 거래량이 다 덮어야 마지막 수축 dry-up 판정이 안 치우친다
+    vol_series = _get_volume_series(db, stock.id, days=180)
+    if result.vcp_detected:
+        vdu = vcp_last_contraction_volume(series, vol_series)
+        if vdu:
+            result.vdu_lowest_in_last = vdu["lowest_in_last"]
+            result.vdu_last_vs_prior = vdu["last_vs_prior"]
+            result.vdu_last_vs_base = vdu["last_vs_base"]
     if len(vol_series) >= 50:
         avg_vol_50 = float(vol_series.tail(50).mean())
         recent_vol = float(vol_series.iloc[-1])
@@ -343,6 +350,39 @@ def vcp_swings(series: pd.Series) -> list[tuple[int, float, str]]:
         else:
             zz.append((idx, price, kind))
     return zz
+
+
+def vcp_last_contraction_volume(series: pd.Series, volume: pd.Series, smooth: int = 3) -> dict | None:
+    """마지막 수축 구간의 거래량이 베이스에서 가장 낮은가 (미너비니의 dry-up 정의).
+
+    마지막 수축 = 지그재그의 마지막 고점→저점 쌍의 시작 고점부터 현재까지(조정과 피벗 쪽
+    회복 구간 포함). 하루짜리 튐을 줄이려고 거래량을 smooth일 이동평균으로 본다.
+      lowest_in_last: 베이스 전체(첫 수축 고점~현재)의 최저 거래량이 마지막 수축 안에 있나
+      last_vs_prior : 마지막 수축 최저 / 그 이전 베이스 최저 (1 미만이면 더 조용해짐)
+      last_vs_base  : 마지막 수축 최저 / 베이스 평균 (작을수록 조용함)
+    수축이 2개 미만이거나 구간이 너무 짧으면 None.
+    """
+    zz = vcp_swings(series)
+    pairs = [(zz[i][0], zz[i + 1][0]) for i in range(len(zz) - 1) if zz[i][2] == "H" and zz[i + 1][2] == "L"]
+    if len(pairs) < 2:
+        return None
+    # 거래량 0은 '값 없음'(수집 누락을 0으로 채움)이라 가장 조용한 날로 오인되지 않게 뺀다
+    vols = volume.reindex(series.index).tail(VCP_LOOKBACK).astype(float).replace(0.0, np.nan)
+    sm = vols.rolling(smooth, min_periods=smooth).mean().values
+    raw = vols.values
+    base_start, last_start = pairs[0][0], pairs[-1][0]
+    prior, last = sm[base_start:last_start], sm[last_start:]
+    if len(prior) < smooth or len(last) < smooth or np.isnan(prior).all() or np.isnan(last).all():
+        return None
+    vmin_prior, vmin_last = float(np.nanmin(prior)), float(np.nanmin(last))
+    base_mean = float(np.nanmean(raw[base_start:]))
+    if vmin_prior <= 0 or base_mean <= 0:
+        return None
+    return {
+        "lowest_in_last": bool(vmin_last <= vmin_prior),
+        "last_vs_prior": round(vmin_last / vmin_prior, 3),
+        "last_vs_base": round(vmin_last / base_mean, 3),
+    }
 
 
 def detect_vcp(series: pd.Series, min_contractions: int = 3) -> dict:
@@ -743,17 +783,25 @@ def _trend_ok(r: ScreeningResult) -> bool:
 def _vcp_quality(r: ScreeningResult, base_days: int, base_seq: int) -> int:
     """VCP 품질점수(0~100). 추적은 관대하게, 알림/랭킹은 이 점수로 선별.
 
-    RS·최종수축 타이트함·거래량 마름·수축 횟수·형성 기간을 가중하고, 후행 베이스(3차+)는
-    Minervini의 높은 실패율을 반영해 감점. 초기 휴리스틱 — 보존 데이터로 캘리브레이션 예정.
+    RS·최종수축 타이트함·수축 횟수·형성 기간을 가중하고, 후행 베이스(3차+)는 Minervini의
+    높은 실패율을 반영해 감점. 초기 휴리스틱 — 보존 데이터로 캘리브레이션 예정.
+
+    2026-10-04: 거래량 마름(dry-up) +15 보너스를 뺐다. vcp_events에 쌓인 결과(quality가
+    정상 기록되기 시작한 2026-07-24 이후, n=88)로 보니 돌파 베이스의 20%만 마름이 있었고
+    실패 베이스는 57%가 마름이었다 — 보너스가 거꾸로 가중되고 있었다(통념은 "마름=매집
+    완료"지만 데이터는 반대). 뺀 15점만큼 RS 가중치를 올려 최대 점수대를 비슷하게 유지했다.
+    최종수축 타이트함도 같은 분석에서 약하게 거꾸로 나왔지만(n=19/45로 더 작은 표본) 아직은
+    건드리지 않고 지켜본다 — 한 번에 여러 항을 바꾸면 나중에 뭐가 효과 있었는지 구분이 안
+    된다. 이 변경 이후 새로 쌓이는 결과로 다시 검증할 것(같은 과거 데이터 재확인은 검증이
+    아님, CLAUDE.md 튜닝 원칙).
     """
     rs = min(r.rs_rank or 0.0, 100.0)
     last = r.vcp_last_contraction
     tight = max(0.0, min(100.0, (12.0 - last) / (12.0 - 3.0) * 100)) if last is not None else 0.0
     c = r.vcp_contractions or 0
     q = (
-        0.35 * rs
+        0.50 * rs
         + 0.25 * tight
-        + (15 if r.vcp_volume_dryup else 0)
         + (10 if 3 <= c <= 5 else (5 if c >= 2 else 0))
         + (10 if base_days >= 15 else 0)
         - (15 if base_seq >= 3 else 0)
@@ -786,6 +834,11 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
         for e in db.query(VCPEvent).filter(VCPEvent.status.in_(["forming", "breakout_watch"])).all()
     }
     stats = {"new": 0, "updated": 0, "broke_out": 0, "watch": 0, "reset": 0, "failed": 0}
+    # 돌파 시점 국면 스냅샷용 — 시장별로 한 번만 계산(표본외 검증 때 재계산 불가하므로 지금 찍어둔다)
+    stock_market = dict(db.query(Stock.id, Stock.market).all())
+    regime_by_market = {
+        mk: compute_market_breadth(db, screen_date, mk) for mk in ("US", "KOSPI", "KOSDAQ")
+    }
     # 가격이 안 늘어난 시장·데이터 이상 종목은 이벤트를 건드리지 않는다(멈춘 값으로 날짜만 늘면
     # grace·stale 판정과 품질점수가 오염된다). seen에 넣어 아래 '빠진 종목' 실패 처리에서도 제외.
     skip = set(skip_stock_ids or ())
@@ -808,6 +861,9 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
         ev.dryup_ratio = r.dryup_ratio
         ev.ud_volume_ratio = r.ud_volume_ratio
         ev.last_contraction = r.vcp_last_contraction
+        ev.vdu_lowest_in_last = r.vdu_lowest_in_last
+        ev.vdu_last_vs_prior = r.vdu_last_vs_prior
+        ev.vdu_last_vs_base = r.vdu_last_vs_base
         ev.base_seq = base_seq
         ev.trend_grace = 0
         base_days = (screen_date - ev.first_detected).days
@@ -825,6 +881,8 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
             volume_dryup=bool(r.vcp_volume_dryup),
             dryup_ratio=r.dryup_ratio, ud_volume_ratio=r.ud_volume_ratio,
             last_contraction=r.vcp_last_contraction,
+            vdu_lowest_in_last=r.vdu_lowest_in_last, vdu_last_vs_prior=r.vdu_last_vs_prior,
+            vdu_last_vs_base=r.vdu_last_vs_base,
         )
         ev.quality = _vcp_quality(r, 0, base_seq)
         ev.peak_quality = ev.quality
@@ -874,6 +932,10 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
                 ev.resolved_date = screen_date
                 ev.close = r.close
                 ev.rs_rank = r.rs_rank
+                reg = regime_by_market.get(stock_market.get(r.stock_id) or "US")
+                if reg and reg.get("available"):
+                    ev.regime_at_breakout = reg["regime"]
+                    ev.pct_above_200_at_breakout = reg["pct_above_200"]
                 stats["broke_out"] += 1
             else:
                 # 관찰 진입일(last_detected)을 만료 카운터로 쓴다 — 진입 시 1회만 찍고
@@ -933,6 +995,62 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
     db.commit()
     logger.info(f"VCP 레지스트리: 신규 {stats['new']}, 갱신 {stats['updated']}, 돌파 {stats['broke_out']}, "
                 f"돌파대기 {stats['watch']}, 리셋 {stats['reset']}, 실패 {stats['failed']}")
+    return stats
+
+
+def update_breakout_outcomes(db: Session, screen_date: date) -> dict:
+    """돌파(broke_out) 이벤트의 실제 체결 결과를 매일 갱신한다(표본외 성과 검증용).
+
+    '현재가 대비 수익률'이 아니라 제품이 실제로 안내하는 규칙 그대로 — 손절(ev.stop_loss,
+    돌파가의 -8% 안팎)과 목표가(+2.5R, build_trade_plan과 같은 _PROFIT_R_MULTIPLE) 중
+    뭐가 먼저 왔는지를 매일 새로 들어온 일봉으로 확인한다. 같은 날 손절·목표가 둘 다
+    닿으면 보수적으로 손절을 우선한다(갭 하락 후 장중 반등을 과대평가하지 않도록).
+    VCP_OUTCOME_TIMEOUT_DAYS 넘도록 둘 다 안 걸리면 timeout으로 확정해 무한 대기를 막는다.
+    """
+    from app.models import VCPEvent
+
+    pending = (
+        db.query(VCPEvent)
+        .filter(VCPEvent.status == "broke_out", VCPEvent.outcome.is_(None))
+        .all()
+    )
+    stats = {"stop": 0, "target": 0, "timeout": 0}
+    for ev in pending:
+        if not (ev.breakout_date and ev.breakout_price and ev.stop_loss):
+            continue
+        risk = ev.breakout_price - ev.stop_loss
+        if risk <= 0:
+            continue
+        target_price = ev.breakout_price + risk * _PROFIT_R_MULTIPLE
+        rows = (
+            db.query(DailyPrice.date, DailyPrice.high, DailyPrice.low, DailyPrice.close)
+            .filter(DailyPrice.stock_id == ev.stock_id,
+                    DailyPrice.date > ev.breakout_date, DailyPrice.date <= screen_date)
+            .order_by(DailyPrice.date)
+            .all()
+        )
+        for d, high, low, close in rows:
+            if low is not None and low <= ev.stop_loss:
+                ev.outcome, ev.outcome_date = "stop", d
+                ev.outcome_pct = round((ev.stop_loss / ev.breakout_price - 1) * 100, 1)
+                stats["stop"] += 1
+                break
+            if high is not None and high >= target_price:
+                ev.outcome, ev.outcome_date = "target", d
+                ev.outcome_pct = round((target_price / ev.breakout_price - 1) * 100, 1)
+                stats["target"] += 1
+                break
+        else:
+            if (screen_date - ev.breakout_date).days > settings.VCP_OUTCOME_TIMEOUT_DAYS:
+                ev.outcome, ev.outcome_date = "timeout", screen_date
+                last_close = rows[-1][3] if rows else None
+                if last_close:
+                    ev.outcome_pct = round((last_close / ev.breakout_price - 1) * 100, 1)
+                stats["timeout"] += 1
+
+    db.commit()
+    if any(stats.values()):
+        logger.info(f"돌파 결과 확정: 손절 {stats['stop']}, 목표 {stats['target']}, 타임아웃 {stats['timeout']}")
     return stats
 
 
@@ -1092,6 +1210,9 @@ def run_daily_screen(db: Session, force: bool = False) -> int:
     # VCP 레지스트리 갱신 (발생·돌파·실패 이력 누적) — 새 종가 없는 시장은 제외
     update_vcp_registry(db, screen_date,
                         skip_stock_ids={s.id for s in stocks if (s.market or "US") in stale})
+
+    # 돌파 이벤트의 손절·목표가 도달 여부 갱신 (표본외 성과 검증용)
+    update_breakout_outcomes(db, screen_date)
 
     # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
     prune_old_history(db)
