@@ -70,23 +70,55 @@ def fetch_kr_tickers(kospi_n: int = 200, kosdaq_n: int = 100) -> list[dict]:
 
 
 def ensure_stocks_in_db(db: Session, stock_list: list[dict]) -> None:
-    """종목이 DB에 없으면 추가 (배치 내 중복 티커도 안전하게 처리). market도 갱신."""
-    existing = {t: m for (t, m) in db.query(Stock.ticker, Stock.market).all()}
+    """종목이 DB에 없으면 추가 (배치 내 중복 티커도 안전하게 처리). market도 갱신.
+
+    유니버스(시총 상위 N·S&P500) 목록에서 빠진 기존 종목은 is_active=False로 끈다.
+    안 그러면 순위 밖으로 밀린 종목이 가격 갱신만 끊긴 채 is_active=True로 남아,
+    몇 주 뒤 정지·급변 가드에 걸려 DATA로 계속 격리되는 좀비 상태가 된다(관측된 버그).
+    반대로 목록에 돌아온 종목은 다시 켠다.
+
+    목록 자체가 스크래핑 실패로 텅 비거나 급감하면(config.UNIVERSE_SHRINK_GUARD 미만)
+    그 시장은 탈락 처리를 건너뛴다 — 안 그러면 일시적 수집 실패로 시장 전체가 꺼진다.
+    """
+    from config import settings
+
+    existing_stocks = db.query(Stock).all()
+    existing = {s.ticker: s for s in existing_stocks}
+
+    seen_by_market: dict[str, set] = {}
     seen = set()
     for item in stock_list:
         ticker = item["ticker"]
         market = item.get("market", "US")
+        seen_by_market.setdefault(market, set()).add(ticker)
         if ticker in seen:
             continue
         seen.add(ticker)
         if ticker in existing:
+            st = existing[ticker]
             # 기존 종목의 market이 비어있으면 보정
-            if not existing[ticker]:
-                st = db.query(Stock).filter(Stock.ticker == ticker).first()
-                if st:
-                    st.market = market
+            if not st.market:
+                st.market = market
+            if not st.is_active:
+                st.is_active = True
+                logger.info(f"{ticker} 유니버스 복귀 → is_active=True")
             continue
         db.add(Stock(ticker=ticker, name=item["name"], sector=item.get("sector"), market=market))
+
+    # 유니버스에서 빠진 기존 종목 비활성화 (이번 배치에 등장한 시장만, 축소 가드 통과 시)
+    for market, new_tickers in seen_by_market.items():
+        active_in_market = [s for s in existing_stocks if s.market == market and s.is_active]
+        if active_in_market and len(new_tickers) < len(active_in_market) * settings.UNIVERSE_SHRINK_GUARD:
+            logger.warning(
+                f"{market} 유니버스 {len(new_tickers)}개 (기존 활성 {len(active_in_market)}개 대비 급감) "
+                "— 수집 실패로 보고 탈락 처리 건너뜀"
+            )
+            continue
+        for st in active_in_market:
+            if st.ticker not in new_tickers:
+                st.is_active = False
+                logger.info(f"{st.ticker} 유니버스 이탈 → is_active=False")
+
     db.commit()
 
 

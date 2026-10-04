@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # 한국 종목 유니버스 크기 (시가총액 상위 N)
     KOSPI_TOP_N: int = 200
     KOSDAQ_TOP_N: int = 100
+    # 유니버스 목록(시총 상위 N·S&P500)에서 빠진 기존 종목은 is_active=False로 끈다.
+    # 단, 목록 자체가 스크래핑 실패로 텅 비거나 급감했을 때 시장 전체를 잘못 끄지 않도록,
+    # 새 목록이 그 시장의 기존 활성 종목 수 대비 이 비율 미만이면 탈락 처리를 건너뛴다.
+    UNIVERSE_SHRINK_GUARD: float = 0.5
     # 시장 국면 게이트: 약세장(BEAR)인 시장의 BUY/STRONG_BUY를 보류(WATCH)로 강등.
     # 판정은 '200일선 위 종목 비율 < 40%'(breadth). 근거 백테스트는 '지수 < 200MA' 기준이라
     # 이 breadth 정의 자체는 아직 검증되지 않았다 — 조정은 표본외 결과를 보고 한다.
@@ -36,6 +40,7 @@ class Settings(BaseSettings):
     VCP_QUALITY_HOLD: float = 45.0     # 품질밴드 유지(churn 흡수)
     VCP_QUALITY_ALERT: float = 70.0    # '첫 형성' 알림 임계
     VCP_ALERT_MIN_BASE_DAYS: int = 15  # 알림 전 최소 형성 기간(거래일)
+    VCP_OUTCOME_TIMEOUT_DAYS: int = 120  # 돌파 후 이 달력일 넘도록 손절·목표 둘 다 미도달이면 timeout 확정 (초기 휴리스틱)
     DART_API_KEY: str = ""   # OpenDART 인증키 (한국 종목 재무 수집용, .env에 보관)
     ALPHAVANTAGE_API_KEY: str = ""   # Alpha Vantage 인증키 (미국 분기 EPS 이력 백필용, .env에 보관)
     # 이메일 알림(Gmail SMTP). 앱 비밀번호는 .env에만 보관.
@@ -48,6 +53,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"  # .env에 research 스크립트용 키(TYPESAFE_API_KEY 등)가 더 있어도 무시
 
 
 settings = Settings()
