@@ -39,10 +39,14 @@
   .bay-list { display: grid; gap: 7px; }
 
   /* ───── 비행 스트립 ───── */
-  .strip {
+  .strip, .strip--warn {
     --holder: var(--hold);
-    display: grid; grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(5, minmax(0, 1fr)) 6.8rem;
-    grid-template-areas: "holder id c1 c2 c3 c4 c5 pull";
+    /* rs_heat()는 color-mix(…, var(--surface))라서 다크 --surface 기준으로 섞인다.
+       이 스트립은 밝은 용지 위라, --surface를 용지 톤으로 다시 매핑해 칩 글자(--strip-ink)와
+       대비가 나오게 한다. stock.html의 .paper가 쓰는 것과 같은 수법. */
+    --surface: var(--strip);
+    display: grid; grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(4, minmax(0, 1fr)) 6.8rem;
+    grid-template-areas: "holder id c1 c2 c3 c4 pull";
     background: var(--strip); color: var(--strip-ink); box-shadow: var(--shadow);
     transition: transform .28s var(--ease-out);
     animation: slot-in .5s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 10) * 45ms);
@@ -59,14 +63,16 @@
   .callsign { font-family: var(--font-mono); font-weight: 700; font-size: 1.16rem; letter-spacing: 0.01em; line-height: 1.15; }
   .strip-name { font-size: 0.8rem; color: var(--strip-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .strip-id:hover .callsign { text-decoration: underline; text-decoration-thickness: 2px; }
+  /* VCP 태그: 종목명 아래 한 줄 — 감지됐을 때만 자리를 차지해, 빈 칸이 늘 비어 보이던 문제 없앰 */
+  .vcp-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; font-weight: 700; color: var(--strip-ink-2); margin-top: 2px; }
+  .vcp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--strip-ink); display: inline-block; flex-shrink: 0; }
   .cell { padding: 9px 11px 7px; border-right: 1px solid var(--strip-rule); min-width: 0; }
   .cell dt { font-size: 0.76rem; font-weight: 700; color: var(--strip-ink-2); line-height: 1.3; }
   .cell dd { font-family: var(--font-mono); font-size: 0.98rem; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cell dd small { display: block; font-size: 0.78rem; font-weight: 500; color: var(--strip-ink-2); line-height: 1.3; }
   .cell .neg { color: #b3261e; } .cell .pos { color: #146c37; }
-  .c1 { grid-area: c1; } .c2 { grid-area: c2; } .c3 { grid-area: c3; } .c4 { grid-area: c4; } .c5 { grid-area: c5; }
-  .vcp-marks { display: inline-flex; align-items: center; gap: 5px; }
-  .vcp-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--strip-ink); display: inline-block; }
+  .cell .heat-chip { font-size: 0.92rem; }
+  .c1 { grid-area: c1; } .c2 { grid-area: c2; } .c3 { grid-area: c3; } .c4 { grid-area: c4; }
   .strip-pull {
     grid-area: pull; border: none; border-left: 1px solid var(--strip-rule); background: var(--strip-2); color: var(--strip-ink);
     font: inherit; font-weight: 800; font-size: 0.84rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 44px;
@@ -96,8 +102,7 @@
   .slot-empty { border: 1px dashed var(--rail); padding: 16px 18px; color: var(--muted); font-size: 0.9rem; display: grid; gap: 2px; }
   .slot-empty b { color: var(--text); font-weight: 700; }
 
-  /* 매도 경고: 작은 스트립 */
-  .strip--warn { grid-template-columns: 7.2rem minmax(8.5rem, 1.25fr) repeat(4, minmax(0, 1fr)) 6.8rem; grid-template-areas: "holder id c1 c2 c3 c4 pull"; }
+  /* 매도 경고: 작은 스트립(이제 기본 .strip과 칸 구성이 같아 홀더 높이만 다름) */
   .strip--warn .strip-holder { padding: 7px 11px; }
   .strip--warn .strip-id, .strip--warn .cell { padding-top: 7px; padding-bottom: 6px; }
   .more-warn > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; padding: 0 14px; border: 1px solid var(--rail); color: var(--text); font-weight: 700; font-size: 0.88rem; }
@@ -138,17 +143,14 @@
     /* 모바일 스트립: 홀더는 색 막대(베이 제목이 이미 분류를 말한다), RS는 종목명 옆 */
     .strip, .strip--warn {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      grid-template-areas: "holder holder holder" "id id c4" "c1 c2 c3" "c5 c5 c5" "pull pull pull";
+      grid-template-areas: "holder holder holder" "id id c4" "c1 c2 c3" "pull pull pull";
     }
-    .strip--warn { grid-template-areas: "holder holder holder" "id id c4" "c1 c2 c3" "pull pull pull"; }
     .strip-holder { padding: 0; height: 5px; overflow: hidden; }
     .strip-holder .holder-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .strip-id { border-right: none; border-bottom: 1px solid var(--strip-rule); }
     .c4 { border-right: none; border-bottom: 1px solid var(--strip-rule); display: flex; flex-direction: column; justify-content: center; align-items: flex-end; }
     .c1, .c2 { border-right: 1px solid var(--strip-rule); }
     .c3 { border-right: none; }
-    .c5 { border-right: none; border-top: 1px solid var(--strip-rule); }
-    div.c5 { display: none; }
     .strip-pull { border-left: none; border-top: 1px solid var(--strip-rule); flex-direction: row; }
     .plan-sheet { margin-left: 0; }
     .plan-figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -186,8 +188,10 @@
 </button>
 {% endmacro %}
 
-{% macro form_cell(r) %}
-{% if r.vcp_detected %}<dl class="cell c5"><dt>형태</dt><dd><span class="vcp-marks">VCP T{{ r.vcp_contractions }}<span class="vcp-dot" aria-hidden="true"></span>{% if r.vcp_last_contraction is not none %}<small>{{ "%.1f"|format(r.vcp_last_contraction) }}%</small>{% endif %}</span></dd></dl>{% else %}<div class="cell c5" aria-hidden="true"></div>{% endif %}
+{% macro vcp_tag(r) %}{% if r.vcp_detected %}<span class="vcp-tag"><span class="vcp-dot" aria-hidden="true"></span>VCP T{{ r.vcp_contractions }}{% if r.vcp_last_contraction is not none %} · {{ "%.1f"|format(r.vcp_last_contraction) }}%{% endif %}</span>{% endif %}{% endmacro %}
+
+{% macro rs_cell(rs) %}
+<dl class="cell c4"><dt>RS</dt><dd>{% if rs %}<span class="heat-chip" style="background:{{ rs_heat(rs) }};">{{ "%.0f"|format(rs) }}</span>{% else %}-{% endif %}</dd></dl>
 {% endmacro %}
 
 {% block content %}
@@ -266,12 +270,11 @@
   {% for r, s in strong_buy_list %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--go" style="--i:{{ loop.index0 }}">
       <div class="strip-holder"><span class="holder-label">적극 매수</span></div>
-      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
       <dl class="cell c1"><dt>피벗</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
       <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.pivot_price %} <small>+{{ "%.1f"|format((r.close / r.pivot_price - 1) * 100) }}%</small>{% endif %}</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
-      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
-      {{ form_cell(r) }}
+      {{ rs_cell(r.rs_rank) }}
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -291,12 +294,11 @@
   {% for r, s, gap in breakout_watch %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
       <div class="strip-holder"><span class="holder-label">돌파 대기</span></div>
-      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
       <dl class="cell c1"><dt>피벗 = 매수가</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
       <dl class="cell c2"><dt>피벗까지</dt><dd>+{{ gap }}%</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
-      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
-      {{ form_cell(r) }}
+      {{ rs_cell(r.rs_rank) }}
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -317,12 +319,11 @@
   {% for r, s in extended_list %}{% set p = plans.get(s.id) %}
     <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
       <div class="strip-holder"><span class="holder-label">눌림목 대기</span></div>
-      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span></a>
+      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
       <dl class="cell c1"><dt>눌림 진입(50일선)</dt><dd>{{ fmt_price(r.ma50, mk) }}</dd></dl>
       <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.ma50 %} <small>+{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%</small>{% endif %}</dd></dl>
       <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
-      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
-      {{ form_cell(r) }}
+      {{ rs_cell(r.rs_rank) }}
       {{ pull_button(s) }}
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
@@ -345,7 +346,7 @@
       <dl class="cell c1"><dt>현재가</dt><dd>{{ fmt_price(r.close, cur_market) }}</dd></dl>
       <dl class="cell c2"><dt>50일선</dt><dd>{{ fmt_price(r.ma50, cur_market) }}</dd></dl>
       <dl class="cell c3"><dt>이탈폭</dt><dd class="neg">{% if r.ma50 %}{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%{% else %}-{% endif %}</dd></dl>
-      <dl class="cell c4"><dt>RS</dt><dd>{{ "%.0f"|format(r.rs_rank) if r.rs_rank else '-' }}</dd></dl>
+      {{ rs_cell(r.rs_rank) }}
       <a class="strip-pull" href="/stock/{{ s.ticker }}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
         점검표</a>
