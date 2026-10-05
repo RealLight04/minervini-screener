@@ -37,7 +37,7 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 
 - `app/vcp.py`(순수 함수 점수 모델, 임계값은 `config.py`의 `VCP_*`), `app/vcp_tracker.py`(형성 추적), 일지는 `vcp_formations` 기준.
   구 판정(`detect_vcp`, `vcp_events`)은 매수 신호와 피벗용으로 남아 있다. 점수는 **모양 적합도**이지 수익 예측이 아니다
-  (2010~2026 백테스트에서 점수와 성과 무관) — 화면과 문구에 수익 예측으로 쓰지 말 것.
+  (2010~2026 백테스트에서 점수와 성과 무관). 화면과 문구에 수익 예측으로 쓰지 말 것.
 - 시험: `PYTHONUTF8=1 venv/Scripts/python.exe -m unittest discover -s tests -t .` (메모리 SQLite, 운영 DB 무관).
 - 점수 가중치는 과거 성과에 맞춰 고치지 않는다. 사람 라벨과 쌓이는 결과로 표본외 검증한 뒤에만.
 - `screening_results`의 과거 종가·RS는 믿지 말 것(2026-08~09 수집 정지·RS 0 사건). 과거 재생은 일봉에서 다시 계산한다
