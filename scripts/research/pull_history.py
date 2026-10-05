@@ -35,7 +35,7 @@ def main():
 
     out = sqlite3.connect(OUT)
     out.execute("DROP TABLE IF EXISTS prices")
-    out.execute("CREATE TABLE prices (ticker TEXT, market TEXT, date TEXT, close REAL, volume REAL)")
+    out.execute("CREATE TABLE prices (ticker TEXT, market TEXT, date TEXT, open REAL, high REAL, low REAL, close REAL, volume REAL)")
     out.execute("CREATE INDEX idx_tkr ON prices(ticker)")
     rows = 0
 
@@ -47,14 +47,14 @@ def main():
                          threads=True, progress=False)
         for tk in batch:
             try:
-                sub = df[tk][["Close", "Volume"]].dropna()
+                sub = df[tk][["Open", "High", "Low", "Close", "Volume"]].dropna(subset=["Close"])
             except Exception:
                 continue
             if sub.empty:
                 continue
-            recs = [(tk, "US", d.strftime("%Y-%m-%d"), float(c), float(v))
-                    for d, c, v in zip(sub.index, sub["Close"], sub["Volume"])]
-            out.executemany("INSERT INTO prices VALUES (?,?,?,?,?)", recs)
+            recs = [(tk, "US", d.strftime("%Y-%m-%d"), float(o), float(hi), float(lo), float(c), float(v))
+                    for d, o, hi, lo, c, v in zip(sub.index, sub["Open"], sub["High"], sub["Low"], sub["Close"], sub["Volume"])]
+            out.executemany("INSERT INTO prices VALUES (?,?,?,?,?,?,?,?)", recs)
             rows += len(recs)
         out.commit()
         print(f"US {i}~{i + len(batch)}: 누적 {rows}행 ({time.time() - t0:.0f}s)", flush=True)
@@ -72,9 +72,9 @@ def main():
             if h.empty:
                 fail += 1
                 continue
-            recs = [(s.ticker, s.market, d.strftime("%Y-%m-%d"), float(c), float(v))
-                    for d, c, v in zip(h.index, h["Close"], h["Volume"])]
-            out.executemany("INSERT INTO prices VALUES (?,?,?,?,?)", recs)
+            recs = [(s.ticker, s.market, d.strftime("%Y-%m-%d"), float(o), float(hi), float(lo), float(c), float(v))
+                    for d, o, hi, lo, c, v in zip(h.index, h["Open"], h["High"], h["Low"], h["Close"], h["Volume"])]
+            out.executemany("INSERT INTO prices VALUES (?,?,?,?,?,?,?,?)", recs)
             rows += len(recs)
             ok += 1
         except Exception:

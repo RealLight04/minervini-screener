@@ -11,6 +11,7 @@ Stage 2 기술적 조건 (미너비니 트렌드 템플릿 8개. 1번은 코드�
   7. 현재가 >= 52주 고가의 75% (고가 대비 25% 이내)
   8. RS 랭킹 상위 30% 이내
 """
+import json
 import logging
 from datetime import date, timedelta
 
@@ -19,6 +20,7 @@ import pandas as pd
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
+from app import vcp as vcp_model
 from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
 from config import settings
 
@@ -53,6 +55,67 @@ def _get_volume_series(db: Session, stock_id: int, days: int = 120) -> pd.Series
         return pd.Series(dtype=float)
     idx, vals = zip(*rows)
     return pd.Series([float(v) if v is not None else 0.0 for v in vals], index=list(idx))
+
+
+def _get_ohlcv(db: Session, stock_id: int, days: int = 370) -> pd.DataFrame:
+    """DB에서 시가·고가·저가·종가·거래량 가져오기 (날짜 오름차순). 고가·저가·종가가 빈 날은 뺀다."""
+    cutoff = date.today() - timedelta(days=days)
+    rows = (
+        db.query(DailyPrice.date, DailyPrice.open, DailyPrice.high, DailyPrice.low, DailyPrice.close, DailyPrice.volume)
+        .filter(DailyPrice.stock_id == stock_id, DailyPrice.date >= cutoff)
+        .order_by(DailyPrice.date)
+        .all()
+    )
+    df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume"]).set_index("date")
+    df = df.astype(float).dropna(subset=["high", "low", "close"])
+    return df
+
+
+def vcp2_fields(df: pd.DataFrame, conds: list, rs_rank: float) -> dict:
+    """OHLCV(날짜 오름차순 DataFrame)와 트렌드 템플릿 8조건(RS 제외)으로 vcp2_* 값을 계산해 dict로 돌려준다.
+
+    형성이 없으면 빈 dict. 추세 입력은 8조건 통과 비율이고 점수의 추세 20점 항목에 들어간다.
+    screen_stock(매일)과 과거 재생 스크립트가 같은 계산을 쓰도록 한 곳에 둔다.
+    """
+    if len(df) < 60:
+        return {}
+    trend = sum(bool(c) for c in conds) / len(conds)
+    a = vcp_model.analyze(df["high"].values, df["low"].values, df["close"].values, df["volume"].values,
+                          rs=rs_rank, trend=trend)
+    if a.formation is None or a.score is None:
+        return {}
+    f = a.formation
+    out = {
+        "vcp2_score": a.score.total,
+        "vcp2_grade": a.score.grade or "-",
+        "vcp2_state": a.state,
+        "vcp2_pivot": round(float(f.pivot), 4),
+        "vcp2_depths": "/".join(f"{c.depth_pct:.1f}" for c in f.contractions),
+        "vcp2_key": df.index[f.base_high_idx],
+        "vcp2_parts": json.dumps(a.score.points(), ensure_ascii=False),
+    }
+    if a.breakout is not None:
+        out["vcp2_bvr"] = round(a.breakout.volume_ratio, 2) if a.breakout.volume_ratio is not None else None
+        out["vcp2_age"] = a.breakout_age
+    return out
+
+
+def _apply_vcp2(db: Session, stock: Stock, result: ScreeningResult, rs_rank: float) -> None:
+    """VCP 점수 모델(app/vcp.py) 결과를 result의 vcp2_* 컬럼에 채운다. 신호·피벗에는 쓰지 않는다.
+
+    이 단계의 실패가 기존 스크리닝을 막지 않도록 예외는 삼키고 로그만 남긴다(컬럼은 NULL로 남음).
+    """
+    try:
+        df = _get_ohlcv(db, stock.id, days=370)
+        conds = [
+            result.cond_price_above_ma150, result.cond_price_above_ma200, result.cond_ma150_above_ma200,
+            result.cond_ma50_above_ma150_200, result.cond_ma200_uptrend, result.cond_price_above_ma50,
+            result.cond_above_52w_low_30pct, result.cond_within_52w_high_25pct,
+        ]
+        for k, v in vcp2_fields(df, conds, rs_rank).items():
+            setattr(result, k, v)
+    except Exception:
+        logger.exception("VCP 점수 모델 계산 실패(%s) — 기존 스크리닝은 계속 진행", getattr(stock, "ticker", stock.id))
 
 
 def _calc_rs_scores(db: Session, screen_date: date, stock_ids: set | None = None) -> dict[int, float]:
@@ -191,6 +254,7 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     result.vcp_base_high = vcp_result.get("base_high")
     cp = vcp_result.get("correction_pcts")
     result.vcp_last_contraction = cp[-1] if cp else None
+    _apply_vcp2(db, stock, result, rs_rank)   # 그림자 모드: 아래 신호·피벗 계산에는 영향 없음
     # 피벗: VCP가 있으면 그 피벗, 없으면 베이스 피벗으로 폴백 (돌파대기/적극매수 표면화)
     pivot = vcp_result.get("pivot") if result.vcp_detected else None
     if pivot is None:
@@ -268,7 +332,7 @@ def screen_stock(db: Session, stock: Stock, screen_date: date, rs_rank: float) -
     if signal in ("STRONG_BUY", "BUY"):
         keep = 1 - settings.STOP_LOSS_PCT / 100
         if pivot and close <= pivot * 1.05:
-            # 진입가 = 피벗 아래면 피벗(돌파 시 매수), 피벗 위면 현재가(갓 돌파) → 진입가 -8%
+            # 진입가 = 피벗 아래면 피벗(돌파 시 매수), 피벗 위(5% 이내)면 현재가 → 진입가 -8%
             result.pivot_price = round(pivot, 2)
             result.stop_loss = round(max(close, pivot) * keep, 2)
         else:
@@ -298,8 +362,9 @@ def _check_fundamentals(db: Session, stock_id: int, result: ScreeningResult) -> 
         q_eps_ok = latest_q.eps_growth_yoy is not None and latest_q.eps_growth_yoy >= 25
         q_rev_ok = latest_q.revenue_growth_yoy is not None and latest_q.revenue_growth_yoy >= 20
     else:
-        # 재무 데이터 없으면 기술적 조건만으로 판단 (선택적)
-        return True
+        # 분기 재무 데이터가 없으면 실적을 확인할 수 없으므로 통과시키지 않는다(SEPA는 추세와
+        # 실적을 함께 요구). 종목 상세와 신호 문구에 '확인 불가'로 따로 보인다.
+        return False
 
     # 연간 EPS 우상향 확인 (최근 3년)
     y_funds = (
@@ -488,7 +553,8 @@ SIGNAL_REASONS = {
     "ma_inverted":       "이동평균 역배열(150일선이 200일선 아래), 아직 상승 추세 아님",
     "below_ma50":        "50일선 무너지며 추세 약해짐. 보유 중이면 매도·비중 축소 고려",
     "breakout_wait":     "{base}에 펀더멘털까지 통과. 피벗 {pivot} 돌파 대기 (+{gap:.1f}% 남음)",
-    "just_broke_out":    "피벗 {pivot} 막 돌파. 미너비니 기준 매수 시점",
+    "just_broke_out":    "피벗 {pivot} 돌파 후 +{gap:.1f}%. 피벗 위 5% 이내라 매수 구간",
+    "no_fundamental_data": "추세는 좋으나 분기 실적 데이터가 없어 확인 불가. 관심 종목으로 관찰",
     "extended":          "추세·실적 통과했으나 고점 부근에서 베이스 없이 연장됨. 50일선까지 눌림목 대기",
     "extended_pivot":    "추세·실적 통과했으나 피벗 {pivot} 위로 {gap:.1f}% 올라 매수 구간 지남. 50일선까지 눌림목 대기",
     "no_base":           "추세·실적 통과. 52주 고점 대비 -{gap:.0f}% 구간, 매수할 베이스(피벗) 아직 없음. 베이스 형성 대기",
@@ -529,9 +595,10 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
         if pivot and close < pivot:
             gap = (pivot / close - 1) * 100
             return "BUY", SIGNAL_REASONS["breakout_wait"].format(base=base, pivot=c(pivot), gap=gap)
-        # 피벗 갓 돌파(5% 이내) = 적극 매수
+        # 피벗 위 5% 이내 = 적극 매수. 돌파 후 경과일은 보지 않는다(문구도 '막 돌파'라고 하지 않음)
         if pivot and close <= pivot * 1.05:
-            return "STRONG_BUY", SIGNAL_REASONS["just_broke_out"].format(pivot=c(pivot))
+            return "STRONG_BUY", SIGNAL_REASONS["just_broke_out"].format(
+                pivot=c(pivot), gap=(close / pivot - 1) * 100)
         # 피벗 위로 5% 넘게 오름 = 매수 구간 지나 연장 → 눌림목 대기
         if pivot:
             return "BUY", SIGNAL_REASONS["extended_pivot"].format(pivot=c(pivot), gap=(close / pivot - 1) * 100)
@@ -543,6 +610,8 @@ def compute_signal(result: ScreeningResult, pivot: float | None, market: str = "
         return "BUY", SIGNAL_REASONS["extended"]
 
     if result.technical_pass:
+        if result.latest_q_eps_growth is None or result.latest_q_rev_growth is None:
+            return "WATCH", SIGNAL_REASONS["no_fundamental_data"]
         return "WATCH", SIGNAL_REASONS["no_earnings"]
 
     return "WATCH", SIGNAL_REASONS["stage2_incomplete"]
@@ -579,8 +648,8 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
     # ─── 상황(모드) 판별 ───
     if result.signal == "STRONG_BUY" and pivot:
         mode = "breakout_now"
-        headline = "매수 시점. 피벗을 갓 돌파"
-        entry = close                       # 피벗 막 돌파 → 현재가 부근 진입
+        headline = f"매수 구간. 피벗 위 {(close / pivot - 1) * 100:.1f}%, 5% 이내"
+        entry = close                       # 피벗 위 5% 이내 → 현재가 부근 진입
     elif pivot and close < pivot:
         mode = "wait_pivot"
         headline = f"매수 대기. 피벗 {c(pivot)} 돌파 확인 후 진입"
@@ -617,7 +686,7 @@ def build_trade_plan(result: ScreeningResult, market: str = "US") -> dict | None
     # ─── 단계별 진입 절차 ───
     if mode == "breakout_now":
         steps = [
-            "돌파 전 베이스 거래량이 말라 있었는지 확인 (백테스트상 돌파 당일 거래량보다 베이스 마름이 성패를 가름).",
+            "돌파 전 마지막 수축에서 거래량이 가장 낮았는지 확인 (미너비니 기준. 이 사이트 백테스트에서는 성패와의 관계가 약했음).",
             f"현재가 {c(entry)} 부근 진입. 피벗 대비 +5% 넘게 연장되면 추격 금지.",
             f"손절 {c(stop)} (-{risk_pct}%) 즉시 설정. 예외 없음.",
         ]
@@ -827,6 +896,7 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
     grace_days = settings.VCP_TREND_GRACE_DAYS
     breakout_vol = settings.VCP_BREAKOUT_VOL
     breakout_watch_days = settings.VCP_BREAKOUT_WATCH_DAYS
+    stop_keep = 1 - settings.STOP_LOSS_PCT / 100   # 이벤트의 참고 손절(피벗 기준)도 제품 손절폭을 따른다
 
     results = db.query(ScreeningResult).filter(ScreeningResult.screen_date == screen_date).all()
     open_events = {
@@ -848,7 +918,7 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
         ev.last_detected = screen_date
         ev.contractions = r.vcp_contractions
         ev.pivot_price = r.vcp_pivot or ev.pivot_price
-        ev.stop_loss = round(ev.pivot_price * 0.92, 2) if ev.pivot_price else None
+        ev.stop_loss = round(ev.pivot_price * stop_keep, 2) if ev.pivot_price else None
         # base_low는 베이스 '바닥(floor)'을 추적한다 — 최근 스윙 저점으로 덮어쓰면(ratchet)
         # 임계가 계속 올라가 정상적인 눌림에도 리셋이 오발동한다. 더 깊은 저점만 반영(min).
         if r.vcp_base_low is not None:
@@ -875,7 +945,7 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
         ev = VCPEvent(
             stock_id=r.stock_id, first_detected=screen_date, last_detected=screen_date,
             status="forming", contractions=r.vcp_contractions,
-            pivot_price=pivot, stop_loss=round(pivot * 0.92, 2) if pivot else None,
+            pivot_price=pivot, stop_loss=round(pivot * stop_keep, 2) if pivot else None,
             base_low=r.vcp_base_low, base_high=r.vcp_base_high, base_seq=base_seq,
             trend_grace=0, rs_rank=r.rs_rank, close=r.close,
             volume_dryup=bool(r.vcp_volume_dryup),
@@ -998,54 +1068,65 @@ def update_vcp_registry(db: Session, screen_date: date, skip_stock_ids: set | No
     return stats
 
 
-def update_breakout_outcomes(db: Session, screen_date: date) -> dict:
+def update_breakout_outcomes(db: Session, screen_date: date, recompute: bool = False) -> dict:
     """돌파(broke_out) 이벤트의 실제 체결 결과를 매일 갱신한다(표본외 성과 검증용).
 
-    '현재가 대비 수익률'이 아니라 제품이 실제로 안내하는 규칙 그대로 — 손절(ev.stop_loss,
-    돌파가의 -8% 안팎)과 목표가(+2.5R, build_trade_plan과 같은 _PROFIT_R_MULTIPLE) 중
-    뭐가 먼저 왔는지를 매일 새로 들어온 일봉으로 확인한다. 같은 날 손절·목표가 둘 다
-    닿으면 보수적으로 손절을 우선한다(갭 하락 후 장중 반등을 과대평가하지 않도록).
-    VCP_OUTCOME_TIMEOUT_DAYS 넘도록 둘 다 안 걸리면 timeout으로 확정해 무한 대기를 막는다.
+    제품이 안내하는 규칙 그대로 본다. 진입은 돌파일 종가, 손절은 진입가 아래
+    STOP_LOSS_PCT(build_trade_plan의 breakout_now와 같음), 목표는 그 리스크의
+    _PROFIT_R_MULTIPLE배다. 매일 새로 들어온 일봉으로 둘 중 먼저 닿은 쪽을 확정한다.
+    같은 날 둘 다 닿으면 보수적으로 손절을 우선하고, 시가가 이미 손절선 아래로 갭하락했으면
+    손절가가 아니라 시가에 체결된 것으로 본다(목표도 같은 방식).
+    VCP_OUTCOME_TIMEOUT_DAYS 넘도록 둘 다 안 닿으면 timeout으로 확정해 무한 대기를 막는다.
+    recompute=True면 이미 확정된 결과도 지우고 다시 계산한다(규칙을 바꿨을 때 1회성).
     """
     from app.models import VCPEvent
 
-    pending = (
-        db.query(VCPEvent)
-        .filter(VCPEvent.status == "broke_out", VCPEvent.outcome.is_(None))
-        .all()
-    )
+    q = db.query(VCPEvent).filter(VCPEvent.status == "broke_out")
+    if recompute:
+        for ev in q.all():
+            ev.outcome = ev.outcome_date = ev.outcome_pct = None
+        db.flush()
+    return settle_outcomes(db, screen_date, q.filter(VCPEvent.outcome.is_(None)).all())
+
+
+def settle_outcomes(db: Session, screen_date: date, pending: list) -> dict:
+    """결과가 안 정해진 돌파 건(breakout_date, breakout_price, outcome* 컬럼을 가진 행)의 손절·목표 도달을 확정한다.
+
+    구 레지스트리(vcp_events)와 새 레지스트리(vcp_formations)가 같은 규칙을 쓰도록 분리한 공용 함수."""
+    keep = settings.STOP_LOSS_PCT / 100
     stats = {"stop": 0, "target": 0, "timeout": 0}
     for ev in pending:
-        if not (ev.breakout_date and ev.breakout_price and ev.stop_loss):
+        if not (ev.breakout_date and ev.breakout_price):
             continue
-        risk = ev.breakout_price - ev.stop_loss
-        if risk <= 0:
-            continue
-        target_price = ev.breakout_price + risk * _PROFIT_R_MULTIPLE
+        entry = ev.breakout_price
+        stop = entry * (1 - keep)
+        target = entry * (1 + keep * _PROFIT_R_MULTIPLE)
         rows = (
-            db.query(DailyPrice.date, DailyPrice.high, DailyPrice.low, DailyPrice.close)
+            db.query(DailyPrice.date, DailyPrice.open, DailyPrice.high, DailyPrice.low, DailyPrice.close)
             .filter(DailyPrice.stock_id == ev.stock_id,
                     DailyPrice.date > ev.breakout_date, DailyPrice.date <= screen_date)
             .order_by(DailyPrice.date)
             .all()
         )
-        for d, high, low, close in rows:
-            if low is not None and low <= ev.stop_loss:
+        for d, open_, high, low, close in rows:
+            if (open_ is not None and open_ <= stop) or (low is not None and low <= stop):
+                fill = open_ if (open_ is not None and open_ <= stop) else stop
                 ev.outcome, ev.outcome_date = "stop", d
-                ev.outcome_pct = round((ev.stop_loss / ev.breakout_price - 1) * 100, 1)
+                ev.outcome_pct = round((fill / entry - 1) * 100, 1)
                 stats["stop"] += 1
                 break
-            if high is not None and high >= target_price:
+            if (open_ is not None and open_ >= target) or (high is not None and high >= target):
+                fill = open_ if (open_ is not None and open_ >= target) else target
                 ev.outcome, ev.outcome_date = "target", d
-                ev.outcome_pct = round((target_price / ev.breakout_price - 1) * 100, 1)
+                ev.outcome_pct = round((fill / entry - 1) * 100, 1)
                 stats["target"] += 1
                 break
         else:
             if (screen_date - ev.breakout_date).days > settings.VCP_OUTCOME_TIMEOUT_DAYS:
                 ev.outcome, ev.outcome_date = "timeout", screen_date
-                last_close = rows[-1][3] if rows else None
+                last_close = rows[-1][4] if rows else None
                 if last_close:
-                    ev.outcome_pct = round((last_close / ev.breakout_price - 1) * 100, 1)
+                    ev.outcome_pct = round((last_close / entry - 1) * 100, 1)
                 stats["timeout"] += 1
 
     db.commit()
@@ -1213,6 +1294,16 @@ def run_daily_screen(db: Session, force: bool = False) -> int:
 
     # 돌파 이벤트의 손절·목표가 도달 여부 갱신 (표본외 성과 검증용)
     update_breakout_outcomes(db, screen_date)
+
+    # VCP 형성 추적(점수 모델): 구 레지스트리와 같은 시장 건너뛰기 규칙. 실패해도 일일 배치는 계속 진행한다
+    try:
+        from app.vcp_tracker import update_formation_outcomes, update_vcp_formations
+        update_vcp_formations(db, screen_date,
+                              skip_stock_ids={s.id for s in stocks if (s.market or "US") in stale})
+        update_formation_outcomes(db, screen_date)
+    except Exception:
+        db.rollback()
+        logger.exception("VCP 형성 추적 실패 — 일일 배치는 계속 진행")
 
     # 스냅샷 DB 무한 증가 방지 (오래된 일봉/스크리닝 결과 정리)
     prune_old_history(db)

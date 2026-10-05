@@ -26,6 +26,22 @@
 - 시장 국면 신호등(breadth), 돌파 대기, **주도 섹터/테마**, 차트 **매수/손절 라인**.
 - **미국 분기 EPS 이력 백필(Alpha Vantage)** → 종목상세에 **지표별 YoY/QoQ** 표시 + **EPS N분기 연속 성장(YoY)** 뱃지. (yfinance 5분기 한계 보완 — 아래 6번 참고)
 
+### 2026-10-05 VCP 모양 점수 모델 (Stage 1 그림자 모드, 로컬 8011 반영, 아직 커밋/푸시 안 됨)
+- `app/vcp.py` 신규(순수 함수, DB 무의존): 베이스 고점에서 가장 깊은 저점까지 T1, 이후 ATR 적응형 지그재그로 T2~. 8개 항목 점수(추세 20, 상승 구조 10, 수축 20, 거래량 15, 저점 상승 5, 타이트함 10, 피벗 근접 5, RS 10 = 95점을 100점으로 환산), 상태 5종(WATCH, NEAR_PIVOT, BREAKOUT, FAILED_BREAKOUT, INVALIDATED), 돌파 기록(거래량 비율은 등급만). 임계값은 `config.py`의 `VCP_*`.
+- 연결: `screen_stock`이 `_apply_vcp2`로 `ScreeningResult.vcp2_*` 9개 컬럼을 채움(models.py와 database.py migrations 양쪽). **신호, 피벗, 손절, `vcp_events` 레지스트리, 알림은 그대로**(그림자 모드). 예외는 삼키고 로그만. 화면: 종목 상세 "VCP 모양 점수" 카드와 수축 표시(60점 이상만), 홈 후보 태그 `모양 82 · A`와 정렬/토글 칩, 용어 가이드 `#shape`.
+- 근거: 사람이 차트 61개를 가리고 판정한 라벨과 비교해 점수 AUC 0.78, 60점 기준 재현율 97%, 정밀도 69%. A+, A, B 사이 차이는 없음. 2010~2026 백테스트(5351건)에서 점수와 수익은 무관 → 점수는 "모양 적합도"로만 표기, 수익 예측이라고 쓰지 말 것. Jev는 두 번 모두 무용(AUC 0.43~0.53).
+- 시험: `PYTHONUTF8=1 venv/Scripts/python.exe -m unittest discover -s tests -t .` (38개). 연구 스크립트: `scripts/research/vcp_score_backtest.py`(Jev 기본 포함, `--no-jev`), `vcp_label_sheet.py`(라벨 시트 생성).
+- 적용 기록: 재스크리닝 전 백업 `data/backups/screener_before_vcp2_20261005_1806.db`. 거래량 판정 문구(`volume_verdict`, `dryup_note`, stock.html 각주)를 백테스트 결과에 맞게 중립으로 정정.
+- **Stage 2 적용(2026-10-05)**: 새 테이블 `vcp_formations`(models.py `VCPFormation`, `create_all`이 생성)와 추적 모듈 `app/vcp_tracker.py`. `run_daily_screen`이 구 레지스트리 뒤에 `update_vcp_formations`, `update_formation_outcomes`를 부른다(실패해도 배치는 계속, 새 종가 없는 시장 건너뛰기는 구 레지스트리와 동일). **VCP 일지(`/vcp`)는 이제 `vcp_formations` 기준**, 구 `vcp_events`는 계속 갱신되지만(끄지 않음) 화면에는 돌파 후 성과 한 줄 요약으로만 나옴.
+  - 규칙: 신원=(stock_id, key_date=베이스 고점일) 유니크, first_detected 불변, 닫힌 형성은 같은 key로 재등록 안 함. 등록=추세 6조건 + 점수 60 이상(`VCP_MIN_SCORE`) + 상태 WATCH/NEAR_PIVOT(또는 돌파 3거래일 이내). 유지=점수 45 이상(`VCP_SCORE_HOLD`). 돌파=종가가 피벗 위(거래량 조건 없음, 거래량은 비율·등급만 기록, 첫 돌파 기록 불변). 돌파 뒤 10거래일(`VCP_FOLLOW_DAYS`) 동안 종가 vs 피벗으로 BREAKOUT/FAILED_BREAKOUT, 종가가 베이스 저점 아래면 INVALIDATED. 추세 이탈 grace 2일, 다른 베이스가 보이면 superseded, 15일 재확인 없으면 stale. 결과 확정은 구 레지스트리와 같은 `screener.settle_outcomes`.
+  - **RS 수집 실패일 방어**: 한 시장에서 RS가 비어 있는 종목이 30% 넘으면(`RS_BROKEN_SHARE`) 그 시장은 추세·점수 기준 판정과 신규 등록을 쉬고 가격 기준 판정만 한다. 2026-08-08~09-01, 09-11, 09-22~23에 실제로 RS가 대부분 0으로 저장돼 있었다.
+  - **데이터 함정**: 2026-08-04~09-01에는 가격 수집이 얼어 `screening_results.close`가 일봉과 어긋나 있다(85% 행이 불일치). 과거 스크리닝 값을 믿지 말 것.
+  - 백필: `scripts/backfill_vcp_formations.py [--days 40] [--reset]`(이미 1회 실행, 134건). 저장된 종가·추세·RS를 쓰지 않고 복구된 일봉에서 날짜 기준으로 다시 계산한다(저장값과 대조: 추세 조건 불일치 0.8%, RS 1.4%, 점수 1건). 일봉 보존이 450일이라 40일보다 더 거슬러 올라가기 어렵다.
+  - 적용 기록: 적용 전 백업 `data/backups/screener_before_stage2_20261005_1855.db`. 서버 재시작과 템플릿 교체 사이 약 30초 `/vcp`가 500이었음(템플릿이 새 데이터 구조를 기다림). 다음에는 템플릿을 먼저 준비해 재시작 직후 바로 옮길 것.
+  - 초기 돌파 결과가 손절 편중(결판 37건 중 손절 35)인 건 기록 초기의 착시(손절은 빨리 확정, 목표는 오래 걸림)와 8월 시장 환경(추세 통과 종목을 아무 날 산 기준선도 25거래일 안에 -8% 이탈 46~61% vs +20% 도달 6~9%) 때문. 해석하지 말 것.
+- 다음(Stage 3, 결정 전): 매수 신호, 피벗, 매매 계획을 새 피벗으로 교체. 피벗 타이밍은 백테스트에서 중립이었고 매수 안내에 직접 영향이라 별도 결정. 구 `vcp_events` 갱신을 끌지도 그때 결정.
+- 함정: 템플릿은 공개 사이트에 즉시 반영되므로 임시 폴더에 복사해 `DATABASE_URL`을 사본 DB로 주고 8030에서 먼저 확인했음(워크트리 `minervini-build`는 다른 커밋이라 현재 미커밋 템플릿이 없음).
+
 ### 2026-07-17 대규모 디자인 재설계 (⚠️ 아직 커밋/푸시 안 됨 — 아래 참고)
 - 전체 이모지 제거, TradingView 실제 컬러(다크 `#131722`/틸그린 `#26a69a`/레드 `#ef5350`/블루 `#2962ff`) 기반 팔레트로 재설계. 카드 그림자 제거, 모서리 4px로 각지게, 탭을 TV식 밑줄 탭으로 변경.
 - RS 순위·분기실적·수익률·거래량에 **강도 기반 히트맵 칩**(`app/routes.py`의 `heat_bg`/`rs_heat`/`ret_heat`/`growth_heat`/`vol_heat`, `color-mix` 활용 — 라이트/다크 자동 대응) 적용. `▲/▼` 방향 삼각형 추가(Yahoo Finance/Bloomberg 스타일).

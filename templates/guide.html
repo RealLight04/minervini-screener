@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}용어 가이드 — Minervini Screener{% endblock %}
+
+{% block head %}
+<style>
+  .guide { max-width: 860px; }
+  .guide .lead { font-size: 0.98rem; line-height: 1.75; max-width: 66ch; margin-top: 8px; color: var(--muted); }
+  .g-fig { margin-top: 18px; background: var(--surface); border: 1px solid var(--border); padding: 14px 14px 12px; }
+  .g-fig svg { display: block; width: 100%; height: auto; }
+  .g-fig .px-line { fill: none; stroke: var(--heading); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
+  .g-fig .px-pivot { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 7 6; }
+  .g-fig .px-stop { stroke: var(--warn); stroke-width: 2; stroke-dasharray: 7 6; }
+  .g-fig .px-zone { fill: color-mix(in srgb, var(--sign) 22%, transparent); }
+  .g-fig .px-dot { fill: var(--sign); stroke: var(--bg); stroke-width: 2; }
+  .g-fig text { fill: var(--text); font-family: var(--font-body); font-weight: 700; font-size: 26px; }
+  .g-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 10px; font-size: 0.86rem; color: var(--muted); }
+  .g-legend i { display: inline-block; width: 22px; height: 0; margin-right: 8px; vertical-align: 3px; border-top: 2px dashed currentColor; }
+  .g-legend i.zone { height: 11px; border: none; background: color-mix(in srgb, var(--sign) 40%, transparent); vertical-align: -1px; }
+  .g-legend i.px { border-top: 3px solid var(--heading); }
+  .g-note { margin-top: 8px; }
+
+  .g-terms { margin-top: 6px; }
+  .g-terms > div { padding: 16px 0 15px; border-bottom: 1px solid var(--line); scroll-margin-top: 84px; }
+  .g-terms dt { font-size: 1.04rem; font-weight: 800; color: var(--heading); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .g-terms dt small { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
+  .g-terms dd { margin-top: 6px; font-size: 0.94rem; line-height: 1.75; max-width: 70ch; }
+  .g-terms dd + dd { margin-top: 4px; }
+  .g-terms dd.site { color: var(--muted); font-size: 0.88rem; }
+  .g-terms dd.site b { color: var(--text); font-weight: 700; }
+  .g-terms code { font-family: var(--font-mono); font-size: 0.9em; color: var(--text); }
+
+  .g-steps { margin: 8px 0 0 1.3em; font-size: 0.94rem; line-height: 1.8; max-width: 70ch; }
+  .g-steps li + li { margin-top: 4px; }
+  .g-evidence { margin-top: 10px; padding: 14px 16px; border-left: 3px solid var(--rail); background: var(--surface); font-size: 0.92rem; line-height: 1.75; max-width: 70ch; }
+  .g-evidence p + p { margin-top: 8px; }
+  .g-evidence b { color: var(--heading); }
+  .guide .disclaimer { margin-top: 40px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--faint); line-height: 1.7; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="guide">
+  <h1 class="page-title">용어 가이드</h1>
+  <p class="lead">홈과 종목 상세에 나오는 말의 뜻. 미너비니가 설명하는 의미를 먼저 적고, 이 사이트가 그 말을 어떻게 계산하는지는 따로 밝힘.</p>
+
+  <div class="section-title" style="margin-top:30px;">한 장으로 보기 <span class="hint">모양을 설명하려고 그린 예시, 실제 종목 아님</span></div>
+  <div class="g-fig">
+    <svg viewBox="0 62 640 188" role="img" aria-labelledby="g-fig-t g-fig-d">
+      <title id="g-fig-t">변동성 축소 패턴 예시</title>
+      <desc id="g-fig-d">가격이 크게 오른 뒤 쉬는 구간에서 고점과 저점을 오가는 조정이 세 번 나온다. 낙폭은 18%, 9%, 4%로 점점 줄어든다. 마지막 수축의 고점이 피벗이고, 가격이 피벗 위로 올라서는 것이 돌파다. 피벗 위 5%까지가 매수 구간, 진입가 아래 8%가 손절선이다.</desc>
+      <rect class="px-zone" x="455" y="112" width="165" height="20"/>
+      <line class="px-pivot" x1="335" y1="132" x2="620" y2="132"/>
+      <line class="px-stop" x1="455" y1="165" x2="620" y2="165"/>
+      <polyline class="px-line" points="20,232 60,186 110,124 170,200 225,128 280,170 335,132 380,151 430,137 470,128 520,107 585,84"/>
+      <circle class="px-dot" cx="335" cy="132" r="6"/>
+      <text x="170" y="228" text-anchor="middle">T1 18%</text>
+      <text x="280" y="198" text-anchor="middle">T2 9%</text>
+      <text x="382" y="178" text-anchor="middle">T3 4%</text>
+      <text x="438" y="98" text-anchor="middle">돌파</text>
+    </svg>
+    <div class="g-legend" aria-hidden="true">
+      <span><i class="px"></i>가격</span>
+      <span><i></i>피벗(돌파선)</span>
+      <span><i class="zone"></i>매수 구간(피벗 위 5%)</span>
+      <span><i style="color:var(--warn);"></i>손절(진입가 −8%)</span>
+    </div>
+    <p class="note-sm g-note">고점에서 저점까지 내려갔다 올라오는 한 번이 수축 하나. 수축이 T1, T2, T3로 갈수록 얕아지고, 마지막 수축의 고점(노란 점)이 피벗.</p>
+  </div>
+
+  <div class="section-title" style="margin-top:34px;">용어</div>
+  <dl class="g-terms">
+    <div id="base">
+      <dt>베이스 <small>base</small></dt>
+      <dd>크게 오른 뒤 가격이 쉬면서 옆으로 다지는 구간. 보통 3주 이상 걸리고, 35%를 넘게 깊이 빠지면 건강한 베이스로 보지 않음.</dd>
+    </div>
+    <div id="contraction">
+      <dt>수축 <small>T1 · T2 · T3</small></dt>
+      <dd>베이스 안에서 고점에서 저점까지 내려갔다 올라오는 조정 한 번이 수축 하나. 나온 순서대로 T1, T2, T3라 부름.</dd>
+      <dd class="site"><b>이 사이트 표기:</b> 모양 점수 60점 이상 후보의 차트에는 수축마다 번호와 낙폭이 적혀 있고 점은 가장 좁은 수축. 종목 상세의 모양 점수 카드에는 낙폭이 순서대로 <code>10.1% → 3.8% → 3.8%</code>처럼 나옴. T1은 베이스 고점에서 가장 깊은 저점까지를 한 번으로 세고, 그 뒤부터 T2, T3로 셈.</dd>
+    </div>
+    <div id="shape">
+      <dt>모양 점수 <small>0~100 · 등급 A+ ~ C</small></dt>
+      <dd>종목 이름 아래의 <code>모양 82 · A</code>는 이 종목의 베이스가 교과서적인 VCP 모양에 얼마나 가까운지를 100점으로 나타낸 값. 수익을 예측하는 점수가 아님. 2010~2026 백테스트에서 이 점수는 수익과 관련이 없었음.</dd>
+      <dd>추세, 상승 구조, 수축(갈수록 얕아지는지), 거래량(수축 구간마다 줄어드는지와 최근 마름), 저점 상승, 마지막 구간의 타이트함, 피벗과의 거리, RS 8개 항목을 합산. 등급은 90 이상 A+, 80 이상 A, 70 이상 B, 60 이상 C이고 60점 미만은 등급 없이 점수만 보임.</dd>
+      <dd class="site"><b>기준:</b> 60점 이상을 후보로 봄. 사람이 직접 고른 차트 61개와 비교하면 후보로 올린 종목의 69%가 볼 만한 모양이었고, 볼 만한 모양의 97%가 후보에 들었음. 다만 후보 안에서 A+가 B보다 낫다는 차이는 확인하지 못했음. VCP 일지는 이 점수로 기록하고, 매수 신호와 피벗은 아직 이전 판정을 씀.</dd>
+    </div>
+    <div id="vcp">
+      <dt>변동성 축소 패턴 <small>VCP</small></dt>
+      <dd>수축이 갈수록 얕아지는 모양. 미너비니는 팔 사람이 줄어드는 신호로 보고, 마지막 수축이 가장 작은 것을 중시함.</dd>
+      <dd class="site"><b>이 사이트 판정:</b> 모양 점수(아래 용어)는 VCP인지 아닌지를 가르지 않고 얼마나 가까운지를 점수로 매김. VCP 일지는 이 점수로 기록하고, 매수 신호와 피벗에는 아직 이전 판정을 씀. 이전 판정은 수축이 3번 이상이고, 조정폭이 전체적으로 줄어 마지막이 가장 큰 조정의 60% 이하이며, 마지막 조정이 12% 이하일 때. 다시 벌어진 횟수는 1번까지 허용.</dd>
+    </div>
+    <div id="pivot">
+      <dt>피벗 <small>pivot · 돌파선</small></dt>
+      <dd>마지막 수축이 시작된 고점. 가격이 이 선 위로 올라서면 베이스를 벗어나는 것으로 봄.</dd>
+      <dd class="site"><b>이 사이트 계산:</b> 최근 120거래일 종가에서 가장 최근의 스윙 고점을 피벗으로 잡음. 차트에서 눈으로 본 윗선과 다를 수 있고, 다르면 종목 상세의 <b>내 진입가로 계산</b>에 본인이 판단한 가격을 직접 넣어서 쓰면 됨. 모양 점수 카드의 피벗은 마지막 수축의 고점이라 이 값과 다를 수 있음.</dd>
+    </div>
+    <div id="breakout">
+      <dt>피벗 돌파 <small>breakout</small></dt>
+      <dd>가격이 피벗 위로 올라서는 일. 미너비니는 그날 거래량이 평소(50일 평균)보다 40~50% 이상 늘어야 믿을 만하다고 봄. 올라섰다가 장중에 다시 피벗 아래로 밀리면 실패로 봄.</dd>
+      <dd class="site"><b>이 사이트 기준:</b> VCP 일지는 종가가 피벗(마지막 수축의 상단) 위로 올라선 날을 돌파로 기록하고 거래량 조건은 두지 않음. 돌파일 거래량은 50일 평균 대비 배수와 등급(약함~매우 강함)으로만 표시함. 돌파 뒤 10거래일 동안 종가가 피벗 아래로 내려오면 돌파 실패, 베이스 저점 아래로 마감하면 무효. 2010~2026 백테스트에서 돌파일 거래량 크기는 성과 차이를 만들지 못했음.</dd>
+    </div>
+    <div id="tags">
+      <dt>돌파권 · 돌파 대기 · 연장 <small>홈 목록 태그</small></dt>
+      <dd><b>돌파권</b>은 종가가 피벗 위 5% 이내. <b>돌파 대기</b>는 아직 피벗 아래. <b>연장</b>은 피벗 위로 5% 넘게 올라갔거나 아직 피벗이 될 베이스가 없는 종목.</dd>
+      <dd class="site">태그는 피벗 대비 위치를 알려주는 표시일 뿐 사라는 신호가 아님. 피벗에서 멀어질수록 피벗이나 마지막 저점 기준 손절폭이 커져서 위험이 늘어남.</dd>
+    </div>
+    <div id="columns">
+      <dt>피벗 대비 · 10일 변동폭 · 거래량 <small>홈 목록의 열</small></dt>
+      <dd><b>피벗 대비</b>는 현재 종가가 피벗보다 몇 % 위(+)나 아래(−)인지. <b>10일 변동폭</b>은 최근 10거래일 최고가와 최저가의 차이를 최고가로 나눈 값으로, 작을수록 최근 움직임이 조용함. <b>거래량</b>은 최근 거래량을 50일 평균으로 나눈 배수(1.0x가 평균).</dd>
+    </div>
+    <div id="stop">
+      <dt>손절 −8%와 수량 계산 <small>내 진입가로 계산</small></dt>
+      <dd>미너비니는 한 번의 손실을 7~8%에서 끊으라고 함. 이 사이트는 진입가 아래 8%를 기본 손절선으로 하고, 목표는 손절폭의 2.5배로 잡음.</dd>
+      <dd>수량은 한 종목에서 잃어도 되는 금액(계좌의 1.25%가 기본)을 손절폭으로 나눠서 구함. 손절폭이 클수록 수량이 줄어듦.</dd>
+      <dd class="site"><b>마지막 저점 손절</b>은 가장 최근 스윙 저점 아래 1% 지점. 이 방식이 −8% 고정보다 낫다는 근거는 아직 확인하지 못해서, 기본값은 −8% 고정.</dd>
+    </div>
+    <div id="template">
+      <dt>트렌드 템플릿 · RS <small>Stage 2</small></dt>
+      <dd><b>트렌드 템플릿</b>은 상승 추세 8개 조건. 주가가 150일선과 200일선 위, 150일선이 200일선 위, 50일선이 그 둘 위, 200일선이 1개월 이상 상승, 52주 저가 대비 +30% 이상, 52주 고가 대비 −25% 이내 같은 것들. 전부 통과하면 Stage 2(상승 단계).</dd>
+      <dd><b>RS</b>는 최근 1년 수익률을 같은 시장 종목과 비교한 순위(0~100). 높을수록 강하고 70 이상이어야 통과.</dd>
+    </div>
+  </dl>
+
+  <div class="section-title" style="margin-top:34px;">직접 볼 때의 순서</div>
+  <ol class="g-steps">
+    <li>베이스 모양: 수축이 둘 이상이고 갈수록 얕아지는지, 저점이 점점 높아지는지 봄.</li>
+    <li>피벗 선: 마지막 수축의 윗선을 긋고, 사이트가 보여주는 피벗과 비교.</li>
+    <li>돌파 순간: 장중에 피벗을 넘는지, 거래량이 붙는지, 마감 때도 위에 있는지 확인.</li>
+    <li>손절부터: 진입가를 정하면 손절가와 수량을 먼저 계산하고 그다음에 주문.</li>
+  </ol>
+
+  <div class="section-title" style="margin-top:34px;">이 사이트가 확인한 것과 못 한 것</div>
+  <div class="g-evidence">
+    <p><b>확인한 것.</b> 트렌드 템플릿을 통과한 종목을 고르는 일은 2010~2026년 과거 데이터에서 평균적으로 플러스였음. 손절을 정하고 수량을 계산하는 규칙은 손실을 제한하는 도구로 쓸 만함.</p>
+    <p><b>못 찾은 것.</b> VCP 판정, 피벗 돌파 시점, 거래량 마름, 돌파 거래량이 성과를 더 높인다는 근거. 같은 기간에 트렌드 템플릿 통과 종목을 아무 날 산 것과 비교해도 낫지 않았고, VCP 쪽이 조금 낮게 나왔음.</p>
+    <p><b>그래서.</b> 이 사이트는 피벗과 수축을 매수 신호가 아니라 차트를 직접 판단할 때 쓰는 참고 정보로 보여줌. 한계는 현재 종목 목록 기준이라 생존 편향이 있고, 실적 조건을 과거에 적용하지 못했으며, 사람이 눈으로 하는 판단은 백테스트할 수 없다는 점.</p>
+  </div>
+
+  <p class="disclaimer">교육·참고용 설명. 투자 권유가 아니며 모든 투자 판단과 책임은 본인에게 있음.</p>
+</div>
+{% endblock %}

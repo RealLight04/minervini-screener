@@ -124,6 +124,18 @@ class ScreeningResult(Base):
     vdu_last_vs_prior = Column(Float)   # 마지막 수축 최저 / 이전 베이스 최저 (작을수록 조용)
     vdu_last_vs_base = Column(Float)    # 마지막 수축 최저 / 베이스 평균 (작을수록 조용)
 
+    # VCP 점수 모델(app/vcp.py) 결과 — 그림자 모드: 신호·피벗·레지스트리에는 쓰지 않고 기록·표시만 한다.
+    # 점수는 '교과서적 모양에 얼마나 가까운가'이지 수익 예측이 아니다(2010~2026 백테스트: 점수와 성과 무관).
+    vcp2_score = Column(Float)      # 0~100 모양 적합도
+    vcp2_grade = Column(String)     # A+ / A / B / C, 60점 미만은 '-'
+    vcp2_state = Column(String)     # WATCH / NEAR_PIVOT / BREAKOUT / FAILED_BREAKOUT / INVALIDATED
+    vcp2_pivot = Column(Float)      # 마지막 수축의 상단
+    vcp2_depths = Column(String)    # 수축 낙폭(%) 목록 "22/11/5"
+    vcp2_key = Column(Date)         # 베이스 고점 날짜 = 형성 신원(같은 베이스면 같은 값)
+    vcp2_parts = Column(String)     # 항목별 점수 JSON
+    vcp2_bvr = Column(Float)        # 돌파일 거래량 / 직전 50일 평균(돌파가 있을 때만)
+    vcp2_age = Column(Integer)      # 돌파 후 지난 거래일(돌파 당일 0)
+
     # 거래량 / 유동성
     avg_volume = Column(Float)        # 50일 평균 거래량
     vol_vs_avg = Column(Float)        # 최근 거래량 / 50일 평균 (1.0 = 평균)
@@ -190,12 +202,67 @@ class VCPEvent(Base):
     alert_breakout_at = Column(DateTime)  # '돌파' 알림 발송 워터마크(exactly-once)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # 표본외 검증용 — 돌파 시점 국면과 실제 체결 결과(손절 -8%/목표 +2.5R 반영).
+    # 표본외 검증용 — 돌파 시점 국면과 실제 체결 결과. 진입은 돌파일 종가, 손절은 그 아래
+    # STOP_LOSS_PCT, 목표는 2.5R(제품 안내 규칙 그대로).
     # 나중에 다시 계산 불가(screening_results는 90일 후 삭제)하므로 돌파 때 바로 찍어야 한다.
     regime_at_breakout = Column(String)   # BULL/NEUTRAL/BEAR — 돌파일 그 시장의 국면
     pct_above_200_at_breakout = Column(Float)  # 돌파일 200일선 위 종목 비율(%) — 국면 세부치
     outcome = Column(String)        # None(진행 중) / stop / target / timeout
     outcome_date = Column(Date)     # 결과 확정일
     outcome_pct = Column(Float)     # 돌파가 대비 실현 수익률(%)
+
+    stock = relationship("Stock")
+
+
+class VCPFormation(Base):
+    """VCP 모양 점수 모델(app/vcp.py)의 형성 추적 레지스트리. 한 베이스를 한 행으로 누적한다.
+
+    vcp_events(구 판정)와 달리 신원이 베이스 고점 날짜(key_date)로 고정이고 (stock_id, key_date)가 유니크라
+    같은 베이스가 중복 기록되거나 first_detected가 바뀌지 않는다. 돌파는 가격(종가 > 피벗)만으로 잡고
+    거래량은 등급으로만 기록한다. 규칙은 app/vcp_tracker.py 참고. 구 vcp_events는 건드리지 않는다."""
+    __tablename__ = "vcp_formations"
+    __table_args__ = (UniqueConstraint("stock_id", "key_date"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    stock_id = Column(Integer, ForeignKey("stocks.id"), nullable=False, index=True)
+    key_date = Column(Date, nullable=False)          # 베이스 고점 날짜 = 형성의 신원(불변)
+    first_detected = Column(Date, nullable=False)    # 처음 포착한 날(불변)
+    last_seen = Column(Date, nullable=False)         # 같은 형성을 마지막으로 확인한 날
+    status = Column(String, default="WATCH", index=True)   # WATCH / NEAR_PIVOT / BREAKOUT / FAILED_BREAKOUT / INVALIDATED
+    resolved_date = Column(Date)                     # 추적 종료일(비어 있으면 아직 추적 중)
+    end_reason = Column(String)                      # follow_done / base_broken / trend_lost / score_low / stale / superseded
+    base_seq = Column(Integer, default=1)            # 종목별 형성 순번
+
+    # 최신 스냅샷
+    base_high = Column(Float)
+    base_low = Column(Float)         # 베이스 저점(실제 조정 저점) — 종가가 이 아래로 마감하면 무효
+    pivot = Column(Float)            # 마지막 수축의 상단
+    contractions = Column(Integer)
+    depths = Column(String)          # 수축 낙폭(%) "22/11/5"
+    score_first = Column(Float)
+    score_peak = Column(Float)
+    score_last = Column(Float)
+    grade_last = Column(String)
+    parts_last = Column(String)      # 항목별 점수 JSON
+    trend_grace = Column(Integer, default=0)   # 추세게이트 이탈 유예 카운터
+    rs_rank = Column(Float)
+    close = Column(Float)
+
+    # 돌파 기록(첫 돌파만 기록하고 이후 바꾸지 않는다)
+    breakout_date = Column(Date)
+    breakout_price = Column(Float)           # 돌파일 종가
+    breakout_volume = Column(Float)
+    breakout_avg_volume = Column(Float)      # 돌파 전 50일 평균 거래량
+    volume_ratio = Column(Float)
+    volume_quality = Column(String)          # 약함 / 보통 / 좋음 / 매우 좋음 / 매우 강함
+    breakout_score = Column(Float)           # 돌파 직전 모습의 VCP 점수
+
+    # 표본외 검증용 — 돌파일 국면과 실제 체결 결과(진입은 돌파일 종가, 규칙은 vcp_events와 같음)
+    regime_at_breakout = Column(String)
+    pct_above_200_at_breakout = Column(Float)
+    outcome = Column(String)         # None(진행 중) / stop / target / timeout
+    outcome_date = Column(Date)
+    outcome_pct = Column(Float)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
     stock = relationship("Stock")

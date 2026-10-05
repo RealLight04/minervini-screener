@@ -9,6 +9,7 @@
   .hchip--near { background: var(--buy); }
   .hchip--hold { background: var(--hold); }
   .hchip--done { background: var(--hold); }
+  .hchip--fail { background: var(--warn); }
   @media (max-width: 720px) {
     .vcp-log table.cards tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; padding: 8px 14px; background: var(--strip); color: var(--strip-ink); border: none; box-shadow: var(--shadow); }
     .vcp-log table.cards td { border-bottom: none; padding: 5px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; text-align: left; font-size: 0.92rem; }
@@ -19,8 +20,8 @@
     .vcp-log .hchip { justify-content: flex-start; min-height: 32px; padding: 0 14px; }
     .vcp-log table.cards td[data-label="티커"]::before { content: none; }
     .vcp-log table.cards td[data-label="회사명"], .vcp-log table.cards td[data-label="시장"], .vcp-log table.cards td[data-label="형성일"],
-    .vcp-log table.cards td[data-label="수축"], .vcp-log table.cards td[data-label="현재가"], .vcp-log table.cards td[data-label="품질"],
-    .vcp-log table.cards td[data-label="거래량"], .vcp-log table.cards td[data-label="형성 → 돌파"] { display: none; }
+    .vcp-log table.cards td[data-label="수축"], .vcp-log table.cards td[data-label="현재가"],
+    .vcp-log table.cards td[data-label="돌파 거래량"], .vcp-log table.cards td[data-label="형성 → 돌파"] { display: none; }
     .vcp-log a.ticker-link { color: var(--strip-ink); }
     .vcp-log .faint { color: var(--strip-ink-2); }
     .vcp-log table.cards tr.hot-row td { background: none; }
@@ -35,14 +36,16 @@
 <div style="margin-bottom:8px;">
   <h1 class="page-title">VCP 일지</h1>
   <p class="muted" style="font-size:0.95rem; margin-top:8px; max-width:70ch; line-height:1.7;">
-    VCP(변동성 축소 패턴)는 베이스 안에서 조정폭이 점점 줄며 매물이 마르는 미너비니 핵심 셋업.
-    한 번 탐지하고 끝내지 않고 형성부터 돌파·실패까지 한 줄씩 기록해 결과로 검증함.
+    VCP(변동성 축소 패턴)는 베이스 안에서 조정폭이 점점 줄어드는 미너비니의 대표 셋업.
+    모양 점수 {{ shape_min }}점 이상인 베이스를 형성부터 돌파·실패까지 한 줄씩 기록해 결과를 확인하는 장부. 매수 신호가 아니며, 점수가 높다고 성과가 좋다는 근거는 아직 못 찾음.
+    <a href="/guide#shape" style="color:var(--sign); font-weight:700;">모양 점수 뜻 보기</a>
+    · <a href="/guide#contraction" style="color:var(--sign); font-weight:700;">수축·피벗 보기</a>
   </p>
   <p class="mono" style="font-size:0.84rem; color:var(--muted); margin-top:10px;">스크리닝 {{ screen_date }} · 형성 중 {{ forming|length }} · 최근 30일 돌파 {{ broke|length }}</p>
 </div>
 
 {% if stats and stats.total > 0 %}
-<div class="section-title">돌파 후 성과 <span class="hint">실제 손절(−8%대)·목표(+2.5R) 도달 기준 · 표본외 검증용</span></div>
+<div class="section-title">돌파 후 성과 <span class="hint">돌파일 종가 진입, 손절 −{{ "%g"|format(stats.stop_pct) }}%와 목표 +{{ "%g"|format(stats.target_pct) }}% 중 먼저 닿은 쪽 · 표본외 검증용</span></div>
 <div class="stat-grid" style="margin-bottom:10px;">
   <div class="stat"><div class="k">승률 (목표 vs 손절)</div>
     <div class="v">{% if stats.win_rate is not none %}{{ stats.win_rate }}%{% else %}-{% endif %}</div>
@@ -58,56 +61,61 @@
 </div>
 <p class="note-sm" style="margin-bottom:28px; max-width:80ch;">
   {% if stats.by_regime %}국면별 승률: {% for mk, s in stats.by_regime.items() %}{{ {'BULL': '강세장', 'NEUTRAL': '혼조장', 'BEAR': '약세장'}.get(mk, mk) }} {{ s.win_rate }}%(n={{ s.n }}){% if not loop.last %} · {% endif %}{% endfor %}. {% endif %}
-  표본 {{ stats.resolved }}건, 대부분 같은 시장 국면 안에서 나온 결과라 참고용. 국면이 한 번 더 바뀌고 표본이 쌓일수록 갱신됨.
+  표본 {{ stats.resolved }}건, 대부분 같은 시장 국면 안에서 나온 결과라 참고용. 손절은 빨리 확정되고 목표는 오래 걸려서, 기록 초기에는 진행 중인 건이 빠진 채 승률이 낮게 보임.
+</p>
+{% endif %}
+{% if legacy and legacy.total > 0 %}
+<p class="note-sm" style="margin-bottom:28px; max-width:80ch;">
+  이전 판정(수축 3번 이상, 거래량 동반 돌파 기준) 기록: 돌파 {{ legacy.total }}건, 결판 {{ legacy.resolved }}건{% if legacy.win_rate is not none %}, 승률 {{ legacy.win_rate }}%{% endif %}{% if legacy.expectancy is not none %}, 건당 기대값 {{ "%+.1f"|format(legacy.expectancy) }}%{% endif %}. 기록은 그대로 보존하고 있고 이 표에는 섞지 않음.
 </p>
 {% endif %}
 
 <!-- 형성 중 (감시 대상) -->
-<div class="section-title">형성 중 <span class="hint">베이스 완성 단계 · 피벗 돌파를 감시 (RS 강한 순)</span></div>
+<div class="section-title">형성 중 <span class="hint">모양 점수 {{ shape_min }}점 이상 베이스 · 피벗 돌파를 감시 (점수 높은 순)</span></div>
 {% if forming %}
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th class="ctr">상태</th><th class="sortable">티커</th><th>회사명</th><th class="ctr">시장</th><th class="num sortable">형성일</th><th class="num sortable">수축</th><th class="num sortable">현재가</th><th class="num sortable">피벗(돌파선)</th><th class="ctr sortable">돌파까지</th><th class="ctr sortable">품질</th><th class="ctr sortable">RS</th><th class="ctr">거래량</th></tr>
+    <tr><th class="ctr">상태</th><th class="sortable">티커</th><th>회사명</th><th class="ctr">시장</th><th class="num sortable">형성일</th><th class="num sortable">수축</th><th class="num sortable">현재가</th><th class="num sortable">피벗(돌파선)</th><th class="ctr sortable">돌파까지</th><th class="ctr sortable">모양 점수</th><th class="ctr sortable">RS</th></tr>
   </thead>
   <tbody>
     {% for r in forming %}
     <tr data-href="/stock/{{ r.stock.ticker }}" {% if r.gap is none or r.gap <= 1 %}class="hot-row"{% endif %}>
-      {% if r.watching %}{% set hs = ("near", "돌파 확인") %}{% elif r.gap is none or r.gap <= 1 %}{% set hs = ("near", "돌파권") %}{% elif r.gap <= 3 %}{% set hs = ("near", "임박") %}{% else %}{% set hs = ("hold", "형성") %}{% endif %}
+      {% if r.gap is none or r.gap <= 1 %}{% set hs = ("near", "돌파권") %}{% elif r.gap <= 3 %}{% set hs = ("near", "임박") %}{% else %}{% set hs = ("hold", "형성") %}{% endif %}
       <td data-label="상태" class="holder-td"><span class="hchip hchip--{{ hs[0] }}">{{ hs[1] }}</span></td>
       <td data-label="티커" data-sort="{{ r.stock.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(r.stock.ticker) }}<a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></span></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
       <td data-label="시장" class="ctr"><span class="faint">{{ market_labels.get(r.market, r.market) }}</span></td>
       <td data-label="형성일" class="num" data-sort="{{ r.days or 0 }}">{% if r.days is not none %}{{ r.days }}일{% else %}-{% endif %}</td>
-      <td data-label="수축" class="num" data-sort="{{ r.ev.contractions or 0 }}">{% if r.ev.contractions %}{{ r.ev.contractions }}회{% else %}-{% endif %}</td>
+      <td data-label="수축" class="num" data-sort="{{ r.ev.contractions or 0 }}" title="수축 낙폭 순서(T1부터)">{% if r.depths %}{{ r.depths }}%{% else %}-{% endif %}</td>
       <td data-label="현재가" class="num" data-sort="{{ r.ev.close or 0 }}">{{ fmt_price(r.ev.close, r.market) }}</td>
-      <td data-label="피벗(돌파선)" class="num" data-sort="{{ r.ev.pivot_price or 0 }}"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot_price, r.market) }}</span></td>
-      <td data-label="돌파까지" class="ctr" data-sort="{{ r.gap if r.gap is not none else 0 }}">{% if r.watching %}<span class="badge" style="background:transparent; border:1px solid var(--amber); color:var(--amber);" title="피벗에 도달했으나 거래량 미확인 — 거래량 동반 돌파 대기">돌파확인중</span>{% elif r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
-      <td data-label="품질" class="ctr" data-sort="{{ r.ev.quality or 0 }}">{% if r.ev.quality is not none %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.quality) }};" title="VCP 품질점수 0~100 (추세·수축 타이트함·거래량 마름·형성기간 종합) — 현재 {{ r.ev.quality }}, 형성 중 최고 {{ r.ev.peak_quality or r.ev.quality }}{% if r.ev.peak_quality and r.ev.peak_quality - r.ev.quality >= 10 %} · 정점 대비 약화 주의{% endif %}">{{ r.ev.quality }}{% if r.ev.peak_quality and r.ev.peak_quality - r.ev.quality >= 10 %}<span style="font-size:0.85em;">↓</span>{% endif %}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="피벗(돌파선)" class="num" data-sort="{{ r.ev.pivot or 0 }}"><span style="color:var(--accent);">{{ fmt_price(r.ev.pivot, r.market) }}</span></td>
+      <td data-label="돌파까지" class="ctr" data-sort="{{ r.gap if r.gap is not none else 0 }}">{% if r.gap is not none %}<span class="badge {% if r.gap <= 3 %}badge-green{% else %}badge-gray{% endif %}">+{{ r.gap }}%</span>{% else %}<span class="badge badge-green">돌파권</span>{% endif %}</td>
+      <td data-label="모양 점수" class="ctr" data-sort="{{ r.ev.score_last or 0 }}">{% if r.ev.score_last is not none %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.score_last) }};" title="VCP 모양 점수 0~100 (교과서적 모양에 가까운 정도, 수익 예측 아님) — 현재 {{ '%d'|format(r.ev.score_last) }}{% if r.ev.grade_last and r.ev.grade_last != '-' %} · 등급 {{ r.ev.grade_last }}{% endif %}, 형성 중 최고 {{ '%d'|format(r.ev.score_peak or r.ev.score_last) }}{% if r.ev.score_peak and r.ev.score_peak - r.ev.score_last >= 10 %} · 정점 대비 약화 주의{% endif %}">{{ '%d'|format(r.ev.score_last) }}{% if r.ev.score_peak and r.ev.score_peak - r.ev.score_last >= 10 %}<span style="font-size:0.85em;">↓</span>{% endif %}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
       <td data-label="RS" class="ctr" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.rs_rank) }};">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
-      <td data-label="거래량" class="ctr">{% if r.ev.volume_dryup %}<span class="badge badge-green" title="거래량 마름(dry-up)">마름</span>{% else %}<span class="faint">-</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
-<p class="faint" style="font-size:0.78rem; margin-top:10px;"><strong>돌파까지 ≤3%</strong>이고 <strong>거래량 마름</strong>이면 임박 신호 — 거래량 동반 돌파 감시.</p>
+<p class="faint" style="font-size:0.78rem; margin-top:10px;"><strong>돌파까지 3% 이내</strong>면 임박으로 표시. 돌파는 종가가 피벗(마지막 수축의 상단) 위로 올라선 날이고, 진입 시점은 차트에서 직접 판단.</p>
 {% else %}
-{{ empty_state('형성 중인 VCP 없음', '다음 스크리닝부터 누적') }}
+{{ empty_state('형성 중인 VCP 없음', '모양 점수 ' ~ shape_min ~ '점 이상 베이스가 생기면 다음 스크리닝부터 누적') }}
 {% endif %}
 
 <!-- 최근 돌파 (셋업 결과) -->
-<div class="section-title">최근 돌파 <span class="hint">최근 30일 · 피벗 돌파 후 성과</span></div>
+<div class="section-title">최근 돌파 <span class="hint">최근 30일 · 종가가 피벗을 넘은 날부터 · 돌파 후 성과</span></div>
 {% if broke %}
 <div class="table-wrap">
 <table class="cards">
   <thead>
-    <tr><th class="ctr">상태</th><th class="sortable">티커</th><th>회사명</th><th class="ctr sortable">돌파일</th><th class="sortable">형성 → 돌파</th><th class="num sortable">돌파가</th><th class="num sortable">현재가</th><th class="num sortable">돌파후</th><th class="num sortable">RS</th></tr>
+    <tr><th class="ctr">상태</th><th class="sortable">티커</th><th>회사명</th><th class="ctr sortable">돌파일</th><th class="sortable">형성 → 돌파</th><th class="num sortable">돌파가</th><th class="num sortable">현재가</th><th class="num sortable">돌파후</th><th class="ctr sortable">돌파 거래량</th><th class="ctr sortable">모양 점수</th><th class="num sortable">RS</th></tr>
   </thead>
   <tbody>
     {% for r in broke %}
     <tr data-href="/stock/{{ r.stock.ticker }}">
-      <td data-label="상태" class="holder-td"><span class="hchip hchip--done">돌파</span></td>
+      {% set st = r.ev.status %}{% if st == 'BREAKOUT' %}{% set hs = ("done", "돌파") %}{% elif st == 'FAILED_BREAKOUT' %}{% set hs = ("fail", "돌파 실패") %}{% else %}{% set hs = ("hold", "무효") %}{% endif %}
+      <td data-label="상태" class="holder-td"><span class="hchip hchip--{{ hs[0] }}" {% if st == 'INVALIDATED' %}title="돌파 뒤 종가가 베이스 저점 아래로 마감하거나 추세가 무너져 추적을 멈춤"{% endif %}>{{ hs[1] }}</span></td>
       <td data-label="티커" data-sort="{{ r.stock.ticker }}"><span style="display:inline-flex; align-items:center; gap:7px;">{{ avatar(r.stock.ticker) }}<a class="ticker-link" href="/stock/{{ r.stock.ticker }}">{{ r.stock.ticker }}</a></span></td>
       <td data-label="회사명">{{ r.stock.name or '-' }}</td>
       <td data-label="돌파일" class="ctr" data-sort="{{ r.ev.breakout_date }}">{{ r.ev.breakout_date }}</td>
@@ -115,6 +123,8 @@
       <td data-label="돌파가" class="num" data-sort="{{ r.ev.breakout_price or 0 }}">{{ fmt_price(r.ev.breakout_price, r.market) }}</td>
       <td data-label="현재가" class="num" data-sort="{{ r.cur_close or 0 }}">{{ fmt_price(r.cur_close, r.market) }}</td>
       <td data-label="돌파후" class="num" data-sort="{{ r.ret if r.ret is not none else 0 }}">{% if r.ret is not none %}<span class="heat-chip" style="min-width:52px; color:{% if r.ret >= 0 %}var(--green-ink){% else %}var(--red-ink){% endif %}; background:{{ ret_heat(r.ret) }};">{% if r.ret >= 0 %}▲{% else %}▼{% endif %}{{ "%.1f"|format(r.ret|abs) }}%</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="돌파 거래량" class="ctr" data-sort="{{ r.ev.volume_ratio or 0 }}">{% if r.ev.volume_ratio is not none %}{{ "%.1f"|format(r.ev.volume_ratio) }}x <span class="faint" style="font-size:0.8rem;">{{ r.ev.volume_quality }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
+      <td data-label="모양 점수" class="ctr" data-sort="{{ r.ev.breakout_score or 0 }}">{% if r.ev.breakout_score is not none %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.breakout_score) }};" title="돌파 직전 모습의 VCP 모양 점수(수익 예측 아님)">{{ '%d'|format(r.ev.breakout_score) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
       <td data-label="RS" class="num" data-sort="{{ r.ev.rs_rank or 0 }}">{% if r.ev.rs_rank %}<span class="heat-chip" style="min-width:26px; background:{{ rs_heat(r.ev.rs_rank) }};">{{ "%.0f"|format(r.ev.rs_rank) }}</span>{% else %}<span class="faint">-</span>{% endif %}</td>
     </tr>
     {% endfor %}
@@ -126,6 +136,9 @@
 {% endif %}
 
 <p class="note-sm" style="margin-top:40px; padding-top:14px; border-top:1px solid var(--line); max-width:80ch;">
-  돌파 확정은 거래량이 50일 평균의 1.4배 이상이거나, 거래량이 모자라도 피벗 위에서 3거래일을 버틴 경우. 백테스트상 돌파 당일 거래량보다 베이스의 거래량 마름이 성과와 더 관련 있었음.
+  돌파는 종가가 피벗(마지막 수축의 상단) 위로 올라선 날이고 거래량 조건은 없음. 돌파일 거래량은 직전 50일 평균 대비 배수와 등급(약함~매우 강함)으로만 기록함. 돌파 뒤 10거래일 동안 종가가 피벗 아래로 내려오면 돌파 실패, 베이스 저점 아래로 마감하면 무효로 표시하고, 첫 돌파 기록은 바꾸지 않음. 같은 베이스는 한 줄만 남김.
+  모양 점수는 사람이 직접 고른 차트 61개와 비교해 60점 이상이 볼 만한 모양을 잘 걸러냈지만(후보의 69%가 볼 만한 모양, 볼 만한 모양의 97%가 후보), 후보 안에서 점수가 높을수록 낫다는 차이는 확인하지 못함.
+  2010~2026년 백테스트에서 VCP 판정, 피벗 돌파 시점, 거래량 마름, 돌파 거래량, 이 모양 점수 모두 트렌드 템플릿 통과 종목을 아무 날 산 것보다 성과가 낫지 않았음(생존 편향·실적 게이트 없음 감안).
+  이 장부는 성과를 높이기 위한 도구가 아니라 판정이 맞는지 앞으로 표본외로 확인하려는 기록.
 </p>
 </div>{% endblock %}

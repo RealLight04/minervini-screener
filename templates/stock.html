@@ -105,6 +105,50 @@
   .checklist li.no .ck-item { font-weight: 700; } .checklist li.no .ck-box { color: var(--marker); border-color: var(--marker); } .checklist li.no .ck-mark { color: var(--marker); }
   .checklist li.na .ck-item, .checklist li.na .ck-mark { color: var(--faint); } .checklist li.na .ck-box { border-style: dashed; border-color: var(--pencil); }
 
+
+  /* ── VCP 모양 점수 ── */
+  .vshape-head { display: flex; align-items: baseline; gap: 10px 18px; flex-wrap: wrap; padding-bottom: 10px; border-bottom: 1px solid var(--paper-rule-2); }
+  .vshape-score { font-family: var(--font-mono); font-weight: 700; font-size: 2.4rem; line-height: 1; color: var(--paper-ink); }
+  .vshape-score small { font-size: 0.9rem; font-weight: 600; color: var(--muted); margin-left: 4px; }
+  .vshape-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .vshape-tag { display: inline-flex; align-items: center; min-height: 28px; padding: 0 9px; border: 1px solid var(--paper-rule-2); border-radius: 2px; font-size: 0.82rem; font-weight: 700; color: var(--paper-ink); }
+  .vshape-parts { list-style: none; margin: 10px 0 0; padding: 0; }
+  .vshape-parts li { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) 6rem; gap: 10px; align-items: center; min-height: 36px; border-bottom: 1px solid var(--paper-rule); font-size: 0.9rem; }
+  .vshape-bar { height: 8px; border: 1px solid var(--paper-rule-2); }
+  .vshape-bar i { display: block; height: 100%; background: var(--paper-ink-2); }
+  .vshape-parts .num { font-family: var(--font-mono); text-align: right; color: var(--muted); font-size: 0.84rem; white-space: nowrap; }
+  @media (max-width: 600px) { .vshape-parts li { grid-template-columns: 5rem minmax(0, 1fr) 5.4rem; gap: 8px; } }
+
+  /* ── 내 진입가 계산기 ── */
+  #calc { scroll-margin-top: 84px; }
+  .calc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px 36px; margin-top: 14px; }
+  .calc-in { display: grid; gap: 12px; align-content: start; }
+  .calc-in label, .calc-in legend { display: block; font-size: 0.8rem; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .calc-in input[type=text] { width: 100%; min-height: 44px; padding: 0 12px; font: inherit; font-family: var(--font-mono); font-weight: 600; font-size: 1.05rem; color: var(--paper-ink); background: transparent; border: 1.5px solid var(--paper-ink-2); border-radius: 2px; }
+  .calc-in input[type=text]:focus-visible { outline: 3px solid var(--paper-ink); outline-offset: 1px; }
+  .calc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .calc-hint { margin-top: 5px; font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+  .calc-fill { min-height: 32px; padding: 0 10px; font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--paper-ink); background: transparent; border: 1px solid var(--paper-rule-2); cursor: pointer; }
+  .calc-fill:hover { border-color: var(--paper-ink); }
+  .calc-in fieldset { border: none; padding: 0; margin: 0; }
+  .calc-mode { display: grid; gap: 2px; }
+  .calc-mode label { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; padding: 0 2px; font-size: 0.92rem; font-weight: 600; color: var(--paper-ink); cursor: pointer; border-bottom: 1px solid var(--paper-rule); }
+  .calc-mode label small { font-weight: 500; color: var(--muted); font-size: 0.8rem; }
+  .calc-mode input { width: 18px; height: 18px; accent-color: var(--paper-ink); flex-shrink: 0; }
+  .calc-mode label.is-off { color: var(--pencil); cursor: not-allowed; }
+  .calc-out { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--paper-rule-2); border-bottom: 1px solid var(--paper-rule-2); align-content: start; }
+  .calc-out > div { padding: 11px 14px 10px 0; border-bottom: 1px solid var(--paper-rule); }
+  .calc-out > div:nth-child(even) { padding-left: 16px; border-left: 1px solid var(--paper-rule); }
+  .calc-out > div:nth-last-child(-n+2) { border-bottom: none; }
+  .calc-out dt { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+  .calc-out dd { font-family: var(--font-mono); font-weight: 600; font-size: 1.2rem; }
+  .calc-out small { font-size: 0.82rem; font-weight: 500; }
+  .calc-notes { list-style: none; margin-top: 12px; font-size: 0.88rem; line-height: 1.7; }
+  .calc-notes li { padding-left: 1.2em; position: relative; }
+  .calc-notes li::before { content: ""; position: absolute; left: 0.2em; top: 0.72em; width: 6px; height: 6px; background: var(--paper-rule-2); }
+  .calc-notes li.warn { color: var(--marker); font-weight: 700; } .calc-notes li.warn::before { background: var(--marker); }
+  @media (max-width: 760px) { .calc-grid { grid-template-columns: 1fr; } }
+
   @media (max-width: 760px) {
     .nhead { grid-template-columns: 1fr; }
     .verdict { text-align: left; font-size: 2.6rem; margin-top: 4px; }
@@ -144,7 +188,7 @@
 {% if result.signal_reason %}<p class="nremark">{{ result.signal_reason }}</p>{% endif %}
 {% endif %}
 {% if code33 %}
-<p class="code33"><b class="hl">Code 33 · 전방위 실적 가속</b> 매출과 영업이익이 동시에 3분기 연속 가속 중. 미너비니가 가장 선호하는 최상급 실적 모멘텀.</p>
+<p class="code33"><b class="hl">Code 33</b> EPS와 매출의 성장률이 3분기 연속 커지고 영업이익률도 3분기 연속 확대 중. 미너비니가 꼽는 최상급 실적 모멘텀. 성장률 기준은 매출 {{ basis.revenue }}, EPS {{ basis.eps }}.</p>
 {% endif %}
 
 <!-- 가격 차트: 수축 T1·T2… 과 피벗·매수 구간·손절을 차트 위에 직접 적는다 -->
@@ -161,6 +205,7 @@
     <span><i class="zone"></i>매수 구간</span>
     <span><i style="color:var(--paper-ink); border-top-style:dotted;"></i>피벗</span>
     <span><i style="color:var(--marker);"></i>손절</span>
+    <a href="/guide#contraction" style="margin-left:auto; color:var(--paper-ink); font-weight:700;">T1·T2·피벗이 뭔가요?</a>
     <span id="annoLegend" hidden><i style="color:var(--paper-ink-2); border-top-width:1.5px;"></i>수축 T1·T2… 고점→저점 조정폭, 점은 가장 좁은 수축</span>
   </div>
   {% if result %}
@@ -211,6 +256,49 @@
   <p class="nplan-size">포지션 크기 예시: 계좌 {{ fmt_amount(sz.account, mk) }} 기준, 손실을 계좌의 {{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})로 제한하면 손절폭 {{ tp.risk_pct }}%에서 비중 약 <b>{{ sz.weight_pct }}%</b>(≈ {{ fmt_amount(sz.position, mk) }}, {{ sz.shares }}주){% if sz.capped %}. 단일 종목 상한으로 제한됨{% endif %}.</p>
   {% endif %}
   <p class="nplan-note">교육용 예시. 계좌·리스크 비율은 본인 상황에 맞게 조정. 투자 권유 아님.</p>
+</section>
+{% endif %}
+
+{% if calc %}
+<section id="calc" aria-labelledby="calc-h" data-cfg='{{ calc|tojson }}'>
+  <h2 class="sec-title" id="calc-h">내 진입가로 계산 <span class="sub">고른 진입가와 손절 방식으로 수량 계산. 브라우저 안에서만 계산</span></h2>
+  <div class="calc-grid">
+    <div class="calc-in">
+      <div>
+        <label for="c-entry">진입가</label>
+        <input type="text" id="c-entry" inputmode="decimal" autocomplete="off" aria-describedby="c-entry-hint">
+        <div class="calc-hint" id="c-entry-hint">
+          {% if calc.pivot %}<button type="button" class="calc-fill" data-fill="{{ calc.pivot }}">피벗 {{ fmt_price(calc.pivot, mk) }}</button>{% endif %}
+          <button type="button" class="calc-fill" data-fill="{{ calc.close }}">현재가 {{ fmt_price(calc.close, mk) }}</button>
+          <span id="c-vs-pivot"></span>
+        </div>
+      </div>
+      <div class="calc-row">
+        <div><label for="c-account">계좌 규모</label><input type="text" id="c-account" inputmode="numeric" autocomplete="off"></div>
+        <div><label for="c-risk">한 종목 손실 한도(%)</label><input type="text" id="c-risk" inputmode="decimal" autocomplete="off"></div>
+      </div>
+      <fieldset>
+        <legend>손절 방식</legend>
+        <div class="calc-mode">
+          <label><input type="radio" name="c-mode" value="near"> 둘 중 가까운 쪽 <small>−{{ calc.stop_pct|int }}%와 마지막 저점 중 진입가에 가까운 손절가</small></label>
+          <label><input type="radio" name="c-mode" value="fixed" checked> 진입가 −{{ calc.stop_pct|int }}% 고정</label>
+          <label id="c-low-label"><input type="radio" name="c-mode" value="low"> 마지막 저점 아래 <small>{% if calc.base_low %}저점 {{ fmt_price(calc.base_low, mk) }} 아래 {{ calc.low_buffer_pct|int }}%{% else %}저점 정보 없음{% endif %}</small></label>
+        </div>
+      </fieldset>
+    </div>
+    <div>
+      <dl class="calc-out" aria-live="polite">
+        <div><dt>손절가</dt><dd class="neg" id="o-stop">-</dd></div>
+        <div><dt>1차 익절 (손익비 1:{{ calc.r_mult }})</dt><dd class="pos" id="o-target">-</dd></div>
+        <div><dt>수량</dt><dd id="o-shares">-</dd></div>
+        <div><dt>투입 금액 · 비중</dt><dd id="o-position">-</dd></div>
+        <div><dt>손절 시 손실</dt><dd id="o-loss">-</dd></div>
+        <div><dt>손절폭</dt><dd id="o-risk">-</dd></div>
+      </dl>
+      <ul class="calc-notes" id="o-notes"></ul>
+    </div>
+  </div>
+  <p class="nplan-note">교육용 계산. 마지막 저점은 사이트가 찾은 최근 스윙 저점이라 차트와 다르면 본인 판단이 우선. 투자 권유 아님.</p>
 </section>
 {% endif %}
 
@@ -329,7 +417,7 @@
     <div style="margin-top:4px; color:var(--faint); opacity:.7;">출처: 한국=OpenDART · 미국 EPS/서프라이즈=Alpha Vantage · 미국 매출/영익=yfinance</div>
   </div>
   {% else %}
-  <p class="note" style="font-size:0.88rem;">분기 재무 데이터가 없어 펀더멘털은 기술적 조건만으로 통과 처리됩니다(참고용).</p>
+  <p class="note" style="font-size:0.88rem;">분기 재무 데이터가 없어 실적을 확인할 수 없음. 추세가 좋아도 실적을 확인하기 전에는 매수 신호를 내지 않음.</p>
   {% endif %}
 </div>
 
@@ -357,6 +445,29 @@
 </div>
 {% endif %}
 
+<!-- VCP 모양 점수 (app/vcp.py): 교과서적 모양에 가까운 정도. 수익 예측이 아니며 신호·피벗에는 아직 쓰지 않는다 -->
+{% if vcp2 %}
+<div class="sec-title">VCP 모양 점수 <span class="sub">교과서적 모양에 가까운 정도 · 수익 예측 아님</span></div>
+<div class="card paper" style="margin-bottom:24px;">
+  <div class="vshape-head">
+    <span class="vshape-score">{{ "%d"|format(vcp2.score) }}<small>/ 100</small></span>
+    <span class="vshape-tags">
+      {% if vcp2.grade and vcp2.grade != '-' %}<span class="vshape-tag">등급 {{ vcp2.grade }}</span>{% endif %}
+      <span class="vshape-tag">{{ vcp2.state_label }}</span>
+      {% if not vcp2.candidate %}<span class="vshape-tag">후보 기준 미달</span>{% endif %}
+    </span>
+  </div>
+  <p class="note" style="margin-top:10px; color:var(--text);">조정 낙폭 {{ vcp2.depths.split('/')|join('% → ') }}%{% if vcp2.pivot %}, 피벗 {{ fmt_price(vcp2.pivot, mk) }}{% endif %}</p>
+  <ul class="vshape-parts">
+  {% for p in vcp2.parts %}
+    <li><span>{{ p.label }}</span><span class="vshape-bar" role="img" aria-label="{{ p.label }} {{ '%.1f'|format(p.points or 0) }}점, 만점 {{ p.max }}점"><i style="width:{{ (((p.points or 0) / p.max) * 100)|round|int }}%"></i></span><span class="num">{{ "%.1f"|format(p.points or 0) }} / {{ p.max }}</span></li>
+  {% endfor %}
+  </ul>
+  {% if vcp2.bvr %}<p class="note" style="margin-top:10px; color:var(--text);">돌파일 거래량 {{ "%.1f"|format(vcp2.bvr) }}x ({{ vcp2.bvr_label }}){% if vcp2.age is not none %}, 돌파 후 {{ vcp2.age }}거래일{% endif %}. 돌파 거래량은 점수에 넣지 않고 등급만 표시.</p>{% endif %}
+  <p class="note-sm" style="margin-top:12px;">항목 점수 합(만점 {{ vcp2.raw_max }})을 100점으로 환산한 값. 60점 이상을 후보로 봄. 사람이 직접 판정한 차트 61개와 비교하면 후보로 올린 종목의 69%가 볼 만한 모양이었고 볼 만한 모양의 97%가 후보에 들었음. 2010~2026 백테스트에서 이 점수는 수익과 관련이 없었음. 매수 신호와 피벗은 아직 기존 판정을 씀.</p>
+</div>
+{% endif %}
+
 <!-- VCP + 거래량 분석 -->
 <div class="sec-title">VCP · 거래량 분석 <span class="sub">변동성 축소 · 매집/분산 · 유동성</span></div>
 <div class="card paper" style="margin-bottom:24px;">
@@ -371,7 +482,7 @@
   <!-- VCP -->
   <div style="display:flex; align-items:center; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--line);">
     <span style="color:{% if result.vcp_detected %}var(--green){% else %}var(--faint){% endif %}; font-weight:600;">
-      {% if result.vcp_detected %}<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg> VCP 탐지됨{% else %}<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M6 12h12"/></svg> VCP 미형성{% endif %}
+      {% if result.vcp_detected %}<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg> 기존 판정 VCP 탐지됨{% else %}<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M6 12h12"/></svg> 기존 판정 VCP 미형성{% endif %}
     </span>
     {% if result.vcp_contractions %}<span style="color:var(--muted); font-size:0.85rem;">조정 {{ result.vcp_contractions }}회 (변동성 축소)</span>{% endif %}
   </div>
@@ -385,7 +496,7 @@
     <span style="font-weight:600; color:{% if result.dryup_ratio <= 0.85 %}var(--green){% else %}var(--muted){% endif %};">{{ "%.2f"|format(result.dryup_ratio) }}x</span>
     <span style="color:var(--faint); font-size:0.8rem;">{{ dryup_note(result.dryup_ratio) }}</span>
     {% else %}
-    <span style="color:var(--faint); font-size:0.8rem;">{% if result.vcp_volume_dryup %}매도세 고갈, 건강한 수축{% else %}뚜렷한 축소 없음{% endif %}</span>
+    <span style="color:var(--faint); font-size:0.8rem;">{% if result.vcp_volume_dryup %}거래량이 줄어든 상태{% else %}뚜렷한 축소 없음{% endif %}</span>
     {% endif %}
   </div>
   <!-- 현재 거래량 -->
@@ -427,7 +538,7 @@
       <strong style="color:var(--red);">분산일</strong>은 대량거래와 함께 하락 마감한 날(기관 매도 흔적)
     </div>
   </div>
-  <p class="note-sm" style="margin-top:12px;">백테스트상 돌파 당일 거래량보다 베이스 구간의 거래량 마름이 성과와 더 관련 있었음. 매집일이 분산일보다 많을수록 좋음.</p>
+  <p class="note-sm" style="margin-top:12px;">2010~2026 백테스트에서 돌파 당일 거래량도 베이스 구간의 거래량 마름도 성과 차이를 만들지 못했음(생존 편향·실적 게이트 없음 감안). 매집·분산(U/D)은 이 검증과 별개의 참고 지표.</p>
 </div>
 {% if result.avg_volume %}
 <div class="note" style="margin-bottom:24px;">
@@ -451,6 +562,7 @@
 (function () {
   var el = document.getElementById('priceChart');
   var svg = document.getElementById('chartAnno');
+  var VCP2_CAND = {{ 'true' if (vcp2 and vcp2.candidate) else 'false' }};   // 모양 점수가 후보 기준 이상일 때만 수축 표시
   if (!el) return;
   function showChartError() {
     el.classList.remove('skeleton');
@@ -524,9 +636,13 @@
 
       var times = d.candles.map(function (c) { return c.time; });
       var first = times[0];
-      // T번호는 VCP로 판정된 종목에만. 조정폭이 넓어지는 종목에 붙이면 VCP처럼 보인다
+      // T번호는 VCP 모양 점수가 후보 기준(60점) 이상인 종목에만. 조정폭이 넓어지는 종목에 붙이면 VCP처럼 보인다.
+      // 번호는 자르기 전에 매겨 둔다(마지막 몇 개만 그려도 T3가 T1로 바뀌지 않게)
       var maxK = el.clientWidth < 600 ? 3 : 5;
-      var ks = d.vcp_detected ? (d.contractions || []).filter(function (k) { return k.h_time >= first; }).slice(-maxK) : [];
+      var ks = (d.vcp2 && VCP2_CAND)
+        ? (d.vcp2.contractions || []).map(function (k, i) { k.n = i + 1; return k; })
+            .filter(function (k) { return k.h_time >= first; }).slice(-maxK)
+        : [];
       if (ks.length) document.getElementById('annoLegend').hidden = false;
       var tightest = ks.length ? ks.reduce(function (a, b) { return b.pct < a.pct ? b : a; }) : null;
 
@@ -563,7 +679,7 @@
           if (x1 == null || x2 == null || y1 == null || y2 == null) return;
           var tight = k === tightest && ks.length > 1;
           node('path', { d: 'M' + x1 + ' ' + (y1 - 5) + ' L' + x2 + ' ' + (y2 + 5), stroke: tight ? C.ink : C.ink2, 'stroke-width': tight ? 2.2 : 1.4, fill: 'none', 'stroke-linecap': 'round' });
-          var label = 'T' + (i + 1) + ' ' + k.pct + '%';
+          var label = 'T' + k.n + ' ' + k.pct + '%';
           var w = label.length * 8.5;
           var lx = Math.min(Math.max(4, x1 - w / 2), plotW - w - 4);
           var ly = place(lx, Math.max(18, y1 - 12), w);
@@ -592,6 +708,76 @@
       redraw();
     })
     .catch(showChartError);
+})();
+
+(function () {
+  var root = document.getElementById('calc');
+  if (!root) return;
+  var cfg = JSON.parse(root.getAttribute('data-cfg'));
+  var us = cfg.market === 'US';
+  var byId = function (id) { return document.getElementById(id); };
+  var el = { entry: byId('c-entry'), account: byId('c-account'), risk: byId('c-risk') };
+  function num(v) { var n = parseFloat(String(v).replace(/[,$₩\s]/g, '')); return isFinite(n) ? n : null; }
+  function money(v) { return us ? '$' + v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '₩' + Math.round(v).toLocaleString('ko-KR'); }
+  function amount(v) { return (us ? '$' : '₩') + Math.round(v).toLocaleString(us ? 'en-US' : 'ko-KR'); }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  var kAcc = 'calc_account_' + cfg.market, kRisk = 'calc_risk';
+  el.entry.value = us ? Number(cfg.entry).toFixed(2) : Math.round(cfg.entry);
+  el.account.value = Number(load(kAcc) ? num(load(kAcc)) : cfg.account).toLocaleString(us ? 'en-US' : 'ko-KR');
+  el.risk.value = load(kRisk) || cfg.risk_pct;
+  var lowOk = cfg.base_low && cfg.base_low > 0;
+  if (!lowOk) { var lab = byId('c-low-label'); lab.classList.add('is-off'); lab.querySelector('input').disabled = true; }
+
+  function mode() { return document.querySelector('input[name=c-mode]:checked').value; }
+  function out(id, t) { byId(id).innerHTML = t; }
+  function render() {
+    var entry = num(el.entry.value), account = num(el.account.value), riskPct = num(el.risk.value);
+    var notes = [];
+    ['o-stop', 'o-target', 'o-shares', 'o-position', 'o-loss', 'o-risk'].forEach(function (i) { out(i, '-'); });
+    byId('c-vs-pivot').textContent = '';
+    if (!entry || entry <= 0 || !account || !riskPct) { byId('o-notes').innerHTML = ''; return; }
+    if (cfg.pivot) {
+      var vs = (entry / cfg.pivot - 1) * 100;
+      byId('c-vs-pivot').textContent = '피벗 대비 ' + (vs >= 0 ? '+' : '−') + Math.abs(vs).toFixed(1) + '%';
+    }
+    var fixedStop = entry * (1 - cfg.stop_pct / 100);
+    var lowStop = lowOk ? cfg.base_low * (1 - cfg.low_buffer_pct / 100) : null;
+    var m = mode(), stop, label;
+    if (m === 'fixed' || lowStop === null) { stop = fixedStop; label = '고정'; }
+    else if (m === 'low') { stop = lowStop; label = '저점'; }
+    else { stop = Math.max(fixedStop, lowStop); label = stop === lowStop ? '저점' : '고정'; }
+    if (stop >= entry) { notes.push('<li class="warn">마지막 저점이 진입가 위라 이 방식은 쓸 수 없음. 다른 방식 선택.</li>'); byId('o-notes').innerHTML = notes.join(''); return; }
+    var perShare = entry - stop, riskOfEntry = perShare / entry * 100;
+    var weight = Math.min(riskPct / riskOfEntry * 100, cfg.max_weight);
+    var position = account * weight / 100;
+    var shares = Math.floor(position / entry);
+    var loss = shares * perShare;
+    out('o-stop', money(stop) + ' <small>−' + riskOfEntry.toFixed(1) + '%</small>');
+    out('o-target', money(entry + cfg.r_mult * perShare) + ' <small>+' + (riskOfEntry * cfg.r_mult).toFixed(1) + '%</small>');
+    out('o-shares', shares.toLocaleString('ko-KR') + '주');
+    out('o-position', amount(shares * entry) + ' <small>' + (shares * entry / account * 100).toFixed(1) + '%</small>');
+    out('o-loss', amount(loss) + ' <small>계좌의 ' + (loss / account * 100).toFixed(2) + '%</small>');
+    out('o-risk', riskOfEntry.toFixed(1) + '%');
+    if (m === 'near' && lowStop !== null && label === '고정') notes.push('<li>마지막 저점 손절은 ' + (((entry - lowStop) / entry) * 100).toFixed(1) + '%로 ' + cfg.stop_pct + '%보다 멀어서 고정 손절을 적용.</li>');
+    if (m === 'low' && riskOfEntry > cfg.stop_pct) notes.push('<li class="warn">손절폭 ' + riskOfEntry.toFixed(1) + '%로 ' + cfg.stop_pct + '%를 넘음. 손절폭이 클수록 같은 손실 한도에서 수량이 줄어듦.</li>');
+    if (weight >= cfg.max_weight) notes.push('<li>단일 종목 상한 ' + cfg.max_weight + '%에 걸려 수량이 제한됨.</li>');
+    if (shares < 1) notes.push('<li class="warn">이 손실 한도로는 1주도 못 산다. 한도나 계좌 규모를 확인.</li>');
+    byId('o-notes').innerHTML = notes.join('');
+  }
+  root.addEventListener('input', function (e) {
+    if (e.target === el.account) store(kAcc, el.account.value);
+    if (e.target === el.risk) store(kRisk, el.risk.value);
+    render();
+  });
+  root.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-fill]');
+    if (!b) return;
+    var v = parseFloat(b.getAttribute('data-fill'));
+    el.entry.value = us ? v.toFixed(2) : Math.round(v);
+    render();
+  });
+  render();
 })();
 </script>
 {% endblock %}

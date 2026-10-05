@@ -208,7 +208,7 @@ A neutral gunmetal-and-paper world where hue is reserved for state and for the o
 
 ### Secondary: strip holder states
 The coloured block at the head of each strip. One state, one colour, everywhere (home strips, detail strip, VCP log holder cells).
-- **Cleared Yellow** (holder-go): 적극 매수. Same pigment as the sign: on a strip rack yellow means "go".
+- **Cleared Yellow** (holder-go): 돌파권 (within 5% above the pivot) on the home list, 적극 매수 verdict on the detail page. Same pigment as the sign: on a strip rack yellow means "go".
 - **Standby Gray** (holder-wait): 대기 states, 돌파 대기 and 눌림목 대기. Waiting is gray by contract.
 - **Divert Red** (holder-warn): 매도 경고. Carries Sign Ink, not white (4.9:1).
 - **Hold Gray** (holder-hold): 관심 (`STANDBY`), 회피 (`NO GO`), 데이터 점검 (`CHECK`), and finished log rows.
@@ -252,13 +252,13 @@ These colour the regime chip and the breadth gauge fills (200-day ≥60 VFR, <40
 
 ### Hierarchy
 - **Verdict** (400, clamp(3rem, 8.4vw, 5.6rem), 1; 3.2rem under 480px): the single regime word on the board (매수 가능 / 선별 매수 / 매수 중지). Nothing else.
-- **Headline** (800, 1.55rem, 1.3; 1.3rem mobile): page titles (VCP 일지, 이메일 알림 구독).
+- **Headline** (800, 1.55rem, 1.3; 1.3rem mobile): page titles (VCP 일지).
 - **Title** (800, 1.12 to 1.14rem): bay heads and section titles, sitting on a rail.
 - **Callsign** (Overpass Mono 700, 1.16rem on strips, 1.9rem on the detail strip): the ticker.
 - **Measure** (Overpass Mono 600, 0.98rem in strip cells, up to 1.5rem for gauge values): every price, percent, count.
 - **Body** (400, 1rem, 1.55; notes 0.86rem at 1.7, advice capped at 34ch, disclaimers 80ch).
 - **Sign** (Overpass 800, 0.86 to 0.95rem, 0.02 to 0.06em tracking): nav, tabs, brand (uppercase).
-- **No English codes on screen.** Holder and regime labels are Korean only (적극 매수, 돌파 대기, 강세장 / 혼조장 / 약세장). VFR / MVFR / IFR survive only as internal token and class names.
+- **No English codes on screen.** Holder and regime labels are Korean only (돌파권, 돌파 대기, 연장, 강세장 / 혼조장 / 약세장). VFR / MVFR / IFR survive only as internal token and class names.
 - **Label** (Pretendard 700, 0.76rem): cell `dt` labels and table headers. 0.76rem is the floor; no text below 12px.
 
 ### Named Rules
@@ -268,7 +268,7 @@ These colour the regime chip and the breadth gauge fills (200-day ≥60 VFR, <40
 
 ## Layout
 
-A single centred column (max 1180px, 18px gutters, 14px under 720px, 26px top and 72px bottom padding). The home page is a vertical stack: sign bar, market tab signs, the full-width regime board, then bays (이륙 허가 · 적극 매수, 대기 · 돌파 대기, 눌림목 대기 · 연장, 매도 경고, 주도 섹터, 데이터 점검) 38px apart (22px on small phones). Each bay opens with a 2px rail, its title, a mono count, and a one-line rule; strips stack beneath with 7px gaps.
+A single centred column (max 1180px, 18px gutters, 14px under 720px, 26px top and 72px bottom padding). The home page is a vertical stack: sign bar, market tab signs, the full-width regime board, then bays (주도주 후보 with 돌파권 / 돌파 대기 / 연장 tags and filter chips, 매도 경고, 주도 섹터, 데이터 점검) 38px apart (22px on small phones). Each bay opens with a 2px rail, its title, a mono count, and a one-line rule; strips stack beneath with 7px gaps.
 
 The regime board is a two-column grid (verdict left, breadth gauges right, 44px column gap) that becomes one column under 900px. A strip is an 8-column grid on desktop (7.2rem holder, id, five measurement cells, 6.8rem pull tab, remark row beneath); under 760px it reflows to three columns with the holder as a full-width header row and the pull tab as a full-width footer. Tables become stacked label-value cards under 720px (VCP log cards become paper strips). The sticky header wraps nav signs onto their own full-width row on mobile.
 
@@ -306,7 +306,7 @@ Taxiway-sign plain: a flat block, no gradient, no shadow.
 - Mobile: nav signs split the full width equally at 40px.
 
 ### Inputs / Fields
-- **Style:** Rack Inset ground, 1px Rack Border, 3px (search) or 2px (alert form) radius, Faint placeholder.
+- **Style:** Rack Inset ground, 1px Rack Border, 3px (search) or 2px (entry calculator inputs) radius, Faint placeholder.
 - **Focus:** border turns Sign Yellow. The header search opens the ⌘K palette instead of taking input.
 
 ### Regime Board (signature)

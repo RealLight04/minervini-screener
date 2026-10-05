@@ -7,7 +7,9 @@ outcome(손절/목표/타임아웃)은 매일 스크리닝 때도 갱신되지�
 돌리면 이미 쌓인 이력에 바로 값이 채워진다.
 
 실행: python scripts/backfill_vcp_outcomes.py
+      python scripts/backfill_vcp_outcomes.py --recompute   # 손절·목표 규칙을 바꾼 뒤 결과를 전부 다시 계산
 """
+import argparse
 import logging
 import sys
 from datetime import date
@@ -24,6 +26,9 @@ from app.screener import compute_market_breadth, update_breakout_outcomes
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--recompute", action="store_true", help="이미 확정된 outcome도 지우고 현재 규칙으로 재계산")
+    args = ap.parse_args()
     init_db()  # 새 컬럼(regime_at_breakout 등) 자가치유 ALTER
     db = SessionLocal()
     try:
@@ -48,7 +53,7 @@ def main():
         db.commit()
         log.info(f"국면 스냅샷 채움: {filled}/{len(events)}건")
 
-        outcome_stats = update_breakout_outcomes(db, date.today())
+        outcome_stats = update_breakout_outcomes(db, date.today(), recompute=args.recompute)
         log.info(f"결과 확정: {outcome_stats}")
     finally:
         db.close()

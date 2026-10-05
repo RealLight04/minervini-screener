@@ -123,6 +123,19 @@
   .dq a:hover { color: var(--text); border-color: var(--muted); }
   .disclaimer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 0.82rem; color: var(--faint); line-height: 1.7; max-width: 80ch; }
 
+
+  /* ───── 후보 도구줄: 필터와 정렬 칩 ───── */
+  .cand-tools { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-bottom: 12px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; background: none; color: var(--text); border: 1px solid var(--rail); font: inherit; font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+  .chip span { font-family: var(--font-mono); font-weight: 600; color: var(--muted); }
+  .chip:hover { border-color: var(--sign); }
+  .chip[aria-pressed="true"] { background: var(--sign); color: var(--sign-ink); border-color: var(--sign); }
+  .chip[aria-pressed="true"] span { color: var(--sign-ink); }
+  .chip:focus-visible { outline: 3px solid var(--sign); outline-offset: 2px; }
+  .cell .pos { color: #146c37; }
+  [hidden] { display: none !important; }
+
   @media (max-width: 900px) {
     .board-main { grid-template-columns: 1fr; }
   }
@@ -174,7 +187,7 @@
     <p class="plan-size">계좌 {{ fmt_amount(sz.account, mk) }} 기준, 손실을 계좌의 {{ sz.account_risk_pct }}%({{ fmt_amount(sz.max_loss, mk) }})로 제한하면 비중 약 <b>{{ sz.weight_pct }}%</b>(≈ {{ fmt_amount(sz.position, mk) }}, {{ sz.shares }}주){% if sz.capped %}, 단일 종목 상한으로 제한됨{% endif %}.</p>
     {% endif %}
     <ol class="plan-steps">{% for st in p.steps %}<li>{{ st }}</li>{% endfor %}</ol>
-    <a class="plan-link" href="/stock/{{ s.ticker }}">점검표 전체 보기
+    <a class="plan-link" href="/stock/{{ s.ticker }}#calc">내 진입가로 계산
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></a>
   </div>
 </div></div>
@@ -188,7 +201,8 @@
 </button>
 {% endmacro %}
 
-{% macro vcp_tag(r) %}{% if r.vcp_detected %}<span class="vcp-tag"><span class="vcp-dot" aria-hidden="true"></span>VCP T{{ r.vcp_contractions }}{% if r.vcp_last_contraction is not none %} · {{ "%.1f"|format(r.vcp_last_contraction) }}%{% endif %}</span>{% endif %}{% endmacro %}
+{# 모양 점수: 교과서적 VCP 모양에 가까운 정도(0~100)이지 수익 예측이 아니다. 새 판정(app/vcp.py)이 형성을 못 찾은 종목은 표시하지 않는다 #}
+{% macro vcp_tag(r) %}{% if r.vcp2_score is not none %}<span class="vcp-tag" title="조정 낙폭 {{ r.vcp2_depths }}%. 모양 점수는 교과서적 VCP 모양에 가까운 정도이며 수익 예측이 아님. 뜻은 용어 가이드 참고"><span class="vcp-dot" aria-hidden="true"></span>모양 {{ "%d"|format(r.vcp2_score) }}{% if r.vcp2_grade and r.vcp2_grade != '-' %} · {{ r.vcp2_grade }}{% endif %}</span>{% endif %}{% endmacro %}
 
 {% macro rs_cell(rs) %}
 <dl class="cell c4"><dt>RS</dt><dd>{% if rs %}<span class="heat-chip" style="background:{{ rs_heat(rs) }};">{{ "%.0f"|format(rs) }}</span>{% else %}-{% endif %}</dd></dl>
@@ -260,83 +274,55 @@
   {% endif %}
 </section>
 
-{# ───── 1. 이륙 허가: 적극 매수 ───── #}
-<section class="bay" aria-labelledby="bay-go">
+{# ───── 주도주 후보: 매수 신호 3갈래를 한 목록으로, 직접 판단에 쓰는 수치를 열로 ───── #}
+<section class="bay" aria-labelledby="bay-cand">
   <div class="bay-head">
-    <h2 id="bay-go">적극 매수</h2><span class="bay-count">{{ strong_buy_list|length }}</span>
-    <p class="bay-rule">피벗을 갓 넘은 종목. 피벗 위 5%까지가 매수 구간, 손절은 진입가 −8%.</p>
+    <h2 id="bay-cand">주도주 후보</h2><span class="bay-count" id="cand-count">{{ candidates|length }}</span>
+    <p class="bay-rule">추세 템플릿, 실적, RS 상위를 통과한 종목. 태그는 피벗 대비 위치일 뿐 매수 신호가 아니며, 진입 시점은 차트에서 직접 판단. 아래 수치는 판단 보조용. 모양 점수는 교과서적 VCP 모양에 가까운 정도(0~100)이며 수익 예측이 아님. <a href="/guide#tags" style="color:var(--sign); font-weight:700;">피벗·수축 용어 보기</a></p>
   </div>
-  <div class="bay-list">
-  {% for r, s in strong_buy_list %}{% set p = plans.get(s.id) %}
-    <div class="strip-slot"><article class="strip strip--go" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">적극 매수</span></div>
+  <div class="cand-tools">
+    <div class="chips" role="group" aria-label="피벗 대비 위치로 거르기">
+      <button type="button" class="chip" data-filter="all" aria-pressed="true">전체 <span>{{ candidates|length }}</span></button>
+      <button type="button" class="chip" data-filter="break" aria-pressed="false">돌파권 <span>{{ cand_counts.break }}</span></button>
+      <button type="button" class="chip" data-filter="wait" aria-pressed="false">돌파 대기 <span>{{ cand_counts.wait }}</span></button>
+      <button type="button" class="chip" data-filter="ext" aria-pressed="false">연장 <span>{{ cand_counts.ext }}</span></button>
+    </div>
+    <div class="chips" role="group" aria-label="정렬">
+      <button type="button" class="chip" data-sort="rs" aria-pressed="true">RS 높은 순</button>
+      <button type="button" class="chip" data-sort="gap" aria-pressed="false">피벗 가까운 순</button>
+      <button type="button" class="chip" data-sort="volx" aria-pressed="false">거래량 큰 순</button>
+      <button type="button" class="chip" data-sort="shape" aria-pressed="false">모양 점수 순</button>
+    </div>
+    <div class="chips" role="group" aria-label="모양 점수로 거르기">
+      <button type="button" class="chip" id="shape-toggle" data-min="{{ shape_min }}" aria-pressed="false">모양 {{ shape_min }}점 이상 <span>{{ cand_counts.shape }}</span></button>
+    </div>
+  </div>
+  <div class="bay-list" id="cand-list">
+  {% for c in candidates %}{% set r = c.r %}{% set s = c.s %}{% set p = plans.get(s.id) %}
+    <div class="strip-slot" data-state="{{ c.state }}" data-rs="{{ r.rs_rank or 0 }}" data-gap="{{ (c.gap|abs) if c.gap is not none else 999 }}" data-volx="{{ c.volx or 0 }}" data-shape="{{ r.vcp2_score or 0 }}">
+      <article class="strip {{ 'strip--go' if c.state == 'break' else 'strip--buy' }}" style="--i:{{ loop.index0 }}">
+      <div class="strip-holder"><span class="holder-label">{{ {'break': '돌파권', 'wait': '돌파 대기', 'ext': '연장'}[c.state] }}</span></div>
       <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
-      <dl class="cell c1"><dt>피벗</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
-      <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.pivot_price %} <small>+{{ "%.1f"|format((r.close / r.pivot_price - 1) * 100) }}%</small>{% endif %}</dd></dl>
-      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
+      <dl class="cell c1"><dt>피벗 대비</dt><dd>{% if c.gap is not none %}<span class="{{ 'pos' if c.gap >= 0 else '' }}">{{ '+' if c.gap >= 0 else '−' }}{{ "%.1f"|format(c.gap|abs) }}%</span><small>피벗 {{ fmt_price(r.pivot_price, mk) }}</small>{% else %}-<small>베이스 없음</small>{% endif %}</dd></dl>
+      <dl class="cell c2"><dt>10일 변동폭</dt><dd>{% if c.range10 is not none %}{{ "%.1f"|format(c.range10) }}%{% else %}-{% endif %}<small>고가·저가 폭</small></dd></dl>
+      <dl class="cell c3"><dt>거래량</dt><dd>{% if c.volx %}{{ "%.1f"|format(c.volx) }}x{% else %}-{% endif %}<small>50일 평균 대비</small></dd></dl>
       {{ rs_cell(r.rs_rank) }}
-      {{ pull_button(s) }}
-    </article>
-    {{ plan_sheet(p, s, mk) }}</div>
-  {% else %}
-    <div class="slot-empty"><b>빈 슬롯</b>오늘 피벗을 갓 넘은 종목 없음. 돌파 대기 베이에서 가까운 순으로 확인.</div>
-  {% endfor %}
-  </div>
-</section>
-
-{# ───── 2. 대기: 돌파 대기 ───── #}
-<section class="bay" aria-labelledby="bay-wait">
-  <div class="bay-head">
-    <h2 id="bay-wait">돌파 대기</h2><span class="bay-count">{{ breakout_watch|length }}</span>
-    <p class="bay-rule">베이스를 다 만든 종목. 종가가 피벗을 넘는 날이 매수일, 피벗까지 가까운 순.</p>
-  </div>
-  <div class="bay-list">
-  {% for r, s, gap in breakout_watch %}{% set p = plans.get(s.id) %}
-    <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">돌파 대기</span></div>
-      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
-      <dl class="cell c1"><dt>피벗 = 매수가</dt><dd>{{ fmt_price(r.pivot_price, mk) }}</dd></dl>
-      <dl class="cell c2"><dt>피벗까지</dt><dd>+{{ gap }}%</dd></dl>
-      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
-      {{ rs_cell(r.rs_rank) }}
-      {{ pull_button(s) }}
-    </article>
-    {{ plan_sheet(p, s, mk) }}</div>
-  {% else %}
-    <div class="slot-empty"><b>빈 슬롯</b>베이스를 완성하고 피벗 아래에서 대기 중인 종목 없음.</div>
-  {% endfor %}
-  </div>
-</section>
-
-{# ───── 3. 눌림목 대기: 연장 ───── #}
-{% if extended_list %}
-<section class="bay" aria-labelledby="bay-ext">
-  <div class="bay-head">
-    <h2 id="bay-ext">눌림목 대기</h2><span class="bay-count">{{ extended_list|length }}</span>
-    <p class="bay-rule">추세·실적은 통과했지만 매수 구간을 지나 올라간 종목. 추격하지 않고 50일선까지 눌릴 때 진입.</p>
-  </div>
-  <div class="bay-list">
-  {% for r, s in extended_list %}{% set p = plans.get(s.id) %}
-    <div class="strip-slot"><article class="strip strip--buy" style="--i:{{ loop.index0 }}">
-      <div class="strip-holder"><span class="holder-label">눌림목 대기</span></div>
-      <a class="strip-id" href="/stock/{{ s.ticker }}"><span class="callsign">{{ s.ticker }}</span><span class="strip-name">{{ s.name or '' }}</span>{{ vcp_tag(r) }}</a>
-      <dl class="cell c1"><dt>눌림 진입(50일선)</dt><dd>{{ fmt_price(r.ma50, mk) }}</dd></dl>
-      <dl class="cell c2"><dt>현재가</dt><dd>{{ fmt_price(r.close, mk) }}{% if r.ma50 %} <small>+{{ "%.1f"|format((r.close / r.ma50 - 1) * 100) }}%</small>{% endif %}</dd></dl>
-      <dl class="cell c3"><dt>손절</dt><dd class="neg">{{ fmt_price(r.stop_loss, mk) }}{% if p and p.risk_pct %} <small>−{{ p.risk_pct }}%</small>{% endif %}</dd></dl>
-      {{ rs_cell(r.rs_rank) }}
-      {{ pull_button(s) }}
+      <button type="button" class="strip-pull" aria-expanded="false" aria-controls="plan-{{ s.id }}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        진입 계산
+      </button>
     </article>
     {{ plan_sheet(p, s, mk) }}</div>
   {% endfor %}
+    <div class="slot-empty" id="cand-empty" {% if candidates %}hidden{% endif %}><b>빈 슬롯</b>이 조건에 맞는 후보 없음.</div>
   </div>
 </section>
-{% endif %}
 
 {# ───── 4. 매도 경고 ───── #}
 <section class="bay" aria-labelledby="bay-warn">
   <div class="bay-head">
     <h2 id="bay-warn">매도 경고 · 50일선 이탈</h2><span class="bay-count">{{ sell_count }}</span>
-    <p class="bay-rule">상승 추세였다가 50일선 아래로 마감한 종목. 보유 중이면 매도·비중 축소 검토. RS 강한 순.</p>
+    <p class="bay-rule">200일선 위에서 50일선 아래로 마감한 종목. 보유 중이면 매도·비중 축소 검토. RS 강한 순.</p>
   </div>
   <div class="bay-list">
   {% macro warn_strip(r, s, i) %}
@@ -354,7 +340,7 @@
   {% endmacro %}
   {% for r, s in sell_list[:12] %}{{ warn_strip(r, s, loop.index0) }}
   {% else %}
-    <div class="slot-empty"><b>빈 슬롯</b>50일선을 새로 이탈한 상승 추세 종목 없음.</div>
+    <div class="slot-empty"><b>빈 슬롯</b>200일선 위에서 50일선 아래로 마감한 종목 없음.</div>
   {% endfor %}
   </div>
   {% if sell_list|length > 12 %}
@@ -415,5 +401,35 @@
     strip.classList.toggle('is-pulled', open);
     if (plan) plan.classList.toggle('is-open', open);
   });
+
+  // 후보 거르기와 정렬 (서버 호출 없이 DOM만 만진다)
+  (function () {
+    var list = document.getElementById('cand-list');
+    if (!list) return;
+    var slots = Array.prototype.slice.call(list.querySelectorAll('.strip-slot'));
+    var empty = document.getElementById('cand-empty'), count = document.getElementById('cand-count');
+    var filter = 'all', sort = 'rs', shapeOnly = false;
+    var shapeBtn = document.getElementById('shape-toggle');
+    function apply() {
+      var order = slots.slice().sort(function (a, b) {
+        var k = sort === 'gap' ? 1 : -1, f = sort === 'gap' ? 'gap' : sort;
+        return k * (parseFloat(a.dataset[f]) - parseFloat(b.dataset[f]));
+      });
+      var shown = 0;
+      order.forEach(function (el) {
+        var ok = (filter === 'all' || el.dataset.state === filter)
+          && (!shapeOnly || parseFloat(el.dataset.shape) >= parseFloat(shapeBtn.dataset.min));
+        el.hidden = !ok; if (ok) shown++;
+        list.insertBefore(el, empty);
+      });
+      empty.hidden = shown > 0; count.textContent = shown;
+    }
+    document.addEventListener('click', function (e) {
+      var f = e.target.closest('[data-filter]'), s = e.target.closest('[data-sort]');
+      if (f) { filter = f.dataset.filter; document.querySelectorAll('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', b === f ? 'true' : 'false'); }); apply(); }
+      if (s) { sort = s.dataset.sort; document.querySelectorAll('[data-sort]').forEach(function (b) { b.setAttribute('aria-pressed', b === s ? 'true' : 'false'); }); apply(); }
+      if (e.target.closest('#shape-toggle')) { shapeOnly = !shapeOnly; shapeBtn.setAttribute('aria-pressed', shapeOnly ? 'true' : 'false'); apply(); }
+    });
+  })();
 </script>
 {% endblock %}

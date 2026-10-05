@@ -337,7 +337,7 @@
       <div class="nav-links">
         <a href="/" {% if path == '/' %}aria-current="page"{% endif %}>오늘의 판정</a>
         <a href="/vcp" {% if path.startswith('/vcp') %}aria-current="page"{% endif %} title="VCP(변동성 축소 패턴) 형성·돌파·실패 이력">VCP 일지</a>
-        <a href="/alerts" {% if path.startswith('/alerts') %}aria-current="page"{% endif %}>알림</a>
+        <a href="/guide" {% if path.startswith('/guide') %}aria-current="page"{% endif %} title="수축(T1·T2)·피벗·돌파가 무슨 뜻인지">용어</a>
       </div>
       <form class="search" action="/search" method="get" role="search">
         <input name="ticker" placeholder="티커 검색" autocomplete="off" aria-label="티커 검색">
@@ -415,7 +415,7 @@
       var QUICK_NAV = [
         { label: '홈 — 오늘의 스크리닝', href: '/' },
         { label: 'VCP 레지스트리', href: '/vcp' },
-        { label: '이메일 알림', href: '/alerts' }
+        { label: '용어 가이드', href: '/guide' }
       ];
 
       function openPalette() {

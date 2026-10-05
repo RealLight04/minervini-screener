@@ -15,7 +15,7 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
   예외 하나: 종목 상세만 밝은 "차트 노트" 용지. `--paper*` 토큰을 `.notebook`이 의미 토큰에 다시
   매핑하는 방식이고(`stock.html`), 테마 전환이 아니다. 다른 페이지를 밝게 만들지 말 것.
 - **시각 규칙은 `DESIGN.md`가 기준.** 세계관은 "운항 관제실"(건메탈 랙 · 인쇄 비행 스트립 · 비행장 표지).
-  색의 의미(노랑=적극 매수·인터랙션, 회색=대기, 빨강=매도, 국면=VFR/MVFR/IFR), 글꼴 역할, 금지 사항이
+  색의 의미(노랑=돌파권·인터랙션, 회색=대기, 빨강=매도, 국면=VFR/MVFR/IFR), 글꼴 역할, 금지 사항이
   거기 있다. 제품 맥락은 `PRODUCT.md`. Figma 사본: https://www.figma.com/design/t8mXuZka6OS3qbZv4MipwW
 - **DB는 커밋되는 스냅샷.** `screener.db`(SQLite)는 배포 스냅샷이라 git에 **커밋**한다
   (`.gitignore` 하지 않음). Postgres 경로는 백업용.
@@ -32,6 +32,16 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
   force=True를 주면 마지막 스크리닝 날짜의 결과를 그 자리에서 다시 계산하고 VCP 레지스트리는 건드리지 않는다.
 - 재스크리닝 후 **서버 코드도 재시작**해야 새 파이썬 로직이 로드된다(서버는 요청 시 DB만
   읽으므로 데이터 변경은 즉시 보이지만, 함수 변경은 재시작 필요).
+
+## VCP 모양 점수와 형성 추적
+
+- `app/vcp.py`(순수 함수 점수 모델, 임계값은 `config.py`의 `VCP_*`), `app/vcp_tracker.py`(형성 추적), 일지는 `vcp_formations` 기준.
+  구 판정(`detect_vcp`, `vcp_events`)은 매수 신호와 피벗용으로 남아 있다. 점수는 **모양 적합도**이지 수익 예측이 아니다
+  (2010~2026 백테스트에서 점수와 성과 무관) — 화면과 문구에 수익 예측으로 쓰지 말 것.
+- 시험: `PYTHONUTF8=1 venv/Scripts/python.exe -m unittest discover -s tests -t .` (메모리 SQLite, 운영 DB 무관).
+- 점수 가중치는 과거 성과에 맞춰 고치지 않는다. 사람 라벨과 쌓이는 결과로 표본외 검증한 뒤에만.
+- `screening_results`의 과거 종가·RS는 믿지 말 것(2026-08~09 수집 정지·RS 0 사건). 과거 재생은 일봉에서 다시 계산한다
+  (`scripts/backfill_vcp_formations.py`).
 
 ## 스키마 변경 원칙
 
@@ -88,7 +98,7 @@ Mark Minervini SEPA/VCP 주식 스크리너. **FastAPI + Jinja2 서버렌더링 
 Owner 외 전원 금지: git `add`/`commit`/`stash`/`checkout`/`restore`/`reset`/`clean` ·
 8010·8011 포트에 서버 기동(**8010은 공개 퍼널에 연결돼 있다**) · `bash smoke.sh`(공용 venv에
 `pip install`을 실행한다. 기본 포트는 18010이지만 `PORT=8010`/`8011`을 주면 퍼널 포트를 건드린다) · 재스크리닝·수집 스크립트
-(`local_refresh.py`, `daily_update.py`, `collect_kr.py`, `send_alerts.py`, `backfill_eps.py`) ·
+(`local_refresh.py`, `daily_update.py`, `collect_kr.py`, `backfill_eps.py`) ·
 `GET /api/screen-now`(공개 웹 프로세스 안에서 배타적 DB 쓰기를 유발) · `pip install`(venv 공용).
 
 주의:
@@ -124,6 +134,6 @@ ENABLE_SCHEDULER=false \
 
 ## Git 원칙
 
-- 로그(`*.log`)·연구 생성물·`alerts.db`·`.env`는 커밋 금지(gitignore). 비밀값은 `.env`만.
+- 로그(`*.log`)·연구 생성물·`.env`는 커밋 금지(gitignore). 비밀값은 `.env`만.
 - 데이터/스키마가 바뀌면 `screener.db` 스냅샷을 함께 커밋. 커밋 메시지는 한국어 OK.
 - 커밋·푸시는 사용자가 요청할 때만.

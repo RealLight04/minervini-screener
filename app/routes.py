@@ -1,15 +1,19 @@
+import logging
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, Request, Form, Header, HTTPException
+from fastapi import APIRouter, Depends, Request, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app import alerts as alerts_mod
 from app.database import get_db
 from app.models import DailyPrice, Fundamental, ScreeningResult, Stock
-from app.screener import SIGNAL_LABELS, build_trade_plan, compute_market_breadth
+from app.screener import (
+    SIGNAL_LABELS, build_trade_plan, compute_market_breadth,
+    _ACCOUNT_RISK_PCT, _EXAMPLE_ACCOUNT, _EXAMPLE_ACCOUNT_KR, _MAX_WEIGHT_PCT, _PROFIT_R_MULTIPLE,
+)
 from config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
@@ -199,13 +203,13 @@ def ud_interpret(ratio) -> dict | None:
 
 
 def dryup_note(ratio) -> str:
-    """dry-up 비율(최근10일/50일 평균)을 말로. 낮을수록 매물 고갈."""
+    """dry-up 비율(최근10일/50일 평균)을 말로. 낮을수록 거래량이 많이 말랐다는 뜻(성과 예측은 아님)."""
     if ratio is None:
         return ""
     if ratio <= 0.6:
-        return f"거래량 크게 마름({ratio:.2f}x), 매물 거의 소진"
+        return f"거래량 크게 마름({ratio:.2f}x)"
     if ratio <= 0.85:
-        return f"거래량이 마르는 중({ratio:.2f}x) — 매도세 고갈"
+        return f"거래량이 마르는 중({ratio:.2f}x)"
     if ratio <= 1.1:
         return f"거래량 보통({ratio:.2f}x)"
     return f"거래량이 늘고 있음({ratio:.2f}x)"
@@ -214,8 +218,9 @@ def dryup_note(ratio) -> str:
 def volume_verdict(r) -> dict:
     """종목의 '현재 국면 + 거래량'을 조합해 거래량이 지금 건강한지 한 줄로 판정.
 
-    미너비니 원칙: 오를 땐/돌파할 땐 거래량 많아야 좋고, 쉴 때(베이스·조정)엔
-    거래량 적어야(dry-up) 좋다. 즉 같은 '거래량 적음'도 국면에 따라 정반대.
+    같은 '거래량 적음'도 국면에 따라 뜻이 다르다(베이스에선 마름, 돌파에선 약한 돌파). 다만 돌파일 거래량과
+    베이스 마름은 2010~2026 백테스트에서 성과 차이를 못 만들었으므로, 그 둘은 색 판정 없이 사실만 적는다.
+    매집·분산(U/D)과 하락 구간 경고는 이 검증과 별개라 그대로 둔다.
     """
     v = r.vol_vs_avg
     a, d = r.accum_days or 0, r.distrib_days or 0
@@ -247,23 +252,22 @@ def volume_verdict(r) -> dict:
     dry = r.dryup_ratio
 
     if phase == "breakout":
-        # 백테스트(BULL 5.5년): 돌파 '당일' 거래량은 품질 신호가 아니었다. 마른 베이스에서의
-        # 조용한 돌파가 최고 코호트(+20일 +1.9%, 손절 23%)였고, 1.4~2.0x 대량 돌파가 최악(손절 32%).
-        # 따라서 조용한 돌파를 '가짜 돌파 의심'으로 겁주지 않고, 과열(급증·과열매집)만 경고한다.
-        if v >= 2.0 or (ud is not None and ud >= 1.5):
-            return mk(WATCH, "과열 돌파 → 되돌림 주의",
-                      f"거래량 급증({v:.1f}x) 또는 과열 매집 → 추격 자제, 눌림 후 진입 고려.")
+        # 2010~2026 백테스트(트렌드 템플릿 통과 종목, 5천여 건): 돌파일 거래량 크기도, 베이스 거래량 마름도
+        # 성과 차이를 만들지 못했다. 그래서 건강·위험 같은 색 판정은 하지 않고 사실만 적는다(모두 중립).
+        if v >= 2.0:
+            return mk(NEU, "대량 거래 돌파",
+                      f"거래량 {v:.1f}x. 백테스트에서 돌파일 거래량 크기와 성과 사이에 뚜렷한 관계는 없었음.")
         if r.vcp_volume_dryup or (dry is not None and dry < 0.85):
-            return mk(GOOD, "마른 베이스에서 돌파 → 건강",
-                      f"베이스 거래량이 마른 상태에서 피벗 돌파 → 미너비니가 선호하는 셋업(당일 {v:.1f}x).")
+            return mk(NEU, "마른 베이스에서 돌파",
+                      f"베이스 거래량이 마른 상태에서 피벗 돌파(당일 {v:.1f}x). 거래량 마름도 백테스트 성과 차이는 없었음.")
         return mk(NEU, "피벗 돌파",
-                  f"당일 거래량 {v:.1f}x. 돌파일 거래량보다 '베이스가 말랐는지'가 성패를 가릅니다.")
+                  f"당일 거래량 {v:.1f}x. 돌파일 거래량도 베이스 거래량 마름도 백테스트 성과와 뚜렷한 관계는 없었음.")
 
     if phase == "base":
         if r.vcp_volume_dryup or (dry is not None and dry < 0.85) or v < 0.85:
             grade = f"{dry:.2f}x" if dry is not None else f"{v:.1f}x"
-            return mk(GOOD, "거래량 마름 → 돌파 준비(좋음)",
-                      f"베이스에서 거래량 마름({grade}) → 매물 고갈, 미너비니가 원하는 VCP 상태.")
+            return mk(NEU, "베이스 거래량 마름",
+                      f"베이스에서 거래량이 마름({grade}). VCP 모양 조건에는 맞지만 이후 성과를 예측하지는 않음.")
         if ud is not None and ud < 0.8:
             return mk(WATCH, "베이스 대량 분산 → 주의",
                       f"쉬는 구간에 하락 거래량 우세(U/D {ud}) → 매물 출회 주의.")
@@ -419,6 +423,30 @@ def _fetch_sparklines(db: Session, stock_ids: list[int], days: int = 30) -> dict
     return out
 
 
+def _range10(db: Session, stock_ids: list[int]) -> dict:
+    """직전 10거래일 변동폭(%) = (최고 고가 - 최저 저가) / 최고 고가. 작을수록 최근 흐름이 조용하다."""
+    if not stock_ids:
+        return {}
+    cutoff = date.today() - timedelta(days=40)
+    rows = (
+        db.query(DailyPrice.stock_id, DailyPrice.date, DailyPrice.high, DailyPrice.low)
+        .filter(DailyPrice.stock_id.in_(stock_ids), DailyPrice.date >= cutoff)
+        .order_by(DailyPrice.stock_id, DailyPrice.date)
+        .all()
+    )
+    by: dict = {}
+    for sid, _, hi, lo in rows:
+        if hi and lo:
+            by.setdefault(sid, []).append((hi, lo))
+    out = {}
+    for sid, hl in by.items():
+        last = hl[-10:]
+        if len(last) >= 5:
+            hi = max(h for h, _ in last)
+            out[sid] = round((hi - min(l for _, l in last)) / hi * 100, 1)
+    return out
+
+
 @router.get("/", response_class=HTMLResponse)
 def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
     # 데이터가 있는 가장 최근 스크리닝 날짜 사용
@@ -441,7 +469,7 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             .all()
         )
 
-    # 적극 매수: 피벗을 갓 돌파한 최고 확신 신호 → 별도 카테고리로 최상단 표시
+    # 적극 매수: 피벗을 넘어 5% 이내인 신호 → 별도 카테고리로 최상단 표시
     strong_buy_list = _by_signals(["STRONG_BUY"])
     # 매수 후보: 나머지 매수 신호(BUY). 적극 매수는 위에서 따로 보여줌
     buy_list = _by_signals(["BUY"])
@@ -459,6 +487,29 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
 
     # 스트립을 당기면 펼쳐지는 비행 계획(진입·손절·목표·비중)
     plans = {s.id: build_trade_plan(r, market) for r, s in strong_buy_list + buy_list}
+
+    # 주도주 후보: 매수 신호 3갈래를 한 목록으로 합치고, 직접 판단에 쓰는 수치를 열로 노출.
+    # 상태는 매수 신호가 아니라 피벗 대비 위치 태그다(돌파권 / 돌파 대기 / 연장).
+    cand_rows = strong_buy_list + buy_list
+    range10 = _range10(db, [s.id for _, s in cand_rows])
+    candidates = []
+    for r, s in cand_rows:
+        piv, cl = r.pivot_price, r.close
+        gap = round((cl / piv - 1) * 100, 1) if (piv and cl) else None   # +는 피벗 위, -는 피벗까지 남은 거리
+        if r.signal == "STRONG_BUY":
+            state = "break"
+        elif piv and cl and cl < piv:
+            state = "wait"
+        else:
+            state = "ext"
+        candidates.append({
+            "r": r, "s": s, "state": state, "gap": gap,
+            "range10": range10.get(s.id), "volx": r.vol_vs_avg,
+        })
+    cand_counts = {k: sum(1 for c in candidates if c["state"] == k) for k in ("break", "wait", "ext")}
+    # VCP 모양 점수(app/vcp.py) 후보 기준 이상인 수 — 홈의 '모양 N점 이상' 토글에 쓴다
+    shape_min = int(settings.VCP_MIN_SCORE)
+    cand_counts["shape"] = sum(1 for c in candidates if (c["r"].vcp2_score or 0) >= shape_min)
 
     # 매도 경고: Stage 2 유지 중 50일선 이탈 종목 (RS 강한 순 상위 30개만 표시)
     sell_all = _by_signals(["SELL"])
@@ -513,6 +564,9 @@ def index(request: Request, market: str = "US", db: Session = Depends(get_db)):
             "breakout_watch": breakout_watch,
             "extended_list": extended_list,
             "plans": plans,
+            "candidates": candidates,
+            "cand_counts": cand_counts,
+            "shape_min": shape_min,
             "data_list": data_list,
             "themes": themes,
             "sell_list": sell_list,
@@ -554,6 +608,38 @@ def search_tickers(q: str = "", db: Session = Depends(get_db)):
         {"ticker": s.ticker, "name": s.name or "", "market": s.market}
         for s in stocks
     ]}
+
+
+VCP2_PART_LABELS = {"trend": "추세", "uptrend": "상승 구조", "contraction": "수축", "volume": "거래량",
+                    "higher_low": "저점 상승", "tightness": "타이트함", "proximity": "피벗 근접", "rs": "상대강도"}
+VCP2_STATE_LABELS = {"WATCH": "관찰", "NEAR_PIVOT": "피벗 근접", "BREAKOUT": "돌파",
+                     "FAILED_BREAKOUT": "돌파 실패", "INVALIDATED": "무효"}
+
+
+def vcp2_card(r) -> dict | None:
+    """VCP 점수 모델 결과를 화면용으로 정리. 점수는 '교과서적 모양에 얼마나 가까운가'이지 수익 예측이 아니다."""
+    import json
+    from bisect import bisect_right
+    from app import vcp as vcp_model
+
+    if r is None or r.vcp2_score is None:
+        return None
+    try:
+        parts = json.loads(r.vcp2_parts or "{}")
+    except ValueError:
+        parts = {}
+    rows = [{"key": k, "label": VCP2_PART_LABELS[k], "points": parts.get(k), "max": mx}
+            for k, mx in vcp_model.WEIGHTS.items()]
+    qlabel = None
+    if r.vcp2_bvr is not None:
+        qlabel = vcp_model.QUALITY_LABELS[bisect_right(vcp_model.QUALITY_EDGES, r.vcp2_bvr)]
+    return {
+        "score": r.vcp2_score, "grade": r.vcp2_grade, "state": r.vcp2_state,
+        "state_label": VCP2_STATE_LABELS.get(r.vcp2_state, r.vcp2_state),
+        "depths": r.vcp2_depths, "pivot": r.vcp2_pivot, "key": r.vcp2_key,
+        "parts": rows, "raw_max": vcp_model.MAX_RAW, "bvr": r.vcp2_bvr, "bvr_label": qlabel, "age": r.vcp2_age,
+        "candidate": r.vcp2_score >= vcp_model.MIN_SCORE and r.vcp2_state != "INVALIDATED",
+    }
 
 
 @router.get("/stock/{ticker}", response_class=HTMLResponse)
@@ -632,8 +718,8 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
         "eps": _accel3(eps_g),
     }
     eps_accelerating = accel["eps"]  # 기존 호환
-    # Code 33: 매출·영업이익이 동시에 3분기 연속 가속 = 전방위 실적 모멘텀 (미너비니 최상급)
-    code33 = accel["revenue"] and accel["operating"]
+    # Code 33(미너비니): EPS·매출·마진이 함께 3분기 연속 가속. 마진은 분기 영업이익률로 대신한다.
+    code33 = accel["eps"] and accel["revenue"] and accel["margin"]
 
     # EPS 연속 성장 streak: 최신 분기부터 YoY가 양(+)으로 끊기지 않고 이어진 분기 수.
     # '가속'(증가율이 매분기 커짐)과 다른, '연속 성장' 개념(미너비니 핵심 점검 항목).
@@ -670,6 +756,25 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
 
     trade_plan = build_trade_plan(latest_result, stock.market or "US") if latest_result else None
 
+    # 내 진입가 계산기 입력. 계산은 브라우저에서 한다(서버 호출 없음).
+    calc = None
+    if latest_result and latest_result.close:
+        is_us = (stock.market or "US") == "US"
+        pv, cl = latest_result.pivot_price, latest_result.close
+        calc = {
+            "market": "US" if is_us else "KR",
+            "pivot": pv,
+            "close": cl,
+            "base_low": latest_result.vcp_base_low,
+            "entry": pv if (pv and cl < pv) else cl,
+            "account": _EXAMPLE_ACCOUNT if is_us else _EXAMPLE_ACCOUNT_KR,
+            "risk_pct": _ACCOUNT_RISK_PCT,
+            "max_weight": _MAX_WEIGHT_PCT,
+            "stop_pct": settings.STOP_LOSS_PCT,
+            "r_mult": _PROFIT_R_MULTIPLE,
+            "low_buffer_pct": 1.0,   # 저점 손절은 저점 아래 이만큼 여유(꼬리 한 번에 털리는 걸 줄임). 검증하지 않은 초기값
+        }
+
     return templates.TemplateResponse(
         request,
         "stock.html",
@@ -689,6 +794,8 @@ def stock_detail(ticker: str, request: Request, db: Session = Depends(get_db)):
             "eps_surprise_latest": eps_surprise_latest,
             "beat_streak": beat_streak,
             "trade_plan": trade_plan,
+            "calc": calc,
+            "vcp2": vcp2_card(latest_result),
         },
     )
 
@@ -706,83 +813,46 @@ def trigger_screen(db: Session = Depends(get_db), x_admin_token: str = Header(de
     return {"status": "ok", "passed": passed, "date": str(date.today())}
 
 
-@router.get("/alerts", response_class=HTMLResponse)
-def alerts_page(request: Request, ok: str = "", err: str = ""):
-    """이메일 알림 구독 페이지."""
-    return templates.TemplateResponse(request, "alerts.html", context={
-        "avail_markets": MARKETS, "ok": ok, "err": err,
-        "email_enabled": alerts_mod.email_enabled(),
-    })
-
-
-@router.post("/alerts/subscribe")
-def alerts_subscribe(email: str = Form(...), market: str = Form("US")):
-    email = (email or "").strip().lower()
-    if "@" not in email or "." not in email.split("@")[-1]:
-        return RedirectResponse("/alerts?err=이메일 형식 확인 필요", status_code=303)
-    if not alerts_mod.email_enabled():
-        return RedirectResponse("/alerts?err=발송 계정 미설정, 관리자 설정 후 이용 가능", status_code=303)
-    token, already = alerts_mod.add_subscriber(email, market if market in MARKETS else "US")
-    if already:
-        return RedirectResponse("/alerts?ok=이미 구독 중입니다", status_code=303)
-    ok_redirect = RedirectResponse("/alerts?ok=확인 메일 발송. 메일함에서 '구독 확정'을 누르면 완료", status_code=303)
-    if alerts_mod.recently_sent(email):
-        # 짧은 간격의 반복 요청은 재발송만 억제(이메일 폭탄 방지) — 열거 방지 위해 응답은 동일하게
-        return ok_redirect
-    sent, msg = alerts_mod.send_confirmation(email, token)
-    if not sent:
-        return RedirectResponse(f"/alerts?err=확인메일 발송 실패 ({msg[:50]})", status_code=303)
-    alerts_mod.mark_sent(email)
-    return ok_redirect
-
-
-@router.get("/alerts/confirm", response_class=HTMLResponse)
-def alerts_confirm(request: Request, token: str = ""):
-    email = alerts_mod.confirm(token)
-    msg = (f"{email} 구독 확정. 매일 새 돌파·매도신호 발송."
-           if email else "잘못되었거나 만료된 링크.")
-    return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
-
-
-@router.get("/alerts/unsubscribe", response_class=HTMLResponse)
-def alerts_unsubscribe(request: Request, token: str = ""):
-    email = alerts_mod.unsubscribe(token)
-    msg = f"{email} 구독 취소 완료." if email else "잘못된 링크."
-    return templates.TemplateResponse(request, "alerts_result.html", context={"msg": msg, "ok": bool(email)})
+@router.get("/guide", response_class=HTMLResponse)
+def guide(request: Request):
+    """용어 가이드: 수축(T1·T2)·피벗·돌파가 무엇이고 이 사이트가 어떻게 계산하는지."""
+    return templates.TemplateResponse(request, "guide.html", context={})
 
 
 @router.get("/vcp", response_class=HTMLResponse)
 def vcp_page(request: Request, db: Session = Depends(get_db)):
-    """VCP 레지스트리 — 형성 중(감시 대상) + 최근 돌파(셋업 결과) 이력."""
-    from app.models import VCPEvent
+    """VCP 일지 — 형성 중(감시 대상) + 최근 돌파(셋업 결과) 이력. 점수 모델(app/vcp.py)의 vcp_formations 기준.
+
+    예전 판정(vcp_events)은 건드리지 않고 보존하며, 돌파 후 성과 통계만 한 줄 요약으로 함께 보여준다."""
+    from app.models import VCPFormation
 
     latest = _latest_screen_date(db) or date.today()
 
     def _days(a, b):
         return (a - b).days if (a and b) else None
 
-    # 형성 중(+돌파 임박 대기) — 품질 강한 순
+    # 형성 중: 아직 돌파 전이고 추적 중인 형성 — 모양 점수 높은 순
     forming = (
-        db.query(VCPEvent, Stock)
-        .join(Stock, Stock.id == VCPEvent.stock_id)
-        .filter(VCPEvent.status.in_(["forming", "breakout_watch"]))
-        .order_by(VCPEvent.quality.desc().nullslast(), VCPEvent.rs_rank.desc())
+        db.query(VCPFormation, Stock)
+        .join(Stock, Stock.id == VCPFormation.stock_id)
+        .filter(VCPFormation.resolved_date.is_(None), VCPFormation.breakout_date.is_(None))
+        .order_by(VCPFormation.score_last.desc().nullslast(), VCPFormation.rs_rank.desc())
         .all()
     )
     forming_rows = []
     for ev, s in forming:
-        gap = (round((ev.pivot_price / ev.close - 1) * 100, 1)
-               if (ev.pivot_price and ev.close and ev.close < ev.pivot_price) else None)
+        gap = (round((ev.pivot / ev.close - 1) * 100, 1)
+               if (ev.pivot and ev.close and ev.close < ev.pivot) else None)
         forming_rows.append({"ev": ev, "stock": s, "market": s.market or "US",
                              "days": _days(latest, ev.first_detected), "gap": gap,
-                             "watching": ev.status == "breakout_watch"})
+                             "depths": (ev.depths or "").replace("/", " → ")})
 
-    # 최근 30일 돌파 — 돌파 후 성과(현재가 대비)까지
+    # 최근 30일 돌파 — 돌파 후 성과(현재가 대비)까지. 돌파 뒤 실패했거나 무효가 된 것도 기록은 남겨 함께 보인다
     broke = (
-        db.query(VCPEvent, Stock)
-        .join(Stock, Stock.id == VCPEvent.stock_id)
-        .filter(VCPEvent.status == "broke_out", VCPEvent.breakout_date >= latest - timedelta(days=30))
-        .order_by(VCPEvent.breakout_date.desc())
+        db.query(VCPFormation, Stock)
+        .join(Stock, Stock.id == VCPFormation.stock_id)
+        .filter(VCPFormation.breakout_date.isnot(None), VCPFormation.breakout_date >= latest - timedelta(days=30))
+        .order_by(VCPFormation.breakout_date.desc())
         .all()
     )
     broke_rows = []
@@ -794,32 +864,35 @@ def vcp_page(request: Request, db: Session = Depends(get_db)):
         ret = (round((cur_close / ev.breakout_price - 1) * 100, 1)
                if (cur_close and ev.breakout_price) else None)
         broke_rows.append({"ev": ev, "stock": s, "market": s.market or "US",
-                           "base_days": _days(ev.breakout_date, ev.first_detected),
+                           "base_days": max(0, _days(ev.breakout_date, ev.first_detected) or 0),
                            "cur_close": cur_close, "ret": ret})
 
     # 형성중→돌파 시각적 연결: 두 표 모두 같은 스파크라인 언어로 종목의 흐름을 보여줌
     all_stock_ids = [s.id for _, s in forming] + [s.id for _, s in broke]
     sparklines = _fetch_sparklines(db, all_stock_ids)
 
-    outcome_stats = _vcp_outcome_stats(db)
-
     return templates.TemplateResponse(request, "vcp.html", context={
         "forming": forming_rows, "broke": broke_rows, "screen_date": latest,
-        "sparklines": sparklines, "stats": outcome_stats,
+        "sparklines": sparklines, "stats": _vcp_outcome_stats(db, VCPFormation),
+        "legacy": _vcp_outcome_stats(db),     # 예전 판정(vcp_events)의 돌파 후 성과 — 비교용 한 줄
+        "shape_min": int(settings.VCP_MIN_SCORE),
     })
 
 
-def _vcp_outcome_stats(db: Session) -> dict:
-    """돌파(broke_out) 이벤트의 실제 손절·목표 결과 — 표본외 성과 검증용 상시 통계.
+def _vcp_outcome_stats(db: Session, model=None) -> dict:
+    """돌파한 건의 실제 손절·목표 결과 — 표본외 성과 검증용 상시 통계.
 
-    outcome_pct는 app.screener.update_breakout_outcomes가 매일 손절(-8%대)·목표(+2.5R)
+    model을 안 주면 예전 레지스트리(VCPEvent, status == broke_out), VCPFormation을 주면 breakout_date가 있는 형성.
+    outcome_pct는 app.screener.settle_outcomes가 매일 손절(-8%대)·목표(+2.5R)
     도달 여부로 채운다. '현재가 대비'가 아니라 실제 체결 규칙 기준이라 승률 해석이 다르다.
     """
-    from app.models import VCPEvent
+    from app.models import VCPEvent, VCPFormation
 
+    model = model or VCPEvent
+    cond = (VCPEvent.status == "broke_out") if model is VCPEvent else VCPFormation.breakout_date.isnot(None)
     rows = (
-        db.query(VCPEvent.outcome, VCPEvent.regime_at_breakout, VCPEvent.outcome_pct)
-        .filter(VCPEvent.status == "broke_out")
+        db.query(model.outcome, model.regime_at_breakout, model.outcome_pct)
+        .filter(cond)
         .all()
     )
     total = len(rows)
@@ -847,7 +920,10 @@ def _vcp_outcome_stats(db: Session) -> dict:
         t = sum(1 for r in sub if r.outcome == "target")
         by_regime[mk] = {"n": len(sub), "win_rate": round(t / len(sub) * 100)}
 
+    from app.screener import _PROFIT_R_MULTIPLE
     return {
+        "stop_pct": settings.STOP_LOSS_PCT,
+        "target_pct": round(settings.STOP_LOSS_PCT * _PROFIT_R_MULTIPLE, 1),
         "total": total, "resolved": len(resolved), "pending": pending_n, "timeout": timeout_n,
         "stop_n": stop_n, "target_n": target_n, "win_rate": win_rate,
         "avg_stop": avg_stop, "avg_target": avg_target, "expectancy": expectancy,
@@ -917,7 +993,7 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
     chart_stop = latest.stop_loss if latest else None
     if latest and latest.signal in ("BUY", "STRONG_BUY"):
         if latest.signal == "STRONG_BUY" and latest.pivot_price:
-            buy, buy_label = round(latest.close, 2), "갓 돌파 · 현재가 진입"
+            buy, buy_label = round(latest.close, 2), "돌파 후 현재가 진입"
         elif latest.pivot_price and latest.close < latest.pivot_price:
             buy, buy_label = latest.pivot_price, "피벗 돌파 매수"
         elif latest.ma50:
@@ -937,11 +1013,34 @@ def chart_data(ticker: str, db: Session = Depends(get_db)):
                     "pct": round((a[1] - b[1]) / a[1] * 100, 1),
                 })
 
+    # VCP 점수 모델의 수축 구간(T1, T2, …): 베이스 고점에서 가장 깊은 저점까지가 T1, 그 뒤는 지그재그.
+    # 점수는 DB에 저장된 값을 쓰고, 여기선 차트에 그릴 위치만 즉석 계산한다(종목 하나라 가볍다).
+    vcp2 = None
+    try:
+        from app import vcp as vcp_model
+        ok = [i for i in range(max(0, n - 400), n) if rows[i][2] and rows[i][3] and rows[i][4]]
+        if len(ok) >= 60:
+            f2, _ = vcp_model.detect_latest([rows[i][2] for i in ok], [rows[i][3] for i in ok],
+                                            [rows[i][4] for i in ok], [rows[i][5] or 0 for i in ok])
+            if f2 is not None:
+                def tm(k):
+                    return rows[ok[k]][0].isoformat()
+                vcp2 = {
+                    "contractions": [{"h_time": tm(c.peak_idx), "h": round(c.peak_price, 2),
+                                      "l_time": tm(c.low_idx), "l": round(c.low_price, 2),
+                                      "pct": round(c.depth_pct, 1)} for c in f2.contractions],
+                    "pivot": round(f2.pivot, 2), "pivot_time": tm(f2.pivot_idx),
+                    "base_high": round(f2.base_high, 2), "base_high_time": tm(f2.base_high_idx),
+                }
+    except Exception:
+        logger.exception("차트용 VCP 수축 계산 실패(%s)", ticker)
+
     return {
         "ticker": stock.ticker,
         "name": stock.name,
         "market": stock.market or "US",
         "currency": "$" if (stock.market or "US") == "US" else "₩",
+        "vcp2": vcp2,
         "candles": candles,
         "volume": vols,
         "ma50": ma50_s,
